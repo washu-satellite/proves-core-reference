@@ -52,6 +52,7 @@ class TelemetryGateComponentTest : public ::testing::Test {
 // ----------------------------------------------------------------------
 
 TEST_F(TelemetryGateComponentTest, EnabledForwardsEveryTick) {
+    RecordProperty("verifies", "TelemetryGate-3");
     TelemetryGate gate("gate");
     tick(gate, 7);
     tick(gate, 8);
@@ -66,6 +67,7 @@ TEST_F(TelemetryGateComponentTest, EnabledForwardsEveryTick) {
 }
 
 TEST_F(TelemetryGateComponentTest, DisabledDropsTicksAndCountsThem) {
+    RecordProperty("verifies", "TelemetryGate-2,TelemetryGate-8");
     TelemetryGate gate("gate");
     sendSetState(gate, TelemetryTxState::DISABLED);
     tick(gate);
@@ -78,6 +80,7 @@ TEST_F(TelemetryGateComponentTest, DisabledDropsTicksAndCountsThem) {
 }
 
 TEST_F(TelemetryGateComponentTest, ReEnableResumesForwardingAndStopsCounting) {
+    RecordProperty("verifies", "TelemetryGate-1,TelemetryGate-3");
     TelemetryGate gate("gate");
     sendSetState(gate, TelemetryTxState::DISABLED);
     tick(gate);
@@ -95,6 +98,7 @@ TEST_F(TelemetryGateComponentTest, ReEnableResumesForwardingAndStopsCounting) {
 // ----------------------------------------------------------------------
 
 TEST_F(TelemetryGateComponentTest, SetStateEmitsEventAndRespondsOk) {
+    RecordProperty("verifies", "TelemetryGate-1,TelemetryGate-4");
     TelemetryGate gate("gate");
     sendSetState(gate, TelemetryTxState::DISABLED, 5);
 
@@ -114,6 +118,7 @@ TEST_F(TelemetryGateComponentTest, SetStateEmitsEventAndRespondsOk) {
 }
 
 TEST_F(TelemetryGateComponentTest, CommandBeforeFirstTickIsNotClobberedByLazyLoad) {
+    RecordProperty("verifies", "TelemetryGate-1");
     seedStateFile(Components::TX_STATE_DISABLED);
     TelemetryGate gate("gate");
     // Operator enables before the first scheduler tick ever fires.
@@ -130,6 +135,7 @@ TEST_F(TelemetryGateComponentTest, CommandBeforeFirstTickIsNotClobberedByLazyLoa
 // ----------------------------------------------------------------------
 
 TEST_F(TelemetryGateComponentTest, FirstBootWithNoFileDefaultsEnabledWithoutCorruptEvent) {
+    RecordProperty("verifies", "TelemetryGate-5");
     TelemetryGate gate("gate");
     tick(gate);
 
@@ -138,6 +144,7 @@ TEST_F(TelemetryGateComponentTest, FirstBootWithNoFileDefaultsEnabledWithoutCorr
 }
 
 TEST_F(TelemetryGateComponentTest, DisabledStatePersistsAcrossReboot) {
+    RecordProperty("verifies", "TelemetryGate-4");
     {
         TelemetryGate gate("boot1");
         sendSetState(gate, TelemetryTxState::DISABLED);
@@ -152,6 +159,7 @@ TEST_F(TelemetryGateComponentTest, DisabledStatePersistsAcrossReboot) {
 }
 
 TEST_F(TelemetryGateComponentTest, CorruptStateFileDefaultsEnabledAndEmitsEvent) {
+    RecordProperty("verifies", "TelemetryGate-6");
     seedStateFile(Components::TX_STATE_DISABLED);
     Os::Test::fileSystem().files[STATE_FILE][4] ^= 0xFF;  // flip the state byte
 
@@ -165,6 +173,7 @@ TEST_F(TelemetryGateComponentTest, CorruptStateFileDefaultsEnabledAndEmitsEvent)
 }
 
 TEST_F(TelemetryGateComponentTest, TruncatedStateFileDefaultsEnabledAndEmitsEvent) {
+    RecordProperty("verifies", "TelemetryGate-6");
     seedStateFile(Components::TX_STATE_DISABLED);
     Os::Test::fileSystem().files[STATE_FILE].resize(3);  // torn write
 
@@ -176,6 +185,7 @@ TEST_F(TelemetryGateComponentTest, TruncatedStateFileDefaultsEnabledAndEmitsEven
 }
 
 TEST_F(TelemetryGateComponentTest, CorruptFileEventIsEmittedOnlyOnce) {
+    RecordProperty("verifies", "TelemetryGate-6");
     seedStateFile(Components::TX_STATE_DISABLED);
     Os::Test::fileSystem().files[STATE_FILE].resize(3);
 
@@ -193,6 +203,7 @@ TEST_F(TelemetryGateComponentTest, CorruptFileEventIsEmittedOnlyOnce) {
 // ----------------------------------------------------------------------
 
 TEST_F(TelemetryGateComponentTest, WriteFailureReportsErrorButStateChangeStands) {
+    RecordProperty("verifies", "TelemetryGate-7");
     Os::Test::fileSystem().failWrite = true;
 
     TelemetryGate gate("gate");
@@ -208,6 +219,7 @@ TEST_F(TelemetryGateComponentTest, WriteFailureReportsErrorButStateChangeStands)
 }
 
 TEST_F(TelemetryGateComponentTest, OpenFailureOnPersistReportsError) {
+    RecordProperty("verifies", "TelemetryGate-7");
     Os::Test::fileSystem().failOpenCreate = true;
 
     TelemetryGate gate("gate");
@@ -219,6 +231,7 @@ TEST_F(TelemetryGateComponentTest, OpenFailureOnPersistReportsError) {
 }
 
 TEST_F(TelemetryGateComponentTest, PartialWriteReportsError) {
+    RecordProperty("verifies", "TelemetryGate-7");
     Os::Test::fileSystem().partialWrite = true;
 
     TelemetryGate gate("gate");

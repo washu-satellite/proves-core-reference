@@ -31,6 +31,15 @@ jobs:
         run: |
           pip install -r requirements-docs.txt
 
+      # Unit-test results feed the requirements traceability matrix. A test
+      # failure must not block the docs deploy — the matrix reports it as ❌.
+      - name: Run unit tests for requirements matrix
+        continue-on-error: true
+        run: make test-unit
+
+      - name: Generate requirements traceability matrix
+        run: python3 scripts/generate_rtm.py --junit build-gtest/junit.xml --sha ${{ github.sha }}
+
       - name: Build MkDocs site
         run: |
           mkdocs build
