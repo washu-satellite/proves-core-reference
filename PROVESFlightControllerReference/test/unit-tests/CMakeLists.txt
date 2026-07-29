@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(proves_unit_tests CXX)
 
+# Pin the standard: googletest and the sources under test require C++14+, and
+# some host compilers (e.g. AppleClang) default lower.
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 enable_testing()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/fprime/googletest googletest-build)
@@ -87,6 +92,25 @@ endif()
 target_include_directories(security_deframer_authenticator PUBLIC ${PSA_CRYPTO_H})
 target_link_libraries(security_deframer_authenticator PUBLIC ${MBEDCRYPTO_LIB})
 
+# TelemetryGate TxStateCodec
+add_library(telemetry_gate_tx_state_codec STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TelemetryGate/TxStateCodec.cpp
+)
+target_include_directories(telemetry_gate_tx_state_codec PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# TelemetryGate component (real TelemetryGate.cpp built against the host stubs
+# in support/: a recording ComponentAc base and an in-memory Os::File)
+add_library(telemetry_gate_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TelemetryGate/TelemetryGate.cpp
+)
+target_include_directories(telemetry_gate_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(telemetry_gate_component PUBLIC telemetry_gate_tx_state_codec)
+
 # --- Auto-discover and build tests ---
 
 file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
@@ -105,6 +129,8 @@ foreach(test_src ${TEST_SOURCES})
         security_deframer_authenticator
         rtc_manager_rtc_helper
         proves_router_bypasser
+        telemetry_gate_tx_state_codec
+        telemetry_gate_component
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})

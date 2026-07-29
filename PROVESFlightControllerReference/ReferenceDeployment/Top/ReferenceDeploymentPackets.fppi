@@ -149,6 +149,8 @@ telemetry packets ReferenceDeploymentPackets {
 #    ComCcsdsSband.comQueue.buffQueueDepth
     payloadBufferManager.HiBuffs
     CdhCore.tlmSend.SectionEnabled
+    telemetryGate.TransmitState
+    telemetryGate.GatedTicks
   }
 
   packet FileSystem id 5 group 5 {

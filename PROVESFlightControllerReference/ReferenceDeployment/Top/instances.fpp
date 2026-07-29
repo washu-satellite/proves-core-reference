@@ -180,6 +180,8 @@ module ReferenceDeployment {
 
   instance startupManager: Components.StartupManager base id 0x1003B000
 
+  instance telemetryGate: Components.TelemetryGate base id 0x1003C000
+
   instance amateurRadio: Components.AmateurRadio base id 0x10065000
 
   # Thermal Management System

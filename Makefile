@@ -222,7 +222,11 @@ debug-install: $(OPENOCD_DIR)/.built ## Flash a file via SWD with OpenOCD. Usage
 test-unit: ## Run unit tests
 	cmake -S PROVESFlightControllerReference/test/unit-tests -B build-gtest -DBUILD_TESTING=ON
 	cmake --build build-gtest
-	ctest --test-dir build-gtest
+	ctest --test-dir build-gtest --output-junit junit.xml
+
+.PHONY: rtm
+rtm: ## Regenerate docs-site/requirements-matrix.md (run make test-unit first for statuses)
+	python3 scripts/generate_rtm.py --junit build-gtest/junit.xml
 
 FILTER ?= not sync_sequence_number and not format_filesystem
 
