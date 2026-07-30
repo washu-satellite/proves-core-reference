@@ -26,7 +26,7 @@ class CmdResponse {
   public:
     enum T { OK, INVALID_OPCODE, VALIDATION_ERROR, FORMAT_ERROR, EXECUTION_ERROR, BUSY };
     CmdResponse() : m_value(OK) {}
-    CmdResponse(T value) : m_value(value) {}
+    CmdResponse(T value) : m_value(value) {}  // NOLINT(runtime/explicit) -- implicit by design, mirrors generated code
     bool operator==(const CmdResponse& other) const { return this->m_value == other.m_value; }
     bool operator==(T value) const { return this->m_value == value; }
     T value() const { return this->m_value; }

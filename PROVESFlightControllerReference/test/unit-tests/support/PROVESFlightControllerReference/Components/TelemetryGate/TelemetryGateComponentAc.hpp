@@ -26,7 +26,7 @@ class TelemetryTxState {
   public:
     enum T { ENABLED = 0, DISABLED = 1 };
     TelemetryTxState() : m_value(ENABLED) {}
-    TelemetryTxState(T value) : m_value(value) {}
+    TelemetryTxState(T value) : m_value(value) {}  // NOLINT(runtime/explicit) -- mirrors generated code
     bool operator==(const TelemetryTxState& other) const { return this->m_value == other.m_value; }
     bool operator==(T value) const { return this->m_value == value; }
     bool operator!=(const TelemetryTxState& other) const { return !(*this == other); }

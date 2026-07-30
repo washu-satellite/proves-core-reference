@@ -5,9 +5,8 @@
 
 #include "PROVESFlightControllerReference/Components/TelemetryGate/TelemetryGate.hpp"
 
-#include "PROVESFlightControllerReference/Components/TelemetryGate/TxStateCodec.hpp"
-
 #include "Os/File.hpp"
+#include "PROVESFlightControllerReference/Components/TelemetryGate/TxStateCodec.hpp"
 
 namespace Components {
 
@@ -22,10 +21,7 @@ constexpr const char* STATE_FILE_PATH = "/tlm_tx_state.bin";
 // ----------------------------------------------------------------------
 
 TelemetryGate ::TelemetryGate(const char* const compName)
-    : TelemetryGateComponentBase(compName),
-      m_state(TelemetryTxState::ENABLED),
-      m_gated_ticks(0),
-      m_loaded(false) {}
+    : TelemetryGateComponentBase(compName), m_state(TelemetryTxState::ENABLED), m_gated_ticks(0), m_loaded(false) {}
 
 TelemetryGate ::~TelemetryGate() {}
 

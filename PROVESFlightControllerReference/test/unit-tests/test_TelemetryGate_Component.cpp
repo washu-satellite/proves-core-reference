@@ -12,9 +12,9 @@
 
 #include <gtest/gtest.h>
 
+#include "Os/File.hpp"
 #include "PROVESFlightControllerReference/Components/TelemetryGate/TelemetryGate.hpp"
 #include "PROVESFlightControllerReference/Components/TelemetryGate/TxStateCodec.hpp"
-#include "Os/File.hpp"
 
 namespace {
 
