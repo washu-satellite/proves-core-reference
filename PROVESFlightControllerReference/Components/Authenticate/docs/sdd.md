@@ -150,20 +150,21 @@ To run the SPI selection (otherwise the encryption will be the default encryptio
 
 ## Requirements
 
-| Name | Description | Validation |
-|---|---|---|
-| AUTH001 | The component shall add a data field to the config saying whether or not the component is authenticated. | Unit Test, Inspection |
-| AUTH002 | The component shall forward packets with thorough the command stack so commands can still be executed. | Unit Test, Inspection |
-| AUTH003 | The component shall validate that the SPI value corresponds to a configured Security Association. If the SPI is not recognized, the packet shall use the default encryption key and type. | Unit Test |
-| AUTH004 | The component shall validate the received sequence number against the stored sequence number for the Security Association identified by SPI. The sequence number must be greater than the stored value and within the configured sequence number window. | Unit Test |
-| AUTH05 | The component shall compute the expected HMAC over: the Security Header bytes 6-13: SPI + Sequence Number + Reserved and the Frame Data Field (bytes 22-N: F Prime command packet payload). The HMAC shall be computed using HMAC-SHA256 with the secret key associated with the SPI, truncated to 64 bits. | Unit Test |
-| AUTH06 | The component shall compare the computed HMAC with the received HMAC. If they match, authentication succeeds. If they do not match, authentication fails. | Unit Test |
-| AUTH07| If authentication succeeds, the component shall update the stored sequence number for the Security Association to the received sequence number. | Unit Test |
-| AUTH08 | If authentication succeeds, the component shall emit a ValidHash event containing the opcode (if extractable) and hash value for telemetry/logging purposes. | Unit Test |
-| AUTH09 | The component shall remove the Security Header  and Security Trailer from the Space Packet. The modified buffer then goes to the data out. | Inspection |
-| AUTH010 | The component shall handle sequence number rollover correctly (when sequence number transitions from 0xFFFFFFFF to 0x00000000). | Unit Test |
-| AUTH011 | The component shall support multiple Security Associations each identified by a unique SPI value and containing its own secret key and within the spi_dict.txt file| Unit Test, Inspection |
-| AUTH012 | The component shall provide a command and telemetry channel to report the current sequence number for a given Security Association (SPI) to enable ground station synchronization. | Unit Test, Inspection
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|AUTH001|The component shall add a data field to the config saying whether or not the component is authenticated.|Unit Test, Inspection|||||
+|AUTH002|The component shall forward packets with thorough the command stack so commands can still be executed.|Unit Test, Inspection|||||
+|AUTH003|The component shall validate that the SPI value corresponds to a configured Security Association. If the SPI is not recognized, the packet shall use the default encryption key and type.|Unit Test|||||
+|AUTH004|The component shall validate the received sequence number against the stored sequence number for the Security Association identified by SPI. The sequence number must be greater than the stored value and within the configured sequence number window.|Unit Test|||||
+|AUTH05|The component shall compute the expected HMAC over: the Security Header bytes 6-13: SPI + Sequence Number + Reserved and the Frame Data Field (bytes 22-N: F Prime command packet payload). The HMAC shall be computed using HMAC-SHA256 with the secret key associated with the SPI, truncated to 64 bits.|Unit Test|||||
+|AUTH06|The component shall compare the computed HMAC with the received HMAC. If they match, authentication succeeds. If they do not match, authentication fails.|Unit Test|||||
+|AUTH07|If authentication succeeds, the component shall update the stored sequence number for the Security Association to the received sequence number.|Unit Test|||||
+|AUTH08|If authentication succeeds, the component shall emit a ValidHash event containing the opcode (if extractable) and hash value for telemetry/logging purposes.|Unit Test|||||
+|AUTH09|The component shall remove the Security Header  and Security Trailer from the Space Packet. The modified buffer then goes to the data out.|Inspection|||||
+|AUTH010|The component shall handle sequence number rollover correctly (when sequence number transitions from 0xFFFFFFFF to 0x00000000).|Unit Test|||||
+|AUTH011|The component shall support multiple Security Associations each identified by a unique SPI value and containing its own secret key and within the spi_dict.txt file|Unit Test, Inspection|||||
+|AUTH012|The component shall provide a command and telemetry channel to report the current sequence number for a given Security Association (SPI) to enable ground station synchronization.|Unit Test, Inspection|||||
+|AUTH013|The anti-replay sequence number shall be persisted as a PersistedRecord (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to the first-boot baseline (sequence number 0) rather than silently adopting a corrupted value|Unit Test|Unit|For every single-byte corruption and every truncation of the sequence file: exactly one warning event and the replay window baseline is 0; a valid file round-trips the stored sequence number|||
 
 ## Port Descriptions
 

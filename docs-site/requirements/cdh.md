@@ -123,7 +123,7 @@ Traced L1 requirements: CDH-8, CDH-12, CDH-14, CDH-16, CDH-27.
 |DH-L2-08|System shall retain telemetry for a configurable duration.|Test|Board|TBD|CDR: Not met|Retention duration is not configurable|
 |DH-L2-09|System shall delete or overwrite data when storage capacity is exceeded.|Test|Board|TBD|CDR: Partial||
 |DH-L2-10|System shall implement buffer overflow handling with defined data discard policy.|Unit Test|Unit|TBD|CDR: Partial|Discard policy not explicitly defined|
-|DH-L2-11|System shall ensure data integrity during storage.|Test|Environmental|TBD|CDR: Partial|SD writes are a known corruption source (risk 2); atomic writes + CRC planned|
+|DH-L2-11|System shall ensure data integrity during storage.|Test|Environmental|TBD|CDR: Partial|SD writes are a known corruption source (risk 2); decomposed into PersistedRecord-1..7 plus consumer adoption MM0011-MM0012, AUTH013, REQ-SM-008, TelemetryGate-9 (Components/PersistedRecord/docs/sdd.md)|
 |DH-L2-12|System shall log fault events for later retrieval.|Test|Board|TBD|CDR: Partial|Logging does not guarantee a complete record of all fault occurrences|
 |DH-L2-13|System shall support scheduled downlink of stored telemetry.|Integration Test|Board|TBD|CDR: Met||
 |DH-L2-14|System shall support concurrent read/write access without corruption.|Unit Test|Unit|TBD|CDR: Met||
@@ -154,7 +154,7 @@ Traced L1 requirements: CDH-10, CDH-11.
 |MS-L2-04|System shall enter safe mode upon critical faults.|Test|Board|TBD|CDR: Met||
 |MS-L2-05|System shall restrict subsystem operations based on mode.|Test|Flatsat|TBD|CDR: Partial||
 |MS-L2-06|System shall broadcast mode changes.|Unit Test|Unit|TBD|CDR: Met||
-|MS-L2-07|System shall maintain persistent record of current mode.|Test|Board|TBD|CDR: Partial||
+|MS-L2-07|System shall maintain persistent record of current mode.|Test|Board|TBD|CDR: Partial|Persisted state lacks integrity fields; hardening decomposed into MM0011-MM0012 (PersistedRecord with CRC+version; corrupt state boots SAFE)|
 |MS-L2-08|System shall support autonomous mode transitions based on state of health.|Test|Flatsat|TBD|CDR: Partial||
 |MS-L2-09|System shall be able to process manual override commands as necessary.|Test|Board|TBD|CDR: Partial||
 

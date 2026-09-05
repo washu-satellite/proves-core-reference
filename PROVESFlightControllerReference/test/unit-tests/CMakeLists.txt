@@ -44,13 +44,25 @@ target_include_directories(detumble_manager_bdot PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
-# TelemetryGate TxStateCodec
-add_library(telemetry_gate_tx_state_codec STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TelemetryGate/TxStateCodec.cpp
+# PersistedRecord codec (pure logic, no F Prime / Os includes)
+add_library(persisted_record_codec STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordCodec.cpp
 )
-target_include_directories(telemetry_gate_tx_state_codec PUBLIC
+target_include_directories(persisted_record_codec PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
+
+# PersistedRecord file layer (real PersistedRecordFile.cpp built against the
+# in-memory Os::File / Os::FileSystem stubs in support/). support/ comes first
+# on the include path so "Os/File.hpp" resolves to the stub, not lib/fprime.
+add_library(persisted_record_file STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.cpp
+)
+target_include_directories(persisted_record_file PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(persisted_record_file PUBLIC persisted_record_codec)
 
 # TelemetryGate component (real TelemetryGate.cpp built against the host stubs
 # in support/: a recording ComponentAc base and an in-memory Os::File)
@@ -61,7 +73,7 @@ target_include_directories(telemetry_gate_component PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/support
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
-target_link_libraries(telemetry_gate_component PUBLIC telemetry_gate_tx_state_codec)
+target_link_libraries(telemetry_gate_component PUBLIC persisted_record_file)
 
 # --- Auto-discover and build tests ---
 
@@ -77,7 +89,8 @@ foreach(test_src ${TEST_SOURCES})
         detumble_manager_strategy_selector
         detumble_manager_bdot
         rtc_manager_rtc_helper
-        telemetry_gate_tx_state_codec
+        persisted_record_codec
+        persisted_record_file
         telemetry_gate_component
     )
 

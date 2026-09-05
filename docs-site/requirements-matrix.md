@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**251** requirements &middot; **8** linked to automated tests &middot; **8** verified by passing unit tests in this build
+**263** requirements &middot; **15** linked to automated tests &middot; **15** verified by passing unit tests in this build
 
 ## CDH L1 Requirements
 
@@ -111,7 +111,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | DH-L2-08 | System shall retain telemetry for a configurable duration. | Test | Board | TBD | *none* | 📋 CDR: Not met | Retention duration is not configurable |
 | DH-L2-09 | System shall delete or overwrite data when storage capacity is exceeded. | Test | Board | TBD | *none* | 📋 CDR: Partial |  |
 | DH-L2-10 | System shall implement buffer overflow handling with defined data discard policy. | Unit Test | Unit | TBD | *none* | 📋 CDR: Partial | Discard policy not explicitly defined |
-| DH-L2-11 | System shall ensure data integrity during storage. | Test | Environmental | TBD | *none* | 📋 CDR: Partial | SD writes are a known corruption source (risk 2); atomic writes + CRC planned |
+| DH-L2-11 | System shall ensure data integrity during storage. | Test | Environmental | TBD | *none* | 📋 CDR: Partial | SD writes are a known corruption source (risk 2); decomposed into PersistedRecord-1..7 plus consumer adoption MM0011-MM0012, AUTH013, REQ-SM-008, TelemetryGate-9 (Components/PersistedRecord/docs/sdd.md) |
 | DH-L2-12 | System shall log fault events for later retrieval. | Test | Board | TBD | *none* | 📋 CDR: Partial | Logging does not guarantee a complete record of all fault occurrences |
 | DH-L2-13 | System shall support scheduled downlink of stored telemetry. | Integration Test | Board | TBD | *none* | 📋 CDR: Met |  |
 | DH-L2-14 | System shall support concurrent read/write access without corruption. | Unit Test | Unit | TBD | *none* | 📋 CDR: Met |  |
@@ -142,7 +142,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | MS-L2-04 | System shall enter safe mode upon critical faults. | Test | Board | TBD | *none* | 📋 CDR: Met |  |
 | MS-L2-05 | System shall restrict subsystem operations based on mode. | Test | Flatsat | TBD | *none* | 📋 CDR: Partial |  |
 | MS-L2-06 | System shall broadcast mode changes. | Unit Test | Unit | TBD | *none* | 📋 CDR: Met |  |
-| MS-L2-07 | System shall maintain persistent record of current mode. | Test | Board | TBD | *none* | 📋 CDR: Partial |  |
+| MS-L2-07 | System shall maintain persistent record of current mode. | Test | Board | TBD | *none* | 📋 CDR: Partial | Persisted state lacks integrity fields; hardening decomposed into MM0011-MM0012 (PersistedRecord with CRC+version; corrupt state boots SAFE) |
 | MS-L2-08 | System shall support autonomous mode transitions based on state of health. | Test | Flatsat | TBD | *none* | 📋 CDR: Partial |  |
 | MS-L2-09 | System shall be able to process manual override commands as necessary. | Test | Board | TBD | *none* | 📋 CDR: Partial |  |
 
@@ -198,7 +198,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## Authenticate
 
-*12 requirements &middot; 0 automated &middot; 0 passing*
+*13 requirements &middot; 0 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -214,6 +214,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | AUTH010 | The component shall handle sequence number rollover correctly (when sequence number transitions from 0xFFFFFFFF to 0x00000000). | Unit Test |  |  | *none* | ⬜ No automated test |  |
 | AUTH011 | The component shall support multiple Security Associations each identified by a unique SPI value and containing its own secret key and within the spi_dict.txt file | Unit Test, Inspection |  |  | *none* | ⬜ No automated test |  |
 | AUTH012 | The component shall provide a command and telemetry channel to report the current sequence number for a given Security Association (SPI) to enable ground station synchronization. | Unit Test, Inspection |  |  | *none* | ⬜ No automated test |  |
+| AUTH013 | The anti-replay sequence number shall be persisted as a PersistedRecord (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to the first-boot baseline (sequence number 0) rather than silently adopting a corrupted value | Unit Test | Unit | For every single-byte corruption and every truncation of the sequence file: exactly one warning event and the replay window baseline is 0; a valid file round-trips the stored sequence number | *none* | ⬜ No automated test |  |
 
 ## BootloaderTrigger
 
@@ -385,7 +386,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ModeManager
 
-*10 requirements &middot; 0 automated &middot; 0 passing*
+*12 requirements &middot; 0 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -399,6 +400,8 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | MM0008 | The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT | Integration Testing |  |  | *none* | ⬜ No automated test |  |
 | MM0009 | The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold | Integration Testing |  |  | *none* | ⬜ No automated test |  |
 | MM0010 | The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold | Integration Testing |  |  | *none* | ⬜ No automated test |  |
+| MM0011 | The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically | Unit Test | Unit | The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart | *none* | ⬜ No automated test |  |
+| MM0012 | A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event | Unit Test | Unit | For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events | *none* | ⬜ No automated test |  |
 
 ## NullPrmDb
 
@@ -418,6 +421,20 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | PayloadCom-2 | The component must be able to send messages over UART | Manual Test |  |  | *none* | ⬜ No automated test |  |
 | PayloadCom-3 | The component must be able to receive messages over UART | Manual Test |  |  | *none* | ⬜ No automated test |  |
 | PayloadCom-4 | The component must be able to send acknowledgements over UART | Manual Test |  |  | *none* | ⬜ No automated test |  |
+
+## PersistedRecord
+
+*7 requirements &middot; 6 automated &middot; 6 passing*
+
+| Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
+|---|---|---|---|---|---|---|---|
+| PersistedRecord-1 | Every critical record shall be persisted as a self-validating blob: 4-byte record-type magic, 1-byte format version, 2-byte payload length, the payload, and a 32-bit CRC covering all preceding bytes | Unit Test, Inspection | Unit | Encoded blob matches the documented byte layout for representative payloads; CRC value matches an independent CRC-32 reference implementation | `test_PersistedRecord` :: PersistedRecordCodec.EncodeLayoutMatchesDocumentedOffsets<br>`test_PersistedRecord` :: PersistedRecordCodec.Crc32MatchesKnownCheckVector<br>`test_PersistedRecord` :: PersistedRecordCodec.Crc32MatchesIndependentTableReference<br>`test_PersistedRecord` :: PersistedRecordCodec.RoundTripRepresentativePayloads<br>`test_PersistedRecord` :: PersistedRecordFileTest.StoreThenLoadRoundTripsAndLeavesNoTemp | ✅ Unit (passing) |  |
+| PersistedRecord-2 | Decoding shall detect any corruption of a stored record — every single-bit flip, every single-byte corruption, any truncation, and a mismatched record-type magic — returning a distinct error status per failure class and leaving the caller's payload buffer unmodified | Unit Test | Unit | For every single-byte corruption (all offsets, all values tested per offset) and every truncation length of a valid record: decode returns the matching non-OK status and the output payload is untouched; zero false accepts | `test_PersistedRecord` :: PersistedRecordCodec.EverySingleByteCorruptionDetectedWithMatchingStatus<br>`test_PersistedRecord` :: PersistedRecordCodec.EverySingleBitFlipDetected<br>`test_PersistedRecord` :: PersistedRecordCodec.EveryTruncationLengthDetected<br>`test_PersistedRecord` :: PersistedRecordCodec.MismatchedMagicDetected<br>`test_PersistedRecord` :: PersistedRecordCodec.TrailingBytesRejected<br>`test_PersistedRecord` :: PersistedRecordCodec.PayloadLargerThanCallerCapacityRejected<br>`test_PersistedRecord` :: PersistedRecordFileTest.LoadCorruptFileReturnsCorruptStatusAndLeavesPayloadUntouched | ✅ Unit (passing) |  |
+| PersistedRecord-3 | Decoding shall reject a record whose format version is unrecognized with a distinct status so consumers can apply migrations; encoding shall always write the current format version | Unit Test | Unit | A structurally valid record carrying version N+1 with a correct CRC decodes to the bad-version status with the payload untouched; every freshly encoded record carries the current version | `test_PersistedRecord` :: PersistedRecordCodec.UnrecognizedVersionWithValidCrcRejected<br>`test_PersistedRecord` :: PersistedRecordCodec.EncodeAlwaysWritesCurrentVersion | ✅ Unit (passing) |  |
+| PersistedRecord-4 | A record update shall be atomic: the new record is written in full to a temporary file, flushed to media, then renamed over the target, so the target path never holds a record that decodes as valid but mixes old and new content | Unit Test | Unit | With injected failure at each step (open, write, sync, rename): the target still holds the previous record and it decodes OK; a stale temporary file left by a failed update does not prevent a subsequent successful update | `test_PersistedRecord` :: PersistedRecordFileTest.StoreThenLoadRoundTripsAndLeavesNoTemp<br>`test_PersistedRecord` :: PersistedRecordFileTest.StoreFailureAtOpenKeepsPreviousRecord<br>`test_PersistedRecord` :: PersistedRecordFileTest.StoreFailureAtWriteKeepsPreviousRecord<br>`test_PersistedRecord` :: PersistedRecordFileTest.StoreFailureAtPartialWriteKeepsPreviousRecord<br>`test_PersistedRecord` :: PersistedRecordFileTest.StoreFailureAtSyncKeepsPreviousRecord<br>`test_PersistedRecord` :: PersistedRecordFileTest.StoreFailureAtRenameKeepsPreviousRecord<br>`test_PersistedRecord` :: PersistedRecordFileTest.StaleTempDoesNotBlockSubsequentStore<br>`test_PersistedRecord` :: PersistedRecordFileTest.LoadFallsBackToTempWhenTargetAbsent<br>`test_PersistedRecord` :: PersistedRecordFileTest.LoadIgnoresTempWhenTargetPresent | ✅ Unit (passing) |  |
+| PersistedRecord-5 | After power loss at any point during a record update, a subsequent load shall yield the previous payload, the new payload, or a detected-corrupt status — never an undetected wrong payload | Test | Board | Across repeated power-cycle-during-write iterations of the filesystem resilience test, every post-reboot load returns the old payload, the new payload, or a corruption status; zero silent wrong reads | *none* | ⬜ No automated test |  |
+| PersistedRecord-6 | Loading a record whose backing file is absent shall return a distinct missing-file status so consumers can apply first-boot defaults without raising corruption warnings | Unit Test | Unit | With no file present, load returns the missing status (not a corruption status) and the payload buffer is unmodified | `test_PersistedRecord` :: PersistedRecordFileTest.LoadMissingFileReturnsMissingAndLeavesPayloadUntouched<br>`test_PersistedRecord` :: PersistedRecordFileTest.CorruptTempWithNoTargetReturnsMissing | ✅ Unit (passing) |  |
+| PersistedRecord-7 | Encode, decode, load, and store shall operate on caller-provided or statically sized buffers with no dynamic memory allocation, and the maximum record size shall be a compile-time constant | Inspection | Unit | Code inspection finds no heap allocation on any encode, decode, load, or store path; a payload exceeding the compile-time maximum is rejected at encode time | `test_PersistedRecord` :: PersistedRecordCodec.OversizePayloadRejectedAtEncode<br>`test_PersistedRecord` :: PersistedRecordCodec.EncodeRejectsSmallOutputBufferAndNull<br>`test_PersistedRecord` :: PersistedRecordCodec.RecordSizeIsCompileTimeConstant | ✅ Unit (passing) |  |
 
 ## PowerMonitor
 
@@ -448,7 +465,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## StartupManager
 
-*8 requirements &middot; 0 automated &middot; 0 passing*
+*9 requirements &middot; 0 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -460,21 +477,23 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | REQ-SM-005 | StartupManager shall emit events for sequence completion status | Verification: Monitor events during sequence execution |  |  | *none* | ⬜ No automated test |  |
 | REQ-SM-006 | StartupManager shall update telemetry on each run cycle | Verification: Confirm `BootCount` and `QuiescenceEndTime` telemetry updates |  |  | *none* | ⬜ No automated test |  |
 | REQ-SM-007 | StartupManager shall handle file I/O errors gracefully | Verification: Remove file permissions and verify warning events are emitted |  |  | *none* | ⬜ No automated test |  |
+| REQ-SM-008 | The boot count and quiescence start time files shall be stored as PersistedRecords (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to a defined default (boot count 0, quiescence restarted) | Unit Test | Unit | For every single-byte corruption and every truncation of each file: exactly one warning event and the defined default is applied; valid files round-trip their values | *none* | ⬜ No automated test |  |
 
 ## TelemetryGate
 
-*8 requirements &middot; 8 automated &middot; 8 passing*
+*9 requirements &middot; 9 automated &middot; 9 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
 | TelemetryGate-1 | SET_TRANSMIT_STATE shall latch the requested state immediately, effective on the next scheduler tick | Unit Test, Integration Test | Board | Command returns OK; the tick immediately following the command is gated/forwarded per the new state (no stale tick) | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.ReEnableResumesForwardingAndStopsCounting<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.SetStateEmitsEventAndRespondsOk<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.CommandBeforeFirstTickIsNotClobberedByLazyLoad<br>`telemetry_gate_test.py` :: test_02_disable_ceases_then_enable_resumes_telemetry | ✅ Unit (passing)<br>🛰️ Integration (hardware) |  |
 | TelemetryGate-2 | While DISABLED, the component shall not forward the scheduler tick, ceasing all channelized telemetry within one scheduler cycle | Unit Test, Integration Test | Board | Zero runOut calls over N consecutive DISABLED ticks; on hardware, no telemetry packets received after 1 cycle | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.DisabledDropsTicksAndCountsThem<br>`telemetry_gate_test.py` :: test_02_disable_ceases_then_enable_resumes_telemetry | ✅ Unit (passing)<br>🛰️ Integration (hardware) |  |
 | TelemetryGate-3 | While ENABLED, the component shall forward every scheduler tick unchanged | Unit Test, Integration Test | Board | Exactly one runOut call per tick with the context value unchanged | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.EnabledForwardsEveryTick<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.ReEnableResumesForwardingAndStopsCounting<br>`telemetry_gate_test.py` :: test_01_telemetry_flows_when_enabled | ✅ Unit (passing)<br>🛰️ Integration (hardware) |  |
-| TelemetryGate-4 | The transmission state shall persist across reboot via a flash state file | Unit Test | Unit | A new component instance reading the same file restores the commanded state (DISABLED round-trips) | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.SetStateEmitsEventAndRespondsOk<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.DisabledStatePersistsAcrossReboot<br>`test_TelemetryGate_TxStateCodec` :: TxStateCodecTest.RoundtripEnabled<br>`test_TelemetryGate_TxStateCodec` :: TxStateCodecTest.RoundtripDisabled | ✅ Unit (passing) |  |
+| TelemetryGate-4 | The transmission state shall persist across reboot via a flash state file | Unit Test | Unit | A new component instance reading the same file restores the commanded state (DISABLED round-trips) | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.SetStateEmitsEventAndRespondsOk<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.DisabledStatePersistsAcrossReboot<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.SuccessfulPersistLeavesNoTempFile | ✅ Unit (passing) |  |
 | TelemetryGate-5 | A missing state file shall default to ENABLED without emitting a corruption event | Unit Test | Unit | State is ENABLED and zero StateFileCorrupt events with no file present | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.FirstBootWithNoFileDefaultsEnabledWithoutCorruptEvent | ✅ Unit (passing) |  |
-| TelemetryGate-6 | A corrupt or truncated state file (including any single-byte corruption) shall be detected, default the state to ENABLED, and emit StateFileCorrupt exactly once | Unit Test | Unit | For every single-byte corruption and every truncation length: state ENABLED, exactly 1 StateFileCorrupt event | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.CorruptStateFileDefaultsEnabledAndEmitsEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.TruncatedStateFileDefaultsEnabledAndEmitsEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.CorruptFileEventIsEmittedOnlyOnce<br>`test_TelemetryGate_TxStateCodec` :: TxStateCodecTest.EverySingleByteFlipDetected<br>`test_TelemetryGate_TxStateCodec` :: TxStateCodecTest.TruncatedBufferDetected | ✅ Unit (passing) |  |
-| TelemetryGate-7 | A failure to persist the state shall emit StateFileWriteFailure and return EXECUTION_ERROR while the in-RAM state change stands | Unit Test | Unit | On injected open/write/partial-write failure: 1 StateFileWriteFailure event, EXECUTION_ERROR response, gating follows the newly commanded state | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.WriteFailureReportsErrorButStateChangeStands<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.OpenFailureOnPersistReportsError<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.PartialWriteReportsError | ✅ Unit (passing) |  |
+| TelemetryGate-6 | A corrupt or truncated state file (including any single-byte corruption) shall be detected, default the state to ENABLED, and emit StateFileCorrupt exactly once | Unit Test | Unit | For every single-byte corruption and every truncation length: state ENABLED, exactly 1 StateFileCorrupt event | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.CorruptStateFileDefaultsEnabledAndEmitsEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.TruncatedStateFileDefaultsEnabledAndEmitsEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.CorruptFileEventIsEmittedOnlyOnce<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.LegacyTgs1FileDefaultsEnabledWithOneCorruptEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.EverySingleByteCorruptionDefaultsEnabledWithOneEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.EveryTruncationLengthDefaultsEnabledWithOneEvent | ✅ Unit (passing) |  |
+| TelemetryGate-7 | A failure to persist the state shall emit StateFileWriteFailure and return EXECUTION_ERROR while the in-RAM state change stands | Unit Test | Unit | On injected open/write/partial-write failure: 1 StateFileWriteFailure event, EXECUTION_ERROR response, gating follows the newly commanded state | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.WriteFailureReportsErrorButStateChangeStands<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.OpenFailureOnPersistReportsError<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.PartialWriteReportsError<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.SyncFailureReportsErrorButStateChangeStands<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.RenameFailureReportsErrorAndPreviousFileSurvives | ✅ Unit (passing) |  |
 | TelemetryGate-8 | Scheduler ticks gated while DISABLED shall be counted and reported in telemetry | Unit Test | Unit | GatedTicks telemetry equals the exact number of dropped ticks | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.DisabledDropsTicksAndCountsThem | ✅ Unit (passing) |  |
+| TelemetryGate-9 | TelemetryGate shall persist its transmit state via the shared PersistedRecord mechanism, replacing the bespoke TxStateCodec, with TelemetryGate-4 through TelemetryGate-7 behavior unchanged | Unit Test | Unit | TelemetryGate-4 through TelemetryGate-7 unit tests pass against the shared codec; a legacy 6-byte TGS1-format file is handled per TelemetryGate-6 (state ENABLED, one StateFileCorrupt event) or migrated losslessly | `test_TelemetryGate_Component` :: TelemetryGateComponentTest.SetStateEmitsEventAndRespondsOk<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.LegacyTgs1FileDefaultsEnabledWithOneCorruptEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.EverySingleByteCorruptionDefaultsEnabledWithOneEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.EveryTruncationLengthDefaultsEnabledWithOneEvent<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.SuccessfulPersistLeavesNoTempFile<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.SyncFailureReportsErrorButStateChangeStands<br>`test_TelemetryGate_Component` :: TelemetryGateComponentTest.RenameFailureReportsErrorAndPreviousFileSurvives | ✅ Unit (passing) |  |
 
 ## ThermalManager
 

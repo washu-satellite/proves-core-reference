@@ -97,15 +97,17 @@ Waiting for Quiescence → Running (quiescence period expires OR ARMED=false)
 
 ## Requirements
 
-| Requirement ID | Description | Validation Method |
-|----------------|-------------|-------------------|
-| REQ-SM-001 | StartupManager shall track boot count across power cycles | Verification: Check that boot count increments on each boot via telemetry |
-| REQ-SM-002 | StartupManager shall support configurable quiescence waiting period | Verification: Confirm QUIESCENCE_TIME parameter affects wait duration |
-| REQ-SM-003 | StartupManager shall automatically dispatch startup sequence on first run call | inspection |
-| REQ-SM-004 | StartupManager shall allow disabling quiescence via `ARMED` parameter | Verification: Set `ARMED=false` and confirm `WAIT_FOR_QUIESCENCE` completes immediately |
-| REQ-SM-005 | StartupManager shall emit events for sequence completion status | Verification: Monitor events during sequence execution |
-| REQ-SM-006 | StartupManager shall update telemetry on each run cycle | Verification: Confirm `BootCount` and `QuiescenceEndTime` telemetry updates |
-| REQ-SM-007 | StartupManager shall handle file I/O errors gracefully | Verification: Remove file permissions and verify warning events are emitted |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|Requirement ID|Description|Validation Method|||||
+|REQ-SM-001|StartupManager shall track boot count across power cycles|Verification: Check that boot count increments on each boot via telemetry|||||
+|REQ-SM-002|StartupManager shall support configurable quiescence waiting period|Verification: Confirm QUIESCENCE_TIME parameter affects wait duration|||||
+|REQ-SM-003|StartupManager shall automatically dispatch startup sequence on first run call|inspection|||||
+|REQ-SM-004|StartupManager shall allow disabling quiescence via `ARMED` parameter|Verification: Set `ARMED=false` and confirm `WAIT_FOR_QUIESCENCE` completes immediately|||||
+|REQ-SM-005|StartupManager shall emit events for sequence completion status|Verification: Monitor events during sequence execution|||||
+|REQ-SM-006|StartupManager shall update telemetry on each run cycle|Verification: Confirm `BootCount` and `QuiescenceEndTime` telemetry updates|||||
+|REQ-SM-007|StartupManager shall handle file I/O errors gracefully|Verification: Remove file permissions and verify warning events are emitted|||||
+|REQ-SM-008|The boot count and quiescence start time files shall be stored as PersistedRecords (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to a defined default (boot count 0, quiescence restarted)|Unit Test|Unit|For every single-byte corruption and every truncation of each file: exactly one warning event and the defined default is applied; valid files round-trip their values|||
 
 
 ### Unit Tests

@@ -29,6 +29,8 @@ struct FileSystemState {
     bool failOpenCreate = false;  //!< open(OPEN_CREATE) returns OTHER_ERROR
     bool failWrite = false;       //!< write() returns OTHER_ERROR
     bool partialWrite = false;    //!< write() succeeds but reports size - 1 bytes
+    bool failFlush = false;       //!< flush() returns OTHER_ERROR
+    bool failRename = false;      //!< FileSystem::rename() returns OTHER_ERROR and changes nothing
 };
 
 inline FileSystemState& fileSystem() {
@@ -113,6 +115,18 @@ class File {
         }
         this->m_position += static_cast<size_t>(count);
         size = count;
+        return OP_OK;
+    }
+
+    //! Mirrors Os::File::flush(): fs_sync on the target, a no-op here beyond
+    //! fault injection (writes already land in the in-memory content).
+    Status flush() {
+        if (!this->m_open) {
+            return NOT_OPENED;
+        }
+        if (Test::fileSystem().failFlush) {
+            return OTHER_ERROR;
+        }
         return OP_OK;
     }
 

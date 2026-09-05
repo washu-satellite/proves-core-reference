@@ -11,10 +11,9 @@
 ####
 
 register_fprime_library(
-    AUTOCODER_INPUTS
-        "${CMAKE_CURRENT_LIST_DIR}/TelemetryGate.fpp"
     SOURCES
-        "${CMAKE_CURRENT_LIST_DIR}/TelemetryGate.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/PersistedRecordCodec.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/PersistedRecordFile.cpp"
     DEPENDS
-        PROVESFlightControllerReference_Components_PersistedRecord
+        Os
 )

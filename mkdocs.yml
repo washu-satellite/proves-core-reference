@@ -101,6 +101,7 @@ nav:
           - Fs Format: components/FsFormat.md
           - Fs Space: components/FsSpace.md
           - Null Prm Db: components/NullPrmDb.md
+          - Persisted Record: components/PersistedRecord.md
       - Security Components:
           - Authenticate: components/Authenticate.md
           - Authentication Router: components/AuthenticationRouter.md
