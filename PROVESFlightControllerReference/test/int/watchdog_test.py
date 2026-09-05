@@ -87,12 +87,23 @@ def test_02_system_stays_running_with_watchdog(
     )
 
 
+@pytest.mark.verifies("FD-L2-05")
 def test_03_system_reboots_without_watchdog(
     fprime_test_api: IntegrationTestAPI, start_gds
 ):
     """
     Test that when the watchdog is stopped, the system reboots after ~30 seconds.
     Boot count should increment by 1.
+
+    FD-L2-05 clause claimed here: the *watchdog stall -> reboot* clause only
+    (BootCount +1 within 60 s). The other clauses of FD-L2-05 (command loss ->
+    safe mode then reboot; low battery -> safe mode + load switches OFF) are
+    not observed here; no mode change happens in this test at all.
+
+    Note on fidelity: STOP_WATCHDOG calls prepareForReboot (Watchdog.cpp:71),
+    so what is exercised is a *clean* shutdown-then-reboot, not an unhandled
+    stall. The observable the criterion names (BootCount increments by 1
+    within 60 s) is the same either way.
     """
     # Get initial boot count
     initial_boot_count = get_boot_count(fprime_test_api)

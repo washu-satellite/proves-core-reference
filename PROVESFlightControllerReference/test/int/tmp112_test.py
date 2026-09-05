@@ -28,8 +28,15 @@ def setup_test(fprime_test_api: IntegrationTestAPI, start_gds):
     )
 
 
+@pytest.mark.verifies("CDH-2")
 def test_01_get_temperature(fprime_test_api: IntegrationTestAPI, start_gds):
-    """Test that we can get temperature"""
+    """Test that we can get temperature.
+
+    CDH-2 clause claimed here: the tmp112Face0Manager.GetTemperature clause
+    (a Temperature event within 5 s, value inside the sensor's rated range).
+    The picoTempManager.GetPicoTemperature clause of CDH-2 is covered by
+    pico_temp_test.py::test_01_get_pico_temperature.
+    """
     result: EventData | None = None
     for attempt in range(3):
         start: TimeType = TimeType().set_datetime(
@@ -63,4 +70,9 @@ def test_01_get_temperature(fprime_test_api: IntegrationTestAPI, start_gds):
     assert result is not None
     assert len(result.get_args()) == 1
     temperature: F32Type = result.args[0]
-    assert temperature.val >= 0.0
+    # Oracle is the TMP112 datasheet operating range (-40..125 C), which is the
+    # range named in the CDH-2 pass criteria — not "non-negative", which would
+    # pass for a sensor stuck at 0 and fail for a cold board (TP-3).
+    assert -40.0 <= temperature.val <= 125.0, (
+        f"Temperature {temperature.val} C outside the sensor range -40..125 C"
+    )

@@ -269,8 +269,15 @@ def test_04_sequence_cancellation_on_time_set(
 @pytest.mark.uart_only(
     reason="This test sets the RTC time which triggers the #402 / #404 bugs on PROVES Core Reference"
 )
+@pytest.mark.verifies("CDH-13")
 def test_05_rtc_alarm_set_and_trigger(fprime_test_api: IntegrationTestAPI, start_gds):
-    """Test that we can set an RTC alarm and that it triggers at the correct time"""
+    """Test that we can set an RTC alarm and that it triggers at the correct time.
+
+    CDH-13 clause claimed here: the *RTC alarm* clause only — rtcManager.ALARM_SET
+    for now+5 s emits AlarmTriggered within 10 s. The other clause of CDH-13
+    (a relative-tagged sequence executing CMD_NO_OP_STRING 5 +/-1 s after CS_RUN)
+    is a command-sequencer observable this test never exercises.
+    """
 
     # Clear histories
     fprime_test_api.clear_histories()
