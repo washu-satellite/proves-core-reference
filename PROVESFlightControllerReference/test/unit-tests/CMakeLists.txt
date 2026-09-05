@@ -140,6 +140,38 @@ target_include_directories(startup_manager_component PUBLIC
 )
 target_link_libraries(startup_manager_component PUBLIC persisted_record_file)
 
+# TcFrameCorrector codec (pure logic, no F Prime / Os includes)
+add_library(tc_frame_corrector_codec STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TcFrameCorrector/TcFrameCorrectorCodec.cpp
+)
+target_include_directories(tc_frame_corrector_codec PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# TcFrameCorrector component (real TcFrameCorrector.cpp built against the host
+# stubs in support/: a recording ComponentAc base with minimal Fw::Buffer and
+# ComCfg::FrameContext, plus stubs for the two generated FppConstantsAc.hpp
+# headers it reads the frame token from). support/ comes first on the include
+# path so those resolve to the stubs, not to lib/fprime.
+add_library(tc_frame_corrector_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TcFrameCorrector/TcFrameCorrector.cpp
+)
+target_include_directories(tc_frame_corrector_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(tc_frame_corrector_component PUBLIC tc_frame_corrector_codec)
+
+# TaskGate component (real TaskGate.cpp built against the host stubs in
+# support/: a recording ComponentAc base and a host FW_ASSERT).
+add_library(task_gate_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TaskGate/TaskGate.cpp
+)
+target_include_directories(task_gate_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
 # --- Auto-discover and build tests ---
 
 file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
@@ -163,6 +195,9 @@ foreach(test_src ${TEST_SOURCES})
         mode_manager_component
         authenticate_sequence_store
         startup_manager_component
+        tc_frame_corrector_codec
+        tc_frame_corrector_component
+        task_gate_component
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})
