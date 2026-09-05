@@ -7,6 +7,7 @@
 #define Components_ADCS_HPP
 
 #include "PROVESFlightControllerReference/Components/ADCS/ADCSComponentAc.hpp"
+#include "PROVESFlightControllerReference/Components/RunInterval/RunInterval.hpp"
 
 namespace Components {
 
@@ -24,6 +25,21 @@ class ADCS final : public ADCSComponentBase {
     ~ADCS();
 
   private:
+    //! Tick decimator driving the light-sensor sweep
+    RunInterval m_interval;
+
+    //! Collection interval currently in force, in seconds. Initialised to the
+    //! 1 s default so a never-set parameter reads on every tick, as before.
+    U8 m_interval_s;
+
+    // ----------------------------------------------------------------------
+    // Parameter update hook
+    // ----------------------------------------------------------------------
+
+    //! Recompute the effective collection interval after a parameter store
+    void parameterUpdated(FwPrmIdType id  //!< The parameter ID
+                          ) override;
+
     // ----------------------------------------------------------------------
     // Handler implementations for typed input ports
     // ----------------------------------------------------------------------

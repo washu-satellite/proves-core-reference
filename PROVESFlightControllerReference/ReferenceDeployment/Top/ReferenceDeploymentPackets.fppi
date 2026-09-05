@@ -43,6 +43,7 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.imuManager.AccelerometerSamplingFrequency
     ReferenceDeployment.imuManager.GyroscopeSamplingFrequency
     ReferenceDeployment.imuManager.MagnetometerSamplingFrequency
+    ReferenceDeployment.imuManager.CollectionIntervalS
   }
 
   packet Radio id 8 group 2 {
@@ -59,6 +60,7 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.ina219SolManager.Voltage
     ReferenceDeployment.ina219SolManager.Current
     ReferenceDeployment.ina219SolManager.Power
+    ReferenceDeployment.powerMonitor.CollectionIntervalS
   }
 
   packet LightSensor id 13 group 2 {
@@ -69,6 +71,7 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.veml6031Face5Manager.VisibleLight
     ReferenceDeployment.veml6031Face6Manager.VisibleLight
     ReferenceDeployment.veml6031Face7Manager.VisibleLight
+    ReferenceDeployment.adcs.CollectionIntervalS
   }
 
   ### Satellite Meta Data Packets ###
@@ -96,6 +99,7 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.tmp112BattCell3Manager.Temperature
     ReferenceDeployment.tmp112BattCell4Manager.Temperature
     ReferenceDeployment.picoTempManager.PicoTemperature
+    ReferenceDeployment.thermalManager.CollectionIntervalS
   }
 
   packet Detumble id 15 group 3 {

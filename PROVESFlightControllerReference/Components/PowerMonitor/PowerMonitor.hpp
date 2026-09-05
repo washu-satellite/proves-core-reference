@@ -7,6 +7,7 @@
 #define Components_PowerMonitor_HPP
 
 #include "PROVESFlightControllerReference/Components/PowerMonitor/PowerMonitorComponentAc.hpp"
+#include "PROVESFlightControllerReference/Components/RunInterval/RunInterval.hpp"
 
 namespace Components {
 
@@ -24,6 +25,14 @@ class PowerMonitor final : public PowerMonitorComponentBase {
     ~PowerMonitor();
 
   private:
+    // ----------------------------------------------------------------------
+    // Parameter update hook
+    // ----------------------------------------------------------------------
+
+    //! Recompute the effective collection interval after a parameter store
+    void parameterUpdated(FwPrmIdType id  //!< The parameter ID
+                          ) override;
+
     // ----------------------------------------------------------------------
     // Handler implementations for typed input ports
     // ----------------------------------------------------------------------
@@ -65,6 +74,14 @@ class PowerMonitor final : public PowerMonitorComponentBase {
     //! Update solar power generation with new power reading
     void updateGeneration(F64 powerW);
 
+    //! Largest inter-sample gap that still counts as energy, in seconds.
+    //!
+    //! The accumulators ignore a gap they consider a time jump. At the 1 s
+    //! default this is 10.0 s, identical to the literal it replaces; a longer
+    //! collection interval widens it to twice that interval so a legitimately
+    //! decimated sample is not discarded.
+    static F64 maxAccumulationDt(U8 interval_s);
+
     // ----------------------------------------------------------------------
     // Member variables
     // ----------------------------------------------------------------------
@@ -77,6 +94,14 @@ class PowerMonitor final : public PowerMonitorComponentBase {
 
     //! Last update time in seconds
     F64 m_lastUpdateTime_s;
+
+    //! Collection interval currently in force, in seconds. Initialised to the
+    //! 1 s default so a never-set parameter samples on every tick, as before.
+    //! Declared after m_lastUpdateTime_s to match the constructor's init order.
+    U8 m_interval_s;
+
+    //! Tick decimator driving the power sampling
+    RunInterval m_interval;
 };
 
 }  // namespace Components
