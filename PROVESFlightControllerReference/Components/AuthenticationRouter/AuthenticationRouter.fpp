@@ -51,6 +51,12 @@ module Svc {
         @ Port to reset the watchdog timer
         output port reset_watchdog: Fw.Signal
 
+        @ Port reporting command loss to the FaultManager. When it answers
+        @ CLAIMED it performs the watchdog stop and the safe mode entry itself;
+        @ while it answers OBSERVED (the shipped configuration) this component
+        @ performs them exactly as it always has.
+        output port faultOut: Components.FaultReport
+
         @ An error occurred while serializing a com buffer
         event SerializationError(
                 status: U32 @< The status of the operation

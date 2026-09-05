@@ -89,6 +89,7 @@ module ReferenceDeployment {
     instance resetManager
     instance fileUplinkCollector
     instance modeManager
+    instance faultManager
     instance adcs
 
     # Face Board Instances
@@ -300,6 +301,10 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[18] -> taskGate.schedIn[Components.SchedTask.THERMAL]
       taskGate.schedOut[Components.SchedTask.THERMAL] -> thermalManager.run
       rateGroup1Hz.RateGroupMemberOut[19] -> ComCcsdsLora.authenticationRouter.run
+      # Must follow modeManager[16], thermalManager[18] and
+      # authenticationRouter[19]: members run in index order, so a fault
+      # reported this tick is decided in the same tick.
+      rateGroup1Hz.RateGroupMemberOut[20] -> faultManager.run
 
     }
 
@@ -501,6 +506,20 @@ module ReferenceDeployment {
       modeManager.loadSwitchTurnOff[6] -> payloadPowerLoadSwitch.turnOff
       modeManager.loadSwitchTurnOff[7] -> payloadBatteryLoadSwitch.turnOff
 
+    }
+
+    connections FaultManager {
+      # Fault intake, one slot per producer. The index assignment is fixed by
+      # Components.FaultInPorts in Components/FaultTypes/FaultTypes.fpp.
+      thermalManager.faultOut -> faultManager.faultIn[0]
+      modeManager.faultOut -> faultManager.faultIn[1]
+      ComCcsdsLora.authenticationRouter.faultOut -> faultManager.faultIn[2]
+      watchdog.faultOut -> faultManager.faultIn[3]
+
+      # Recovery actions. Unreachable while AUTHORITY_ENABLED is false and
+      # AUTHORITY_MASK is 0, which are the shipped parameter defaults.
+      faultManager.forceSafeMode -> modeManager.forceSafeMode
+      faultManager.stopWatchdog -> watchdog.stop
     }
 
     connections FatalHandler {

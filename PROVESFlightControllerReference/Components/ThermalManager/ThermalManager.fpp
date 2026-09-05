@@ -43,6 +43,11 @@ module Components {
         @ Port for Pico temperature sensor
         output port picoTempGet: Drv.picoTemperatureGet
 
+        @ Port reporting each threshold crossing to the FaultManager. Purely
+        @ observational: the disposition is ignored because the threshold
+        @ events are this component's whole response to the condition.
+        output port faultOut: Components.FaultReport
+
         @ Event for temperature reading below threshold
         event TemperatureBelowThreshold(sensorType: TempSensorType, sensorId: U32, temperature: F64) \
             severity warning low \

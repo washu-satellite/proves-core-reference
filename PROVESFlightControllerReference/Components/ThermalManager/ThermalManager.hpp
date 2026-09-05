@@ -70,6 +70,13 @@ class ThermalManager final : public ThermalManagerComponentBase {
         bool& belowThrottleActive,  //!< Whether the below threshold event throttle is currently active
         Components::ThermalManager_TempSensorType sensorType  //!< The type of the temperature sensor
     );
+
+    //! Report one threshold crossing to the FaultManager, if connected. The
+    //! disposition is ignored: this component's response to an out-of-range
+    //! reading is the WARNING event, which is emitted either way.
+    void reportFault(Components::FaultType type,  //!< The fault type to report
+                     F64 temperature              //!< The reading that crossed the threshold
+    );
 };
 
 }  // namespace Components

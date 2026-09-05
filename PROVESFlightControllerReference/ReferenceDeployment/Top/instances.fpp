@@ -248,4 +248,6 @@ module ReferenceDeployment {
 
   instance tcFrameCorrector: Components.TcFrameCorrector base id 0x1007B000
 
+  instance faultManager: Components.FaultManager base id 0x1007C000
+
 }

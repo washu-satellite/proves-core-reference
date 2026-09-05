@@ -143,6 +143,12 @@ class ModeManager : public ModeManagerComponentBase {
     //! \return Current voltage (only valid if valid parameter is set to true)
     F32 getCurrentVoltage(bool& valid);
 
+    //! Report one low-voltage sample to the FaultManager, if connected.
+    //! \param voltage The sampled voltage (0 if the reading was invalid)
+    //! \return true only if the FaultManager CLAIMED the recovery action, in
+    //!         which case this component must not enter safe mode itself
+    bool reportLowBattery(F32 voltage);
+
     // ----------------------------------------------------------------------
     // Private enums and types
     // ----------------------------------------------------------------------

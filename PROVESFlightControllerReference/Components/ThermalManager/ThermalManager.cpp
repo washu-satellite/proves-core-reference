@@ -113,6 +113,10 @@ void ThermalManager::evaluateTemperatureThreshold(U32 idx,
         belowTemperatureThrottleActive = true;
         aboveTemperatureThrottleActive = false;
         this->log_WARNING_LO_TemperatureBelowThreshold(sensorType, idx, temperature);
+        this->reportFault((sensorType == Components::ThermalManager_TempSensorType::FACE)
+                              ? Components::FaultType::FACE_TEMP_LOW
+                              : Components::FaultType::BATT_TEMP_LOW,
+                          temperature);
         return;
     }
     if (temperature > (lowerThreshold + ThermalManager::DEBOUNCE_ERROR)) {
@@ -124,10 +128,21 @@ void ThermalManager::evaluateTemperatureThreshold(U32 idx,
         aboveTemperatureThrottleActive = true;
         belowTemperatureThrottleActive = false;
         this->log_WARNING_LO_TemperatureAboveThreshold(sensorType, idx, temperature);
+        this->reportFault((sensorType == Components::ThermalManager_TempSensorType::FACE)
+                              ? Components::FaultType::FACE_TEMP_HIGH
+                              : Components::FaultType::BATT_TEMP_HIGH,
+                          temperature);
         return;
     }
     if (temperature < (upperThreshold - ThermalManager::DEBOUNCE_ERROR)) {
         aboveTemperatureThrottleActive = false;
+    }
+}
+
+void ThermalManager::reportFault(Components::FaultType type, F64 temperature) {
+    if (this->isConnected_faultOut_OutputPort(0)) {
+        static_cast<void>(this->faultOut_out(0, type, Components::FaultSource::THERMAL_MANAGER,
+                                             Components::FaultSeverity::WARNING, static_cast<F32>(temperature)));
     }
 }
 

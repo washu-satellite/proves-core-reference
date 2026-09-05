@@ -82,14 +82,21 @@ void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
         bool isFault = !valid || (voltage < entryVoltage);
 
         if (isFault) {
-            this->m_safeModeVoltageCounter++;
+            // Observation only while the FaultManager is in shadow mode: a
+            // CLAIMED disposition means it owns the entry for this condition.
+            const bool claimed = this->reportLowBattery(valid ? voltage : 0.0f);
 
-            if (this->m_safeModeVoltageCounter >= debounceSeconds) {
-                // Trigger automatic entry into safe mode
-                this->runSafeModeSequence();
-                this->log_WARNING_HI_AutoSafeModeEntry(Components::SafeModeReason::LOW_BATTERY, valid ? voltage : 0.0f);
-                this->enterSafeMode(Components::SafeModeReason::LOW_BATTERY);
-                this->m_safeModeVoltageCounter = 0;  // Reset counter
+            if (!claimed) {
+                this->m_safeModeVoltageCounter++;
+
+                if (this->m_safeModeVoltageCounter >= debounceSeconds) {
+                    // Trigger automatic entry into safe mode
+                    this->runSafeModeSequence();
+                    this->log_WARNING_HI_AutoSafeModeEntry(Components::SafeModeReason::LOW_BATTERY,
+                                                           valid ? voltage : 0.0f);
+                    this->enterSafeMode(Components::SafeModeReason::LOW_BATTERY);
+                    this->m_safeModeVoltageCounter = 0;  // Reset counter
+                }
             }
         } else {
             // Voltage OK and valid - reset counter
@@ -506,6 +513,16 @@ F32 ModeManager ::getCurrentVoltage(bool& valid) {
     // Do NOT return a fake value that could mask a real brown-out condition
     valid = false;
     return 0.0f;
+}
+
+bool ModeManager ::reportLowBattery(F32 voltage) {
+    if (!this->isConnected_faultOut_OutputPort(0)) {
+        return false;
+    }
+    const Components::FaultDisposition disposition =
+        this->faultOut_out(0, Components::FaultType::LOW_BATTERY, Components::FaultSource::MODE_MANAGER,
+                           Components::FaultSeverity::CRITICAL, voltage);
+    return disposition == Components::FaultDisposition::CLAIMED;
 }
 
 }  // namespace Components

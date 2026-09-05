@@ -36,19 +36,33 @@ void AuthenticationRouter ::CallSafeMode() {
     // Call Safe mode with EXTERNAL_REQUEST reason (command loss is an external component request)
     log_WARNING_HI_CommandLossFileInitFailure_ThrottleClear();
 
-    // Only the Lora is connetcted to the watchdog, so check connections to prevent fault
-    // should never happen bc Sband and UART are not connected to the rate group, but just in case
-    if (this->isConnected_reset_watchdog_OutputPort(0)) {
-        this->reset_watchdog_out(0);
+    // Report the command loss to the FaultManager. It answers OBSERVED unless
+    // it has been given authority for COMMAND_LOSS, so by default nothing
+    // below this line changes.
+    bool claimed = false;
+    if (this->isConnected_faultOut_OutputPort(0)) {
+        claimed =
+            (this->faultOut_out(0, Components::FaultType::COMMAND_LOSS, Components::FaultSource::AUTH_ROUTER,
+                                Components::FaultSeverity::CRITICAL, 0.0f) == Components::FaultDisposition::CLAIMED);
     }
 
-    // write current time to file
+    // Only the Lora is connetcted to the watchdog, so check connections to prevent fault
+    // should never happen bc Sband and UART are not connected to the rate group, but just in case
+    if (!claimed) {
+        if (this->isConnected_reset_watchdog_OutputPort(0)) {
+            this->reset_watchdog_out(0);
+        }
+    }
+
+    // write current time to file (bookkeeping, performed either way)
     this->update_command_loss_start(true);
 
     // Since it takes 26 seconds for the watchdog to reboot the system, we set safe mode after resetting the watchdog,
     // it should boot back into safe mode
 
-    this->SetSafeMode_out(0, Components::SafeModeReason::EXTERNAL_REQUEST);
+    if (!claimed) {
+        this->SetSafeMode_out(0, Components::SafeModeReason::EXTERNAL_REQUEST);
+    }
 }
 
 void AuthenticationRouter ::dataIn_handler(FwIndexType portNum,

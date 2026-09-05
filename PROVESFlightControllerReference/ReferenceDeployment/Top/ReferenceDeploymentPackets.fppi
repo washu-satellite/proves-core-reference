@@ -161,6 +161,25 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.tcFrameCorrector.UncorrectableFrames
   }
 
+  # Packet id 9 is the last free slot: this brings the set to 22 packets, which
+  # equals MAX_PACKETIZER_PACKETS (project/config/TlmPacketizerCfg.hpp:19). Any
+  # further packet needs that constant raised first.
+  packet Faults id 9 group 5 {
+    ReferenceDeployment.faultManager.FaultsDetected
+    ReferenceDeployment.faultManager.FaultsConfirmed
+    ReferenceDeployment.faultManager.ActiveFaults
+    ReferenceDeployment.faultManager.LastFaultType
+    ReferenceDeployment.faultManager.LastFaultSource
+    ReferenceDeployment.faultManager.LastFaultValue
+    ReferenceDeployment.faultManager.ShadowActionsSuppressed
+    ReferenceDeployment.faultManager.ActionsTaken
+    ReferenceDeployment.faultManager.AuthorityState
+    ReferenceDeployment.faultManager.FaultCountThermal
+    ReferenceDeployment.faultManager.FaultCountLowBattery
+    ReferenceDeployment.faultManager.FaultCountCommandLoss
+    ReferenceDeployment.faultManager.FaultCountWatchdogStop
+  }
+
   packet FileSystem id 5 group 5 {
     fsSpace.FreeSpace
     fsSpace.TotalSpace
