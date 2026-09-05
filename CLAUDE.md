@@ -44,6 +44,7 @@ The Zephyr firmware build cannot run from this checkout path: Zephyr's `yaml.cma
 
 ```
 # refresh the copy (about 40 s), then build there (about 30 s incremental, longer after a generate)
+# never add --delete-excluded: it deletes the copy's venv (excluded on purpose)
 rsync -a --exclude 'build-fprime-automatic-zephyr*' --exclude 'build-gtest' --exclude 'build-artifacts' --exclude '.venv' --exclude 'fprime-venv' ./ ~/scalar-build/proves-core-reference/
 cd ~/scalar-build/proves-core-reference && export VIRTUAL_ENV="$PWD/fprime-venv" PATH="$PWD/fprime-venv/bin:$PATH" ZEPHYR_SDK_INSTALL_DIR="$HOME/zephyr-sdk-0.17.4" && fprime-util build
 ```

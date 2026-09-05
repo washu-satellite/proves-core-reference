@@ -73,6 +73,24 @@ classDiagram
 | loadSwitchTurnOn | Fw.Signal [8] | Turn on load switches |
 | loadSwitchTurnOff | Fw.Signal [8] | Turn off load switches |
 | voltageGet | Drv.VoltageGet | Query system voltage |
+| faultOut | Components.FaultReport | Report each low-voltage sample to the FaultManager |
+
+### Fault reporting
+
+Every 1 Hz sample that is below `SafeModeEntryVoltage` (or invalid) is reported to
+`faultManager.faultIn` as `LOW_BATTERY`, carrying the sampled voltage, beside the existing debounce.
+The port's return value is a disposition:
+
+* `OBSERVED` — the FaultManager only counted the report. The debounce counter and the safe mode
+  entry below it run exactly as they always have. This is the shipped configuration, because the
+  FaultManager ships in shadow mode (`AUTHORITY_ENABLED` false).
+* `CLAIMED` — the FaultManager holds recovery authority for `LOW_BATTERY` and will enter safe mode
+  itself through `forceSafeMode`. ModeManager then stops counting and does not enter on its own,
+  which is what prevents a double entry.
+
+An unconnected `faultOut` is treated as `OBSERVED`, so the component behaves identically in any
+deployment that does not instantiate a FaultManager. See
+`Components/FaultManager/docs/sdd.md`.
 
 ## Commands
 
@@ -239,3 +257,4 @@ sequenceDiagram
 | Date | Description |
 |---|---|
 | 2026-09 | Persisted state moved from a raw `PersistentState` struct write to a PersistedRecord with magic `"MMS1"`, CRC-32 and atomic replace via `/mode_state.tmp`. A state that fails validation now boots SAFE/SYSTEM_FAULT with one `StatePersistenceFailure`; a missing file is a silent NORMAL first boot (MM0011, MM0012, issue #1). |
+| 2026-09-05 | Added `faultOut`: every low-voltage sample is reported to the FaultManager. A `CLAIMED` disposition hands the safe mode entry to that component; `OBSERVED` (the shipped configuration, and the behaviour when the port is unconnected) leaves the existing debounce and entry untouched. |

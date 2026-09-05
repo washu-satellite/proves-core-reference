@@ -70,6 +70,7 @@ nav:
           - Startup Manager: components/StartupManager.md
           - Reset Manager: components/ResetManager.md
           - Watchdog: components/Watchdog.md
+          - Fault Manager: components/FaultManager.md
           - Task Gate: components/TaskGate.md
           - Bootloader Trigger: components/BootloaderTrigger.md
           - Detumble Manager: components/DetumbleManager.md

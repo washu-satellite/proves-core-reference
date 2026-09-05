@@ -66,6 +66,7 @@ classDiagram
 | faceTempGet     | output       | Array of ports [5] for getting temperature data from face sensors         |
 | battCellTempGet | output       | Array of ports [4] for getting temperature data from battery cell sensors |
 | picoTempGet     | output       | Port for getting temperature data from Pico die temperature sensor        |
+| faultOut        | output       | Port reporting each threshold crossing to the FaultManager                |
 | timeCaller      | time get     | Port for requesting current system time                                   |
 | tlmOut          | telemetry    | Port for emitting telemetry                                               |
 | logOut          | event        | Port for emitting events                                                  |
@@ -75,6 +76,16 @@ classDiagram
 | cmdRegOut       | command reg  | Port for sending command registrations                                    |
 | cmdIn           | command recv | Port for receiving commands                                               |
 | cmdResponseOut  | command resp | Port for sending command responses                                        |
+
+### Fault reporting
+
+Beside each `TemperatureAboveThreshold` / `TemperatureBelowThreshold` event, the crossing is also
+reported to `faultManager.faultIn` as `FACE_TEMP_HIGH`, `FACE_TEMP_LOW`, `BATT_TEMP_HIGH` or
+`BATT_TEMP_LOW`, carrying the temperature that crossed. The report is purely observational: the
+FaultManager's disposition is ignored, because the WARNING event is this component's whole response
+to an out-of-range reading and the thermal fault types carry no recovery action. The existing
+per-sensor latch and 3 °C hysteresis are unchanged, so there is exactly one report per event. An
+unconnected `faultOut` is never called. See `Components/FaultManager/docs/sdd.md`.
 
 ## Events
 
@@ -128,6 +139,7 @@ sequenceDiagram
 
 | Date       | Description                                                                                                                                                                                                                   |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-05 | Added `faultOut`: each threshold crossing is also reported to the FaultManager, beside the unchanged WARNING event. Observation only; the disposition is ignored (FaultManager-6)                                             |
 | 2026-09-05 | Added COLLECTION_INTERVAL_S (1..60 s, default 1) decimation of the sensor sweep; CollectionIntervalS telemetry; CollectionIntervalRejected event (ThermalManager-1/2)                                                          |
 | 2026-05-07 | Updated threshold handling to use per-sensor state and shared evaluation logic; eliminated global throttle-clear behavior. Added evaluateTemperatureThreshold helper function, removed sensor-type specific threshold events. |
 | 2026-03-30 | Add Pico die temperature sensor integration                                                                                                                                                                                   |

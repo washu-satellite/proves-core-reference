@@ -40,6 +40,23 @@ In the canonical uplink communications stack, `Svc::FprimeRouter` is connected t
 | `output` | `bufferAllocate` | `Fw.BufferGet` | Port for allocating buffers, allowing copy of received data |
 | `output` | `bufferDeallocate` | `Fw.BufferSend` | Port for deallocating buffers |
 | `output` | `SafeModeOn` | `Fw.Signal` | Port for sending signal to safemode when command loss time expires |
+| `output` | `faultOut` | `Components.FaultReport` | Port reporting command loss to the FaultManager |
+
+### Fault reporting
+
+At the top of `CallSafeMode`, the command loss is reported to `faultManager.faultIn` as
+`COMMAND_LOSS`. The port's return value is a disposition:
+
+* `OBSERVED` — the FaultManager only counted the report, so this component performs its own
+  recovery exactly as it always has: `reset_watchdog` (which stops the watchdog) and then
+  `SetSafeMode(EXTERNAL_REQUEST)`. This is the shipped configuration, because the FaultManager ships
+  in shadow mode (`AUTHORITY_ENABLED` false).
+* `CLAIMED` — the FaultManager holds authority for `COMMAND_LOSS` and performs the same two calls
+  itself, on the same ports, in the same order, with the same reason.
+
+The command-loss bookkeeping (`update_command_loss_start(true)` and the once-per-boot
+`m_safeModeCalled` latch) runs either way. An unconnected `faultOut` is treated as `OBSERVED`. See
+`Components/FaultManager/docs/sdd.md`.
 
 ## Requirements
 
@@ -87,3 +104,9 @@ SVC-ROUTER-015 | `Svc::AuthenticationRouter` shall emit events for authenticated
 | Name | Type | Default | Description |
 |---|---|---|---|
 | LOSS_MAX_TIME | U32 | 10 | The maximum amount of time (in seconds) since the last command before triggering safe mode |
+
+## Change Log
+
+| Date | Description |
+|---|---|
+| 2026-09-05 | Added `faultOut`: command loss is reported to the FaultManager. A `CLAIMED` disposition hands the watchdog stop and the safe mode entry to that component; `OBSERVED` (the shipped configuration, and the behaviour when the port is unconnected) leaves this component's own recovery untouched. |
