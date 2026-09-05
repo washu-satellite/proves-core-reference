@@ -28,10 +28,12 @@ Full build/setup detail is in `AGENTS.md` (§Project Structure at ~line 133). Th
 The path contains spaces and an apostrophe; `make` targets fail, and bare `python3` resolves to a broken foreign venv. Use these raw forms from the repo root:
 
 ```
+# the whole verification gate in one go (host tests, int collect+lint, pre-commit hooks, RTM)
+VERIFY_ENV=host scripts/verify.sh     # host = no board: board tests are reported DEFERRED, not unverified
 # host unit tests
 rm -rf build-gtest && cmake -S PROVESFlightControllerReference/test/unit-tests -B build-gtest && cmake --build build-gtest && ctest --test-dir build-gtest --output-junit junit.xml
-# traceability matrix
-fprime-venv/bin/python3 scripts/generate_rtm.py --junit build-gtest/junit.xml
+# traceability matrix (--env host|desk|rig declares what hardware this build had; host marks board tests ⏸ deferred)
+fprime-venv/bin/python3 scripts/generate_rtm.py --junit build-gtest/junit.xml --env host
 # requirement editor
 fprime-venv/bin/python3 scripts/req.py show CH-L2-15
 # integration tests: collect only (hardware lives on CI)

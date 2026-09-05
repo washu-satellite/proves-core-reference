@@ -208,7 +208,26 @@ def parse_junit(junit_path):
     return statuses
 
 
-def status_cell(req, unit_refs, int_refs, junit):
+ENVIRONMENTS = {
+    "host": "no board in this environment",
+    "desk": "board on USB, no radio rig",
+    "rig": "CI runner with probe and radio",
+}
+
+
+def int_status(env):
+    """Status text for integration-test links under the declared environment.
+
+    Board-level tests cannot execute without hardware. In a `host` environment
+    they are DEFERRED — expected, not a defect, and not counted as unverified —
+    so a laptop build does not read as a regression of the hardware evidence.
+    """
+    if env == "host":
+        return "⏸ Integration (deferred: no board in host env)"
+    return "🛰️ Integration (hardware)"
+
+
+def status_cell(req, unit_refs, int_refs, junit, env="host"):
     """Build the Status cell: test results, criteria flag, or manual assessment."""
     parts = []
     if (unit_refs or int_refs) and not has_criteria(req):
@@ -226,7 +245,7 @@ def status_cell(req, unit_refs, int_refs, junit):
         else:
             parts.append("⚠️ Unit (not run)")
     if int_refs:
-        parts.append("🛰️ Integration (hardware)")
+        parts.append(int_status(env))
     if not parts:
         if req["status"]:
             parts.append(f"📋 {req['status']}")
@@ -252,6 +271,13 @@ def main():
         help="ctest --output-junit XML with unit-test results",
     )
     parser.add_argument("--sha", default=None, help="commit sha to stamp into the page")
+    parser.add_argument(
+        "--env",
+        choices=sorted(ENVIRONMENTS),
+        default="host",
+        help="verification environment this build ran in: host (no hardware; board tests"
+        " are reported as deferred, not unverified), desk (board on USB), rig (CI hardware)",
+    )
     args = parser.parse_args()
 
     requirements = parse_requirements()
@@ -272,7 +298,7 @@ def main():
                 file=sys.stderr,
             )
 
-    total = automated = passing = 0
+    total = automated = passing = deferred = 0
     sections = []
     for group, rows in requirements.items():
         group_total = group_automated = group_passing = 0
@@ -303,11 +329,13 @@ def main():
                 and all(junit.get(b) is True for b in {b for b, _ in unit_refs})
             ):
                 group_passing += 1
+            if int_refs and not unit_refs and args.env == "host":
+                deferred += 1
             lines.append(
                 f"| {req_id} | {req['description']} | {req['method']} "
                 f"| {req['level']} | {req['criteria']} "
                 f"| {verification_cell(unit_refs, int_refs)} "
-                f"| {status_cell(req, unit_refs, int_refs, junit)} "
+                f"| {status_cell(req, unit_refs, int_refs, junit, args.env)} "
                 f"| {req['reason']} |"
             )
         total += group_total
@@ -337,14 +365,16 @@ def main():
             "assessment (e.g. from CDR) with no automated evidence yet.",
             "",
             f"**{total}** requirements &middot; **{automated}** linked to automated tests &middot; "
-            f"**{passing}** verified by passing unit tests in this build",
+            f"**{passing}** verified by passing unit tests in this build &middot; "
+            f"**{deferred}** deferred to hardware (environment: {args.env}, "
+            f"{ENVIRONMENTS[args.env]})",
             "",
         ]
     )
     OUTPUT.write_text(header + "\n" + "\n\n".join(sections) + "\n", encoding="utf-8")
     print(
         f"wrote {OUTPUT.relative_to(REPO_ROOT)}: {total} requirements, "
-        f"{automated} automated, {passing} passing"
+        f"{automated} automated, {passing} passing, {deferred} deferred (env={args.env})"
     )
 
 
