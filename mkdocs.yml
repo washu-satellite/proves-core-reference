@@ -70,6 +70,7 @@ nav:
           - Startup Manager: components/StartupManager.md
           - Reset Manager: components/ResetManager.md
           - Watchdog: components/Watchdog.md
+          - Task Gate: components/TaskGate.md
           - Bootloader Trigger: components/BootloaderTrigger.md
           - Detumble Manager: components/DetumbleManager.md
       - Communication Components:
@@ -81,6 +82,7 @@ nav:
           - Payload Com: components/PayloadCom.md
           - Com Delay: components/ComDelay.md
           - Telemetry Gate: components/TelemetryGate.md
+          - TC Frame Corrector: components/TcFrameCorrector.md
       - Hardware Components:
           - Antenna Deployer: components/AntennaDeployer.md
           - Burnwire: components/Burnwire.md
