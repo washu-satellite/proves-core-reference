@@ -7,8 +7,6 @@
 #ifndef Components_ModeManager_HPP
 #define Components_ModeManager_HPP
 
-#include <Os/File.hpp>
-
 #include "Fw/Types/String.hpp"
 #include "PROVESFlightControllerReference/Components/ModeManager/ModeManagerComponentAc.hpp"
 
@@ -105,8 +103,21 @@ class ModeManager : public ModeManagerComponentBase {
     //! Load persistent state from file
     void loadState();
 
-    //! Save persistent state to file
+    //! Save persistent state to file (clean-shutdown flag clear)
     void saveState();
+
+    //! Pack the current mode, entry count, reason and clean flag into the
+    //! STATE_PAYLOAD_SIZE-byte little-endian payload described above.
+    //! \param clean clean-shutdown flag byte to store (0 or 1)
+    //! \param out   destination buffer, at least STATE_PAYLOAD_SIZE bytes
+    void encodeState(U8 clean, U8* out) const;
+
+    //! Encode and atomically store the current state.
+    //! \param clean clean-shutdown flag byte to store (0 or 1)
+    //! \param op    operation string reported by StatePersistenceFailure on error
+    //! \return true on success; on failure the event is emitted and the
+    //!         previously stored record is left intact
+    bool storeState(U8 clean, const char* op);
 
     //! Enter safe mode with specified reason
     void enterSafeMode(Components::SafeModeReason reason);
@@ -139,13 +150,15 @@ class ModeManager : public ModeManagerComponentBase {
     //! System mode enumeration
     enum class SystemMode : U8 { SAFE_MODE = 1, NORMAL = 2 };
 
-    //! Persistent state structure
-    struct PersistentState {
-        U8 mode;                 //!< Current mode (SystemMode)
-        U32 safeModeEntryCount;  //!< Number of times safe mode entered
-        U8 safeModeReason;       //!< Reason for safe mode entry (SafeModeReason)
-        U8 cleanShutdown;        //!< Clean shutdown flag (1 = clean, 0 = unclean)
-    };
+    //! Size of the persisted state payload. The state is carried as an explicit
+    //! little-endian byte layout inside a PersistedRecord (magic, version,
+    //! length, CRC), not as a raw struct, so the on-disk format does not depend
+    //! on compiler padding or target endianness (MM0011):
+    //!   [0]    mode               U8  (1 = SAFE_MODE, 2 = NORMAL)
+    //!   [1..4] safeModeEntryCount U32 little-endian
+    //!   [5]    safeModeReason     U8  (SafeModeReason ordinal, 0..5)
+    //!   [6]    cleanShutdown      U8  (1 = clean, 0 = unclean)
+    static constexpr U16 STATE_PAYLOAD_SIZE = 7;
 
     // ----------------------------------------------------------------------
     // Private member variables
@@ -163,6 +176,10 @@ class ModeManager : public ModeManagerComponentBase {
     // ----------------------------------------------------------------------
 
     static constexpr const char* STATE_FILE_PATH = "/mode_state.bin";  //!< State file path
+    //! Staging file for the atomic replace: the record is written and flushed
+    //! here in full, then renamed over STATE_FILE_PATH, so a failure at any
+    //! step leaves the previous record intact.
+    static constexpr const char* STATE_TEMP_PATH = "/mode_state.tmp";
 };
 
 }  // namespace Components

@@ -8,17 +8,18 @@
 
 #include <psa/crypto.h>
 
-#include <FprimeExtras/Utilities/FileHelper/FileHelper.hpp>
 #include <Fw/Log/LogString.hpp>
+#include <cstdlib>
+#include <cstring>
 #include <iomanip>
 
 // Include generated header with default key (generated at build time)
 #include "AuthDefaultKey.h"
+#include "PROVESFlightControllerReference/Components/Authenticate/SequenceNumberStore.hpp"
 
 // Hardcoded Dictionary of Authentication Types
 constexpr const char DEFAULT_AUTHENTICATION_TYPE[] = "HMAC";
 constexpr const char DEFAULT_AUTHENTICATION_KEY[] = AUTH_DEFAULT_KEY;
-constexpr const char SEQUENCE_NUMBER_PATH[] = "//sequence_number.txt";
 constexpr const int SECURITY_HEADER_LENGTH = 6;
 constexpr const int SECURITY_TRAILER_LENGTH = 16;
 constexpr const int SPI_DEFAULT = 0;
@@ -50,19 +51,27 @@ void Authenticate::init(FwEnumStoreType instance) {
     AuthenticateComponentBase::init(instance);
 
     // init the sequence number
-    U32 sequenceNumber = this->readSequenceNumber(SEQUENCE_NUMBER_PATH);
+    U32 sequenceNumber = this->readSequenceNumber();
 
     this->sequenceNumber.store(sequenceNumber);
     this->tlmWrite_CurrentSequenceNumber(sequenceNumber);
 }
 
-// Reading a U32 from a file
-U32 Authenticate::readSequenceNumber(const char* filepath) {
+// Reading the persisted sequence number (AUTH013). A missing file is the first
+// boot: baseline 0, no event, nothing written. Anything present that fails
+// validation warns once and is replaced with the baseline, so a damaged file
+// does not re-warn on every GET_SEQ_NUM re-read.
+U32 Authenticate::readSequenceNumber() {
     U32 value = 0;
-    Os::File::Status status = Utilities::FileHelper::readFromFile(filepath, value);
-    if (status != Os::File::OP_OK) {
-        Utilities::FileHelper::writeToFile(filepath, value);
+    U32 status = 0;
+    const SequenceNumberStore::LoadResult result = SequenceNumberStore::load(value, status);
+
+    if (result == SequenceNumberStore::LoadResult::CORRUPT) {
+        Fw::LogStringArg pathStr(SequenceNumberStore::SEQUENCE_FILE_PATH);
+        this->log_WARNING_HI_FileOpenError(status, pathStr);
+        this->writeSequenceNumber(value);
     }
+
     return value;
 }
 
@@ -105,9 +114,14 @@ bool Authenticate::ByPassAuth(U8* packetBuffer, FwSizeType dataLength) {
     return false;
 }
 
-U32 Authenticate::writeSequenceNumber(const char* filepath, U32 value) {
-    // Copy value to buffer to avoid type punning
-    Utilities::FileHelper::writeToFile(filepath, value);
+U32 Authenticate::writeSequenceNumber(U32 value) {
+    // Atomic replace: on failure the previous record is intact and still
+    // valid, and the in-RAM sequence number stands.
+    U32 status = 0;
+    if (!SequenceNumberStore::store(value, status)) {
+        Fw::LogStringArg pathStr(SequenceNumberStore::SEQUENCE_FILE_PATH);
+        this->log_WARNING_HI_FileOpenError(status, pathStr);
+    }
     return value;
 }
 
@@ -370,7 +384,7 @@ void Authenticate ::dataIn_handler(FwIndexType portNum, Fw::Buffer& data, const 
 
     U32 newSequenceNumber = expectedSeqNum + 1;
     this->sequenceNumber.store(newSequenceNumber);
-    this->writeSequenceNumber(SEQUENCE_NUMBER_PATH, newSequenceNumber);
+    this->writeSequenceNumber(newSequenceNumber);
     this->tlmWrite_CurrentSequenceNumber(newSequenceNumber);
 
     U32 newCount = this->m_authenticatedPacketsCount.fetch_add(1) + 1;
@@ -383,7 +397,7 @@ void Authenticate ::dataReturnIn_handler(FwIndexType portNum, Fw::Buffer& data, 
 }
 
 U32 Authenticate ::get_SequenceNumber() {
-    U32 fileSequenceNumber = this->readSequenceNumber(SEQUENCE_NUMBER_PATH);
+    U32 fileSequenceNumber = this->readSequenceNumber();
     return fileSequenceNumber;
 }
 
@@ -400,7 +414,7 @@ void Authenticate ::GET_SEQ_NUM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
 
 void Authenticate ::SET_SEQ_NUM_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, U32 seq_num) {
     // Writes the sequence number to the file system
-    this->writeSequenceNumber(SEQUENCE_NUMBER_PATH, seq_num);
+    this->writeSequenceNumber(seq_num);
 
     this->log_ACTIVITY_HI_SetSequenceNumberSuccess(seq_num, true);
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);

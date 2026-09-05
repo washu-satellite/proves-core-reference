@@ -19,9 +19,10 @@ register_fprime_library(
         "${CMAKE_CURRENT_LIST_DIR}/Authenticate.fpp"
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/Authenticate.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/SequenceNumberStore.cpp"
     DEPENDS
         kernel
-        FprimeExtras_Utilities_FileHelper
+        PROVESFlightControllerReference_Components_PersistedRecord
 )
 
 # Add mbedTLS include directories for PSA crypto headers

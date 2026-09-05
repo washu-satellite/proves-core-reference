@@ -30,22 +30,35 @@ class StartupManager final : public StartupManagerComponentBase {
     //! Destroy StartupManager object
     ~StartupManager();
 
-    //! \brief read and increment the boot count
+    //! \brief read and optionally increment the boot count
     //!
-    //! Reads the boot count from the boot count file, increments it, and writes it back to the file. If the read
-    //! fails, the boot count will be initialized to 1. If the write fails, a warning will be emitted.
+    //! Reads the boot count from the boot count file, which is a PersistedRecord (magic "SBC1", format version, CRC)
+    //! carrying the count as a little-endian U64. A missing file is the first boot: count 0, no event. A file that is
+    //! present but fails validation - truncated, wrong magic, bad length, bad CRC, unknown version, or unreadable -
+    //! falls back to the same default and emits exactly one BootCountUpdateFailure (REQ-SM-008).
     //!
-    //! \warning this function will modify the boot count file on disk.
+    //! When increment is true the count is raised by one (minimum 1) and written back through an atomic replace via
+    //! "<path>.tmp"; a store failure emits one more BootCountUpdateFailure and leaves the previous record intact.
+    //! When increment is false the file is read but not rewritten.
+    //!
+    //! \warning this function will modify the boot count file on disk when increment is true.
     //!
     //! \return The updated boot count
     FwSizeType get_boot_count(bool increment);
 
     //! \brief get and possibly initialize the quiescence start time
     //!
-    //! Reads the quiescence start time from the quiescence start time file. If the read fails, the current time is
-    //! written to the file and returned.
+    //! Reads the quiescence start time from the quiescence start time file, a PersistedRecord (magic "SQS1", format
+    //! version, CRC) carrying time base, context, seconds and microseconds as explicit little-endian fields. A valid
+    //! record is returned untouched - there is a single quiescence start time for the whole mission.
     //!
-    //! \warning this function will modify the quiescence start time file on disk if it does not already exist.
+    //! A missing file is the first boot: quiescence starts now and is written, with no event. A file that is present
+    //! but fails validation - including a CRC-valid record whose useconds field is outside [0, 999999], which would
+    //! panic Fw::Time::add in a boot loop - restarts quiescence from now, writes it, and emits exactly one
+    //! QuiescenceFileInitFailure; a failing store emits a second (REQ-SM-008).
+    //!
+    //! \warning this function will modify the quiescence start time file on disk if it does not already hold a valid
+    //!          record.
     //!
     //! \return The quiescence start time
     Fw::Time update_quiescence_start();

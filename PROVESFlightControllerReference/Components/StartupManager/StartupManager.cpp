@@ -6,10 +6,93 @@
 
 #include "PROVESFlightControllerReference/Components/StartupManager/StartupManager.hpp"
 
-#include "Os/File.hpp"
+#include <cstdio>
+
+#include "PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.hpp"
 #include <zephyr/drivers/rtc.h>
 
 namespace Components {
+
+namespace {
+// Record-type magic values. A file left by an older image carries no magic at
+// all, so it fails validation here rather than being misread (REQ-SM-008).
+constexpr U8 BOOT_COUNT_MAGIC[4] = {'S', 'B', 'C', '1'};
+constexpr U8 QUIESCENCE_MAGIC[4] = {'S', 'Q', 'S', '1'};
+
+// Boot count payload: the count as a little-endian U64. FwSizeType is widened
+// to 64 bits on disk so the format does not depend on the target's word size.
+constexpr U16 BOOT_COUNT_PAYLOAD_SIZE = 8;
+
+// Quiescence start payload, mirroring Fw::Time::SERIALIZED_SIZE (11 bytes):
+//   [0..1]  timeBase  U16 little-endian (FwTimeBaseStoreType)
+//   [2]     context   U8              (FwTimeContextStoreType)
+//   [3..6]  seconds   U32 little-endian
+//   [7..10] useconds  U32 little-endian
+constexpr U16 QUIESCENCE_PAYLOAD_SIZE = 11;
+
+// Longest path plus the ".tmp" suffix and a terminator. The parameter defaults
+// are well inside this; an overlong path is reported as a store failure rather
+// than silently truncated.
+constexpr FwSizeType MAX_TEMP_PATH_SIZE = 64;
+
+//! Derive the staging path for an atomic replace: "<path>.tmp".
+//! \return false when the result would not fit in cap bytes
+bool tempPathFor(const char* path, char* out, FwSizeType cap) {
+    const int written = snprintf(out, static_cast<size_t>(cap), "%s.tmp", path);
+    return written > 0 && static_cast<FwSizeType>(written) < cap;
+}
+
+void encodeU64LE(U64 value, U8* out) {
+    for (U8 i = 0; i < 8; i++) {
+        out[i] = static_cast<U8>((value >> (8 * i)) & 0xFFU);
+    }
+}
+
+U64 decodeU64LE(const U8* in) {
+    U64 value = 0;
+    for (U8 i = 0; i < 8; i++) {
+        value |= static_cast<U64>(in[i]) << (8 * i);
+    }
+    return value;
+}
+
+void encodeU32LE(U32 value, U8* out) {
+    out[0] = static_cast<U8>(value & 0xFFU);
+    out[1] = static_cast<U8>((value >> 8) & 0xFFU);
+    out[2] = static_cast<U8>((value >> 16) & 0xFFU);
+    out[3] = static_cast<U8>((value >> 24) & 0xFFU);
+}
+
+U32 decodeU32LE(const U8* in) {
+    return static_cast<U32>(in[0]) | (static_cast<U32>(in[1]) << 8) | (static_cast<U32>(in[2]) << 16) |
+           (static_cast<U32>(in[3]) << 24);
+}
+
+void encodeTime(const Fw::Time& time, U8* out) {
+    const U16 timeBase = static_cast<U16>(time.getTimeBase());
+    out[0] = static_cast<U8>(timeBase & 0xFFU);
+    out[1] = static_cast<U8>((timeBase >> 8) & 0xFFU);
+    out[2] = static_cast<U8>(time.getContext());
+    encodeU32LE(time.getSeconds(), &out[3]);
+    encodeU32LE(time.getUSeconds(), &out[7]);
+}
+
+//! Decode a persisted quiescence start time.
+//! \return false when the record is CRC-valid but carries a useconds field
+//!         outside the [0, 999999] contract Fw::Time::set asserts on. Without
+//!         this check a corrupt file (e.g. a partial flash write leaving 0xFF
+//!         bytes) panics downstream Fw::Time::add in a boot loop.
+bool decodeTime(const U8* in, Fw::Time& time) {
+    const U32 seconds = decodeU32LE(&in[3]);
+    const U32 useconds = decodeU32LE(&in[7]);
+    if (useconds >= 1000000) {
+        return false;
+    }
+    const U16 timeBase = static_cast<U16>(static_cast<U16>(in[0]) | (static_cast<U16>(in[1]) << 8));
+    time.set(static_cast<TimeBase::T>(timeBase), static_cast<FwTimeContextStoreType>(in[2]), seconds, useconds);
+    return true;
+}
+}  // namespace
 
 // ----------------------------------------------------------------------
 // Component construction and destruction
@@ -23,101 +106,43 @@ StartupManager ::~StartupManager() {}
 // Handler implementations for typed input ports
 // ----------------------------------------------------------------------
 
-//! \brief Template function to read a type T from a file at file_path
-//!
-//! This will read a type T with size 'size' from the file located at file_path. It will return SUCCESS if
-//! the read and deserialization were successful, and FAILURE otherwise.
-//!
-//! The file will be opened and closed within this function. value will not be modified by this function unless
-//! the read operation is successful.
-//!
-//! \warning this function is only safe to use for types T with size `size` that fit well in stack memory.
-//!
-//! \param file_path: path to the file to read from
-//! \param value: reference to the variable to read into
-//! \return Status of the read operation
-template <typename T, FwSizeType BUFFER_SIZE>
-StartupManager::Status read(const Fw::StringBase& file_path, T& value) {
-    // Create the necessary file and deserializer objects for reading a type from a file
-    StartupManager::Status return_status = StartupManager::FAILURE;
-    Os::File file;
-    U8 data_buffer[BUFFER_SIZE];
-    Fw::ExternalSerializeBuffer deserializer(data_buffer, sizeof(data_buffer));
-
-    // Open the file for reading, and continue only if successful
-    Os::File::Status status = file.open(file_path.toChar(), Os::File::OPEN_READ);
-    if (status == Os::File::OP_OK) {
-        FwSizeType size = sizeof(data_buffer);
-        status = file.read(data_buffer, size);
-        if (status == Os::File::OP_OK && size == sizeof(data_buffer)) {
-            // When the read is successful, and the size is correct then the buffer must absolutely contain the
-            // serialized data and thus it is safe to assert on the deserialization status
-            deserializer.setBuffLen(size);
-            Fw::SerializeStatus serialize_status = deserializer.deserializeTo(value);
-            FW_ASSERT(serialize_status == Fw::SerializeStatus::FW_SERIALIZE_OK,
-                      static_cast<FwAssertArgType>(serialize_status));
-            return_status = StartupManager::SUCCESS;
-        }
-    }
-    (void)file.close();
-    return return_status;
-}
-
-//! \brief Template function to write a type T to a file at file_path
-//!
-//! This will write a type T with size 'size' to the file located at file_path. It will return SUCCESS if
-//! the serialization and write were successful, and FAILURE otherwise.
-//!
-//! The file will be opened and closed within this function.
-//!
-//! \warning this function is only safe to use for types T with size `size` that fit well in stack memory.
-//!
-//! \param file_path: path to the file to write to
-//! \param value: reference to the variable to write
-//! \return Status of the write operation
-template <typename T, FwSizeType BUFFER_SIZE>
-StartupManager::Status write(const Fw::StringBase& file_path, const T& value) {
-    // Create the necessary file and deserializer objects for reading a type from a file
-    StartupManager::Status return_status = StartupManager::FAILURE;
-    Os::File file;
-    U8 data_buffer[BUFFER_SIZE];
-
-    // Serialize the value into the data buffer. Since the buffer is created here it is safe to assert on the
-    // serialization status.
-    Fw::ExternalSerializeBuffer serializer(data_buffer, sizeof(data_buffer));
-    Fw::SerializeStatus serialize_status = serializer.serializeFrom(value);
-    FW_ASSERT(serialize_status == Fw::SerializeStatus::FW_SERIALIZE_OK, static_cast<FwAssertArgType>(serialize_status));
-
-    // Open the file for writing, and continue only if successful
-    Os::File::Status status = file.open(file_path.toChar(), Os::File::OPEN_CREATE, Os::File::OVERWRITE);
-    if (status == Os::File::OP_OK) {
-        FwSizeType size = sizeof(data_buffer);
-        status = file.write(data_buffer, size);
-        if (status == Os::File::OP_OK && size == sizeof(data_buffer)) {
-            return_status = StartupManager::SUCCESS;
-        }
-    }
-    (void)file.close();
-    return return_status;
-}
-
 FwSizeType StartupManager ::get_boot_count(bool increment) {
     // Read the boot count file path from parameter and assert that it is either valid or the default value
-    FwSizeType boot_count = 0;
     Fw::ParamValid is_valid;
     auto boot_count_file = this->paramGet_BOOT_COUNT_FILE(is_valid);
     FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
 
-    // Open the boot count file and add one to the current boot count ensuring a minimum of 1 in the case
-    // of read failure. Since read will retain the `0` initial value on read failure, we can ignore the error
-    // status returned by the read.
-    (void)read<FwSizeType, sizeof(FwSizeType)>(boot_count_file, boot_count);
-    boot_count = FW_MAX(1, increment ? boot_count + 1 : boot_count);
-    // Rewrite the updated boot count back to the file, and on failure emit a warning about the inability to
-    // persist the boot count.
-    StartupManager::Status status = write<FwSizeType, sizeof(FwSizeType)>(boot_count_file, boot_count);
-    if (status != StartupManager::SUCCESS) {
+    const char* const path = boot_count_file.toChar();
+    char temp_path[MAX_TEMP_PATH_SIZE];
+    const bool temp_ok = tempPathFor(path, temp_path, MAX_TEMP_PATH_SIZE);
+
+    // Load the persisted boot count. A missing file is the first boot: count 0,
+    // silently. Anything present that fails validation falls back to the same
+    // defined default and warns exactly once (REQ-SM-008).
+    FwSizeType boot_count = 0;
+    U8 payload[BOOT_COUNT_PAYLOAD_SIZE] = {0};
+    U16 payload_len = 0;
+    const PersistedRecord::Status status = PersistedRecord::load(path, temp_ok ? temp_path : nullptr, BOOT_COUNT_MAGIC,
+                                                                 payload, BOOT_COUNT_PAYLOAD_SIZE, payload_len);
+
+    if (status == PersistedRecord::Status::OK && payload_len == BOOT_COUNT_PAYLOAD_SIZE) {
+        boot_count = static_cast<FwSizeType>(decodeU64LE(payload));
+    } else if (status != PersistedRecord::Status::MISSING) {
         this->log_WARNING_LO_BootCountUpdateFailure();
+    }
+
+    boot_count = FW_MAX(1, increment ? boot_count + 1 : boot_count);
+
+    // Only a counted boot rewrites the file. GET_BOOT_COUNT reads without
+    // rewriting an identical value, which is unobservable flash wear.
+    if (increment) {
+        U8 out[BOOT_COUNT_PAYLOAD_SIZE];
+        encodeU64LE(static_cast<U64>(boot_count), out);
+        const bool stored = temp_ok && PersistedRecord::store(path, temp_path, BOOT_COUNT_MAGIC, out,
+                                                              BOOT_COUNT_PAYLOAD_SIZE) == PersistedRecord::Status::OK;
+        if (!stored) {
+            this->log_WARNING_LO_BootCountUpdateFailure();
+        }
     }
     return boot_count;
 }
@@ -127,23 +152,38 @@ Fw::Time StartupManager ::update_quiescence_start() {
     auto time_file = this->paramGet_QUIESCENCE_START_FILE(is_valid);
     FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
 
-    Fw::Time time = this->getTime();
-    // Open the quiescence start time file and read the current time. On read failure, return the current time.
-    StartupManager::Status status = read<Fw::Time, Fw::Time::SERIALIZED_SIZE>(time_file, time);
-    // Reject a corrupt file (e.g. partial flash write leaving 0xFF bytes) whose useconds field is outside
-    // the [0, 999999] contract Fw::Time::set asserts on. Without this, downstream Fw::Time::add panics
-    // in a boot-loop because the bad value persists across reflashes.
-    if (status == StartupManager::SUCCESS && time.getUSeconds() >= 1000000) {
-        time = this->getTime();
-        status = StartupManager::FAILURE;
-    }
-    // On read failure, write the current time to the file for future reads. This only happens on read failure because
-    // there is a singular quiescence start time for the whole mission.
-    if (status != StartupManager::SUCCESS) {
-        status = write<Fw::Time, Fw::Time::SERIALIZED_SIZE>(time_file, time);
-        if (status != StartupManager::SUCCESS) {
-            this->log_WARNING_LO_QuiescenceFileInitFailure();
+    const char* const path = time_file.toChar();
+    char temp_path[MAX_TEMP_PATH_SIZE];
+    const bool temp_ok = tempPathFor(path, temp_path, MAX_TEMP_PATH_SIZE);
+
+    U8 payload[QUIESCENCE_PAYLOAD_SIZE] = {0};
+    U16 payload_len = 0;
+    const PersistedRecord::Status status = PersistedRecord::load(path, temp_ok ? temp_path : nullptr, QUIESCENCE_MAGIC,
+                                                                 payload, QUIESCENCE_PAYLOAD_SIZE, payload_len);
+
+    // A valid record is the single quiescence start time for the whole mission
+    // and is returned untouched: the file is not rewritten on later boots.
+    if (status == PersistedRecord::Status::OK && payload_len == QUIESCENCE_PAYLOAD_SIZE) {
+        Fw::Time stored;
+        if (decodeTime(payload, stored)) {
+            return stored;
         }
+    }
+
+    // Anything present that fails validation warns once; a missing file is the
+    // first boot and stays silent.
+    if (status != PersistedRecord::Status::MISSING) {
+        this->log_WARNING_LO_QuiescenceFileInitFailure();
+    }
+
+    // Restart quiescence from now and persist it for future reads.
+    const Fw::Time time = this->getTime();
+    U8 out[QUIESCENCE_PAYLOAD_SIZE];
+    encodeTime(time, out);
+    const bool stored = temp_ok && PersistedRecord::store(path, temp_path, QUIESCENCE_MAGIC, out,
+                                                          QUIESCENCE_PAYLOAD_SIZE) == PersistedRecord::Status::OK;
+    if (!stored) {
+        this->log_WARNING_LO_QuiescenceFileInitFailure();
     }
     return time;
 }

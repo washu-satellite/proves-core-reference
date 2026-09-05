@@ -4,9 +4,7 @@
 // \brief  hpp file for Authenticate component implementation class
 // ======================================================================
 
-#include <FprimeExtras/Utilities/FileHelper/FileHelper.hpp>
 #include <Fw/Types/String.hpp>
-#include <Os/File.hpp>
 #include <atomic>
 #include <cassert>
 
@@ -50,11 +48,14 @@ class Authenticate final : public AuthenticateComponentBase {
                               const ComCfg::FrameContext& context) override;
 
   private:
-    // function to read a U32 from a file
-    U32 readSequenceNumber(const char* filepath);
+    //! Read the persisted sequence number. A missing file is a silent first
+    //! boot returning 0; a corrupt or unreadable file emits one FileOpenError,
+    //! rewrites the baseline and also returns 0 (AUTH013).
+    U32 readSequenceNumber();
 
-    // function to write a U32 to a file
-    U32 writeSequenceNumber(const char* filepath, U32 value);
+    //! Persist the sequence number. A store failure emits one FileOpenError
+    //! and leaves the previous record intact; the in-RAM value still stands.
+    U32 writeSequenceNumber(U32 value);
 
     struct AuthenticationConfig {
         Fw::String type;
@@ -113,7 +114,6 @@ class Authenticate final : public AuthenticateComponentBase {
                                 U32 seq_num) override;
 
     std::atomic<U32> sequenceNumber;
-    Os::File m_sequenceNumberFile;
     std::atomic<U32> m_rejectedPacketsCount;
     std::atomic<U32> m_authenticatedPacketsCount;
 };
