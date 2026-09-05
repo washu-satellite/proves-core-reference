@@ -205,4 +205,70 @@ TEST_F(ThermalManagerThresholdTest, BoundaryValueIsNotAFault) {
     EXPECT_EQ(thermal.eventsAboveThreshold[0].sensorId, 3u);
 }
 
+// ----------------------------------------------------------------------
+// Fault reporting to the FaultManager (Cycle D)
+//
+// FaultManager-6 pass criteria clause under test: "with faultOut connected and
+// OBSERVED, exactly one report per trigger with the matching type, source and
+// value AND the pre-existing events, counters and port calls unchanged; with
+// faultOut unconnected, zero reports and the same pre-existing behaviour".
+// ----------------------------------------------------------------------
+
+TEST_F(ThermalManagerThresholdTest, EachThresholdEventAlsoReportsOneFault) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    thermal.faultOutConnected = true;
+    thermal.faultOutDisposition = Components::FaultDisposition::OBSERVED;
+
+    // Face above -> FACE_TEMP_HIGH, carrying the temperature that crossed.
+    thermal.faceTemp[0] = FACE_UPPER_C + 1.0;
+    tick();
+    ASSERT_EQ(thermal.eventsAboveThreshold.size(), 1u) << "The existing event must still be emitted";
+    ASSERT_EQ(thermal.faultOutCalls.size(), 1u) << "Exactly one report per threshold event";
+    EXPECT_EQ(thermal.faultOutCalls[0].faultType, Components::FaultType::FACE_TEMP_HIGH);
+    EXPECT_EQ(thermal.faultOutCalls[0].source, Components::FaultSource::THERMAL_MANAGER);
+    EXPECT_EQ(thermal.faultOutCalls[0].severity, Components::FaultSeverity::WARNING);
+    EXPECT_FLOAT_EQ(thermal.faultOutCalls[0].value, static_cast<F32>(FACE_UPPER_C + 1.0));
+
+    // Latched: no repeat event and therefore no repeat report.
+    tick();
+    EXPECT_EQ(thermal.eventsAboveThreshold.size(), 1u);
+    EXPECT_EQ(thermal.faultOutCalls.size(), 1u) << "A latched event must not report again";
+
+    // Face below -> FACE_TEMP_LOW.
+    thermal.faceTemp[1] = FACE_LOWER_C - 1.0;
+    tick();
+    ASSERT_EQ(thermal.faultOutCalls.size(), 2u);
+    EXPECT_EQ(thermal.faultOutCalls[1].faultType, Components::FaultType::FACE_TEMP_LOW);
+
+    // Battery above and below -> BATT_TEMP_HIGH / BATT_TEMP_LOW.
+    thermal.battTemp[0] = BATT_UPPER_C + 1.0;
+    thermal.battTemp[1] = BATT_LOWER_C - 1.0;
+    tick();
+    ASSERT_EQ(thermal.faultOutCalls.size(), 4u);
+    EXPECT_EQ(thermal.faultOutCalls[2].faultType, Components::FaultType::BATT_TEMP_HIGH);
+    EXPECT_EQ(thermal.faultOutCalls[3].faultType, Components::FaultType::BATT_TEMP_LOW);
+    EXPECT_EQ(thermal.eventsAboveThreshold.size(), 2u);
+    EXPECT_EQ(thermal.eventsBelowThreshold.size(), 2u);
+}
+
+TEST_F(ThermalManagerThresholdTest, UnconnectedFaultOutLeavesThresholdBehaviourUnchanged) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    ASSERT_FALSE(thermal.faultOutConnected) << "faultOut must default to unconnected on the host";
+
+    thermal.faceTemp[0] = FACE_UPPER_C + 1.0;
+    thermal.battTemp[2] = BATT_LOWER_C - 1.0;
+    tick();
+
+    EXPECT_TRUE(thermal.faultOutCalls.empty()) << "An unconnected port must never be called";
+    ASSERT_EQ(thermal.eventsAboveThreshold.size(), 1u);
+    EXPECT_EQ(thermal.eventsAboveThreshold[0].sensorId, 0u);
+    ASSERT_EQ(thermal.eventsBelowThreshold.size(), 1u);
+    EXPECT_EQ(thermal.eventsBelowThreshold[0].sensorId, 2u);
+    EXPECT_EQ(thermal.faceTempReads, 5u);
+    EXPECT_EQ(thermal.battTempReads, 4u);
+    EXPECT_EQ(thermal.picoTempReads, 1u);
+}
+
 }  // namespace

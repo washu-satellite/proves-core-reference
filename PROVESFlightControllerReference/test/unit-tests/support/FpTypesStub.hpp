@@ -72,6 +72,19 @@ class Success {
     T m_value;
 };
 
+//! Mirrors the generated Fw::Logic enum class (lib/fprime/Fw/Types/Types.fpp:38-41,
+//! LOW = 0, HIGH = 1), the argument type of the GPIO write port.
+class Logic {
+  public:
+    enum T { LOW = 0, HIGH = 1 };
+    Logic() : e(LOW) {}
+    Logic(T e1) : e(e1) {}                  // NOLINT(runtime/explicit) -- mirrors generated code
+    operator T() const { return this->e; }  // NOLINT(runtime/explicit) -- enables switch/case
+    bool operator==(T e1) const { return this->e == e1; }
+    bool operator!=(T e1) const { return this->e != e1; }
+    T e;
+};
+
 //! Mirrors the generated Fw::ParamValid enum class, returned by reference from
 //! every paramGet_* accessor.
 class ParamValid {

@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "../../../FpTypesStub.hpp"
+#include "../FaultTypes/FaultTypesStub.hpp"
 #include "Fw/Types/String.hpp"
 
 namespace Components {
@@ -79,6 +80,14 @@ class ModeManagerComponentBase {
         F32 voltage;
     };
 
+    //! One recorded fault report sent out faultOut.
+    struct FaultReportRecord {
+        FaultType::T faultType;
+        FaultSource::T source;
+        FaultSeverity::T severity;
+        F32 value;
+    };
+
     explicit ModeManagerComponentBase(const char* const compName) : compName(compName) {}
     virtual ~ModeManagerComponentBase() {}
 
@@ -114,6 +123,13 @@ class ModeManagerComponentBase {
     bool loadSwitchTurnOnConnected[8] = {true, true, true, true, true, true, true, true};
     bool loadSwitchTurnOffConnected[8] = {true, true, true, true, true, true, true, true};
     bool voltageGetConnected = true;
+
+    // ---- fault reporting (Cycle D). The default of "not connected" is what
+    //      every test written before the port existed sees, so those tests
+    //      keep observing exactly the behaviour they always did. ----
+    bool faultOutConnected = false;
+    Components::FaultDisposition faultOutDisposition = Components::FaultDisposition::OBSERVED;
+    std::vector<FaultReportRecord> faultOutCalls;
 
     // ---- test-controlled inputs ----
     F64 injectedVoltage = 7.5;
@@ -179,6 +195,20 @@ class ModeManagerComponentBase {
         (void)portNum;
         this->voltageGetCalls++;
         return this->injectedVoltage;
+    }
+
+    bool isConnected_faultOut_OutputPort(FwIndexType portNum) const {
+        (void)portNum;
+        return this->faultOutConnected;
+    }
+    Components::FaultDisposition faultOut_out(FwIndexType portNum,
+                                              const Components::FaultType& faultType,
+                                              const Components::FaultSource& source,
+                                              const Components::FaultSeverity& severity,
+                                              F32 value) {
+        (void)portNum;
+        this->faultOutCalls.push_back(FaultReportRecord{faultType.e, source.e, severity.e, value});
+        return this->faultOutDisposition;
     }
 
     void runSequence_out(FwIndexType portNum, const Fw::StringBase& filename) {

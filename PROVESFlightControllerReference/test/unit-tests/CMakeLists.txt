@@ -162,6 +162,36 @@ target_include_directories(tc_frame_corrector_component PUBLIC
 )
 target_link_libraries(tc_frame_corrector_component PUBLIC tc_frame_corrector_codec)
 
+# FaultManager fault table (pure logic, no F Prime / Os includes)
+add_library(fault_manager_table STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/FaultManager/FaultTable.cpp
+)
+target_include_directories(fault_manager_table PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# FaultManager component (real FaultManager.cpp built against the host stubs
+# in support/: a recording ComponentAc base whose lock()/unLock() count the
+# guarded region, plus the FaultTypes enum stubs).
+add_library(fault_manager_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/FaultManager/FaultManager.cpp
+)
+target_include_directories(fault_manager_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(fault_manager_component PUBLIC fault_manager_table)
+
+# Watchdog component (real Watchdog.cpp built against the host stubs in
+# support/: a recording ComponentAc base, Fw::On and a forwarding FpConfig).
+add_library(watchdog_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/Watchdog/Watchdog.cpp
+)
+target_include_directories(watchdog_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
 # TaskGate component (real TaskGate.cpp built against the host stubs in
 # support/: a recording ComponentAc base and a host FW_ASSERT).
 add_library(task_gate_component STATIC
@@ -198,6 +228,9 @@ foreach(test_src ${TEST_SOURCES})
         tc_frame_corrector_codec
         tc_frame_corrector_component
         task_gate_component
+        fault_manager_table
+        fault_manager_component
+        watchdog_component
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})

@@ -361,4 +361,78 @@ TEST_F(ModeManagerVoltageTest, UncleanRestartFromNormalEntersSafeModeWithSystemF
     EXPECT_EQ(second.eventsUnintendedRebootDetected, 1u);
 }
 
+// ----------------------------------------------------------------------
+// Fault reporting to the FaultManager (Cycle D)
+//
+// FaultManager-6 pass criteria clause under test: "with faultOut connected and
+// OBSERVED, exactly one report per trigger with the matching type, source and
+// value AND the pre-existing events, counters and port calls unchanged; with
+// faultOut unconnected, zero reports and the same pre-existing behaviour".
+// ----------------------------------------------------------------------
+
+TEST_F(ModeManagerVoltageTest, ObservedDispositionReportsEveryLowSampleAndStillEntersSafeMode) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    mm.faultOutConnected = true;
+    mm.faultOutDisposition = Components::FaultDisposition::OBSERVED;
+    mm.injectedVoltage = ENTRY_VOLTAGE_V - 0.1;  // 6.6 V
+
+    tick(mm, DEBOUNCE_TICKS);
+
+    // One report per low sample, carrying the sampled voltage.
+    ASSERT_EQ(mm.faultOutCalls.size(), static_cast<size_t>(DEBOUNCE_TICKS));
+    EXPECT_EQ(mm.faultOutCalls[0].faultType, Components::FaultType::LOW_BATTERY);
+    EXPECT_EQ(mm.faultOutCalls[0].source, Components::FaultSource::MODE_MANAGER);
+    EXPECT_EQ(mm.faultOutCalls[0].severity, Components::FaultSeverity::CRITICAL);
+    EXPECT_FLOAT_EQ(mm.faultOutCalls[0].value, static_cast<F32>(ENTRY_VOLTAGE_V - 0.1));
+
+    // The existing entry path is untouched: same tick, same event, same reason.
+    EXPECT_EQ(currentMode(mm), SystemMode::SAFE_MODE);
+    ASSERT_EQ(mm.eventsAutoSafeModeEntry.size(), 1u)
+        << "An OBSERVED disposition must leave ModeManager's own entry in place";
+    EXPECT_EQ(mm.eventsAutoSafeModeEntry[0].reason, SafeModeReason::LOW_BATTERY);
+    EXPECT_EQ(mm.runSequenceCalls.size(), 1u);
+}
+
+TEST_F(ModeManagerVoltageTest, ClaimedDispositionHandsTheEntryToTheFaultManager) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    mm.faultOutConnected = true;
+    mm.faultOutDisposition = Components::FaultDisposition::CLAIMED;
+    mm.injectedVoltage = ENTRY_VOLTAGE_V - 0.1;
+
+    // Well past the debounce window: the manager owns the decision now.
+    tick(mm, DEBOUNCE_TICKS * 2);
+
+    EXPECT_EQ(mm.faultOutCalls.size(), static_cast<size_t>(DEBOUNCE_TICKS * 2)) << "Every low sample is still reported";
+    EXPECT_EQ(currentMode(mm), SystemMode::NORMAL) << "A CLAIMED report must stop ModeManager entering on its own";
+    EXPECT_TRUE(mm.eventsAutoSafeModeEntry.empty());
+    EXPECT_TRUE(mm.runSequenceCalls.empty());
+    EXPECT_TRUE(mm.modeChangedCalls.empty());
+    EXPECT_TRUE(mm.loadSwitchTurnOffCalls.empty());
+
+    // The FaultManager's forceSafeMode still works: it is the same port the
+    // AuthenticationRouter already uses.
+    static_cast<ModeManagerComponentBase&>(mm).forceSafeMode_handler(0, SafeModeReason(SafeModeReason::LOW_BATTERY));
+    EXPECT_EQ(currentMode(mm), SystemMode::SAFE_MODE);
+    EXPECT_EQ(reportedReason(mm), SafeModeReason::LOW_BATTERY);
+}
+
+TEST_F(ModeManagerVoltageTest, UnconnectedFaultOutLeavesTheDebounceBehaviourUnchanged) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    ASSERT_FALSE(mm.faultOutConnected) << "faultOut must default to unconnected on the host";
+    mm.injectedVoltage = ENTRY_VOLTAGE_V - 0.1;
+
+    tick(mm, DEBOUNCE_TICKS - 1);
+    EXPECT_EQ(currentMode(mm), SystemMode::NORMAL);
+    tick(mm);
+
+    EXPECT_TRUE(mm.faultOutCalls.empty()) << "An unconnected port must never be called";
+    EXPECT_EQ(currentMode(mm), SystemMode::SAFE_MODE);
+    ASSERT_EQ(mm.eventsAutoSafeModeEntry.size(), 1u);
+    EXPECT_EQ(mm.eventsAutoSafeModeEntry[0].reason, SafeModeReason::LOW_BATTERY);
+    EXPECT_EQ(mm.runSequenceCalls.size(), 1u);
+}
+
 }  // namespace

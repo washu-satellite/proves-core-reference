@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "../../../FpTypesStub.hpp"
+#include "../FaultTypes/FaultTypesStub.hpp"
 
 namespace Components {
 
@@ -52,6 +53,14 @@ class ThermalManagerComponentBase {
         ThermalManager_TempSensorType::T sensorType;
         U32 sensorId;
         F64 temperature;
+    };
+
+    //! One recorded fault report sent out faultOut.
+    struct FaultReportRecord {
+        FaultType::T faultType;
+        FaultSource::T source;
+        FaultSeverity::T severity;
+        F32 value;
     };
 
     explicit ThermalManagerComponentBase(const char* const compName) : compName(compName) {}
@@ -100,6 +109,13 @@ class ThermalManagerComponentBase {
     std::vector<U8> tlmCollectionIntervalS;
     std::vector<U8> eventsCollectionIntervalRejected;
 
+    // ---- fault reporting (Cycle D). The default of "not connected" is what
+    //      every test written before the port existed sees, so those tests
+    //      keep observing exactly the behaviour they always did. ----
+    bool faultOutConnected = false;
+    Components::FaultDisposition faultOutDisposition = Components::FaultDisposition::OBSERVED;
+    std::vector<FaultReportRecord> faultOutCalls;
+
   protected:
     // ---- base-class services the component implementation calls ----
     F64 faceTempGet_out(FwIndexType portNum, Fw::Success& condition) {
@@ -144,6 +160,21 @@ class ThermalManagerComponentBase {
     U8 paramGet_COLLECTION_INTERVAL_S(Fw::ParamValid& valid) {
         valid = this->paramValidity;
         return this->collectionIntervalS;
+    }
+
+    bool isConnected_faultOut_OutputPort(FwIndexType portNum) const {
+        (void)portNum;
+        return this->faultOutConnected;
+    }
+
+    Components::FaultDisposition faultOut_out(FwIndexType portNum,
+                                              const Components::FaultType& faultType,
+                                              const Components::FaultSource& source,
+                                              const Components::FaultSeverity& severity,
+                                              F32 value) {
+        (void)portNum;
+        this->faultOutCalls.push_back(FaultReportRecord{faultType.e, source.e, severity.e, value});
+        return this->faultOutDisposition;
     }
 
     void tlmWrite_CollectionIntervalS(U8 interval_s) { this->tlmCollectionIntervalS.push_back(interval_s); }
