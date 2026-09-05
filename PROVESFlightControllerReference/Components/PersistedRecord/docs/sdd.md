@@ -8,15 +8,16 @@ critical record with CRC+version").
 
 ## Motivation
 
-Three persisted-state files currently have weak or missing integrity
-protection, so a corrupted SD/flash sector silently changes flight behavior:
+Every persisted-state file in the flight software once had weak or missing
+integrity protection, so a corrupted SD/flash sector silently changed flight
+behavior. All of them now go through this component:
 
-| File | Owner | Current validation |
+| File | Owner | State |
 |---|---|---|
-| `/mode_state.bin` | ModeManager | Range check on mode only; corrupt state boots NORMAL (CDR says SAFE) |
-| `/sequence_number.txt` | Authenticate | None — corrupt file silently shifts the anti-replay baseline |
-| `/boot_count.bin`, `/quiescence_start.bin` | StartupManager | None |
-| `/tlm_tx_state.bin` | TelemetryGate | **Migrated.** Was `TxStateCodec` (magic + XOR byte), the pattern this component generalizes; now uses PersistedRecord (TelemetryGate-9) |
+| `/mode_state.bin` | ModeManager | **Migrated (MM0011, MM0012).** Was a raw `PersistentState` struct write with a range check on mode only, and a corrupt state booted NORMAL; now a PersistedRecord (magic `"MMS1"`) whose failed validation boots SAFE/SYSTEM_FAULT, as the CDR requires |
+| `/sequence_number.bin` | Authenticate | **Migrated (AUTH013).** Was a bare big-endian U32 at `//sequence_number.txt` with no validation, so a corrupt file silently shifted the anti-replay baseline; now a PersistedRecord (magic `"ASN1"`) that warns and falls back to baseline 0 |
+| `/boot_count.bin`, `/quiescence_start.bin` | StartupManager | **Migrated (REQ-SM-008).** Were unvalidated big-endian serializations; now PersistedRecords (magic `"SBC1"` / `"SQS1"`) that warn once and apply a defined default |
+| `/tlm_tx_state.bin` | TelemetryGate | **Migrated (TelemetryGate-9).** Was `TxStateCodec` (magic + XOR byte), the pattern this component generalizes |
 
 ## Interface
 
@@ -164,3 +165,4 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 |---| --- |
 |Aug 2026| Requirements-first draft; no implementation yet |
 |Sep 2026|Implemented codec and atomic file store; TelemetryGate migrated (TelemetryGate-9)|
+|Sep 2026|ModeManager, Authenticate and StartupManager migrated (MM0011, MM0012, AUTH013, REQ-SM-008); every persisted flight-state file now uses this component|

@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**262** requirements &middot; **75** linked to automated tests &middot; **24** verified by passing unit tests in this build &middot; **51** deferred to hardware (environment: host, no board in this environment)
+**262** requirements &middot; **79** linked to automated tests &middot; **28** verified by passing unit tests in this build &middot; **51** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -198,7 +198,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## Authenticate
 
-*13 requirements &middot; 0 automated &middot; 0 passing*
+*13 requirements &middot; 1 automated &middot; 1 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -214,7 +214,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | AUTH010 | The component shall handle sequence number rollover correctly (when sequence number transitions from 0xFFFFFFFF to 0x00000000). | Unit Test |  |  | *none* | ⬜ No automated test |  |
 | AUTH011 | The component shall support multiple Security Associations each identified by a unique SPI value and containing its own secret key and within the spi_dict.txt file | Unit Test, Inspection |  |  | *none* | ⬜ No automated test |  |
 | AUTH012 | The component shall provide a command and telemetry channel to report the current sequence number for a given Security Association (SPI) to enable ground station synchronization. | Unit Test, Inspection |  |  | *none* | ⬜ No automated test |  |
-| AUTH013 | The anti-replay sequence number shall be persisted as a PersistedRecord (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to the first-boot baseline (sequence number 0) rather than silently adopting a corrupted value | Unit Test | Unit | For every single-byte corruption and every truncation of the sequence file: exactly one warning event and the replay window baseline is 0; a valid file round-trips the stored sequence number | *none* | ⬜ No automated test |  |
+| AUTH013 | The anti-replay sequence number shall be persisted as a PersistedRecord (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to the first-boot baseline (sequence number 0) rather than silently adopting a corrupted value | Unit Test | Unit | For every single-byte corruption and every truncation of the sequence file: exactly one warning event and the replay window baseline is 0; a valid file round-trips the stored sequence number | `test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.ValidFileRoundTripsStoredValue<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.NoFileIsFirstBootBaselineZeroAndWritesNothing<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.EverySingleByteCorruptionIsCorruptExactlyOnceWithBaselineZero<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.EveryTruncationLengthIsCorruptWithBaselineZero<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.WrongMagicAndWrongVersionAreCorrupt<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.ShortPayloadInCrcValidRecordIsCorrupt<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.StoreFailureKeepsPreviousRecord<br>`test_Authenticate_SequenceNumberStore` :: SequenceNumberStoreTest.LegacyFourByteFileAtOldPathIsIgnored | ✅ Unit (passing) |  |
 
 ## BootloaderTrigger
 
@@ -386,7 +386,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ModeManager
 
-*12 requirements &middot; 7 automated &middot; 3 passing*
+*12 requirements &middot; 9 automated &middot; 5 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -400,8 +400,8 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | MM0008 | The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT | Integration Testing |  |  | *none* | ⬜ No automated test |  |
 | MM0009 | The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold | Unit Test | Unit | Voltage < SafeModeEntryVoltage (6.7 V) or invalid on 10 consecutive run ticks enters SAFE_MODE with AutoSafeModeEntry(LOW_BATTERY); 9 ticks or a good sample in between does not | `test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.TenLowSamplesEnterSafeMode<br>`test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.GoodSampleResetsCounter<br>`test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.InvalidReadingCountsAsFault | ✅ Unit (passing) |  |
 | MM0010 | The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold | Unit Test | Unit | In SAFE_MODE(LOW_BATTERY) voltage > 8.0 V on 10 consecutive ticks exits with AutoSafeModeExit; exactly 8.0 V, 9 ticks, or reason GROUND_COMMAND/SYSTEM_FAULT does not | `test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.RecoveryAboveEightVoltsTenTicksExits<br>`test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.ExactlyEightVoltsDoesNotRecover<br>`test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.NoAutoRecoveryForGroundCommand | ✅ Unit (passing) |  |
-| MM0011 | The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically | Unit Test | Unit | The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart | *none* | ⬜ No automated test |  |
-| MM0012 | A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event | Unit Test | Unit | For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events | *none* | ⬜ No automated test |  |
+| MM0011 | The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically | Unit Test | Unit | The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart | `test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.StateFileDecodesWithSharedCodecAndDocumentedLayout<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.PrepareForRebootStoresCleanFlagAndLeavesNoTemp<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.ModeChangeStoreFailureKeepsPreviousRecordAndEmitsOneEvent<br>`test_ModeManager_VoltageDebounce` :: ModeManagerVoltageTest.StateFileRoundTripsAcrossCleanRestart | ✅ Unit (passing) |  |
+| MM0012 | A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event | Unit Test | Unit | For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events | `test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.NoFileBootsNormalWithZeroEvents<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.EmptyFileBootsSafeWithOneEvent<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.EverySingleByteCorruptionBootsSafeWithSystemFaultAndOneEvent<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.EveryTruncationLengthBootsSafeWithSystemFaultAndOneEvent<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.WrongMagicBootsSafe<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.WrongVersionWithValidCrcBootsSafe<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.OutOfRangeFieldsInCrcValidRecordBootSafe<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.ShortPayloadInCrcValidRecordBootsSafe<br>`test_ModeManager_StatePersistence` :: ModeManagerStatePersistenceTest.LegacyRawStructFileBootsSafeWithOneEvent | ✅ Unit (passing) |  |
 
 ## NullPrmDb
 
@@ -465,7 +465,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## StartupManager
 
-*8 requirements &middot; 0 automated &middot; 0 passing*
+*8 requirements &middot; 1 automated &middot; 1 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -476,7 +476,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | REQ-SM-005 | StartupManager shall emit events for sequence completion status | Verification: Monitor events during sequence execution |  |  | *none* | ⬜ No automated test |  |
 | REQ-SM-006 | StartupManager shall update telemetry on each run cycle | Verification: Confirm `BootCount` and `QuiescenceEndTime` telemetry updates |  |  | *none* | ⬜ No automated test |  |
 | REQ-SM-007 | StartupManager shall handle file I/O errors gracefully | Verification: Remove file permissions and verify warning events are emitted |  |  | *none* | ⬜ No automated test |  |
-| REQ-SM-008 | The boot count and quiescence start time files shall be stored as PersistedRecords (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to a defined default (boot count 0, quiescence restarted) | Unit Test | Unit | For every single-byte corruption and every truncation of each file: exactly one warning event and the defined default is applied; valid files round-trip their values | *none* | ⬜ No automated test |  |
+| REQ-SM-008 | The boot count and quiescence start time files shall be stored as PersistedRecords (magic, version, CRC) updated atomically; a corrupt or truncated file shall be detected, emit a warning event, and fall back to a defined default (boot count 0, quiescence restarted) | Unit Test | Unit | For every single-byte corruption and every truncation of each file: exactly one warning event and the defined default is applied; valid files round-trip their values | `test_StartupManager_Persistence` :: StartupManagerPersistenceTest.FirstBootWithNoFilesCountsOneAndWritesQuiescenceWithoutEvents<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.BootCountRoundTripsAndIncrementsAcrossRestarts<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.QuiescenceStartRoundTripsAndIsNotRewritten<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.EverySingleByteCorruptionOfBootCountWarnsOnceAndRestartsAtOne<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.EveryTruncationOfBootCountWarnsOnceAndRestartsAtOne<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.EverySingleByteCorruptionOfQuiescenceWarnsOnceAndRestartsNow<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.EveryTruncationOfQuiescenceWarnsOnceAndRestartsNow<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.UsecondsOutOfRangeInValidRecordIsCorrupt<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.StoreFailureWarnsAndKeepsPreviousRecord<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.GetBootCountCommandReadsWithoutRewriting<br>`test_StartupManager_Persistence` :: StartupManagerPersistenceTest.LegacyFilesWarnOnceEachAndApplyDefaults | ✅ Unit (passing) |  |
 
 ## TelemetryGate
 

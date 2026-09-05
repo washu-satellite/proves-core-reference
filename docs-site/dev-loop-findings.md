@@ -120,3 +120,14 @@ code it describes changes and the fact no longer holds.
 - `scripts/req.py add` requires `--group` = exact group name from `req.py list` (component sdd groups are the component names, e.g. `ThermalManager`, `PowerMonitor`, `ADCS`, `ImuManager`); ThermalManager/ADCS/ImuManager sdd Requirements tables are legacy 3-column (Name/Description/Validation) and get normalised on first tool edit; PowerMonitor already uses `PWR-MON-REQ-00x` ids.
 - `docs-site/components/*.md` are `cp` copies of `Components/*/docs/sdd.md` (`$R/Makefile:84-95`); mkdocs nav lists ADCS/ImuManager/PowerMonitor/ThermalManager (`$R/mkdocs.yml:67,90-92`).
 - `Components/RunInterval/` (planned) needs no CMake registration if header-only; project-root includes resolve via the F´ build's global include path (`TelemetryGate.cpp:9` includes `PersistedRecord` headers by project-root path; that lib is registered only because it has `.cpp` sources, `PersistedRecord/CMakeLists.txt`).
+
+## Cycle A coder findings, merged 2026-09-05
+- A `static constexpr U8 MAGIC[4]` class member passed by address to `PersistedRecord::load/store` is ODR-used and fails to link under the host build's C++14; keep magics in the `.cpp` anonymous namespace (`TelemetryGate.cpp:25` pattern).
+- `StartupManager`'s constructor leaves `m_boot_count`, `m_waiting`, `m_stored_opcode`, `m_stored_sequence` uninitialized (`StartupManager.cpp:18`); flight relies on static storage zeroing. Issue #8.
+- `log_WARNING_HI_FileOpenError` generated signature is `(U32, const Fw::StringBase&)`; `LogStringArg` derives from `StringBase`.
+- `TimeBase` is a global-namespace generated class with `enum T` and `operator T()`; `FwTimeBaseStoreType = U16`, `FwTimeContextStoreType = U8` (`lib/fprime/default/config/FpConfig.fpp:79,92`, not overridden by the project) — 11-byte `Fw::Time` layout confirmed.
+- `Authenticate.cpp` got `<cstring>`/`<cstdlib>` transitively via `FileHelper.hpp`; after removing FileHelper they must be included explicitly.
+- `pre-commit run --all-files` visits tracked files only; untracked new sources are not formatted or linted by it (verify.sh now runs them via `--files`).
+- clang-format hook reformats in place on the first run and reports Failed; a second run passes. Expect one failing gate run after any C++ edit unless files are formatted first.
+- In the host fake FS, `files[PATH].clear()` makes a present zero-length file: `exists()` true, open OK, decode TRUNCATED — the "empty file is corruption, not first boot" case.
+- Target build after Cycle A: FLASH 685824 B / 65.68 %, RAM 340080 B / 63.87 %.

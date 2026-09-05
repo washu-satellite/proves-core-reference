@@ -3,18 +3,20 @@
 The ModeManager component manages system operational modes and orchestrates transitions between NORMAL and SAFE_MODE. It evaluates voltage conditions and detects unintended reboots to make mode decisions, controls power to non-critical subsystems during transitions, and maintains/persists mode state across reboots.
 
 ## Requirements
-| Name | Description | Validation |
-|---|---|---|
-| MM0001 | The ModeManager shall maintain two operational modes: NORMAL and SAFE_MODE | Integration Testing |
-| MM0002 | The ModeManager shall enter safe mode when commanded manually via FORCE_SAFE_MODE command | Integration Testing |
-| MM0003 | The ModeManager shall enter safe mode when requested by external components via forceSafeMode port | Integration Testing |
-| MM0004 | The ModeManager shall exit safe mode only via explicit EXIT_SAFE_MODE command or automatic voltage recovery | Integration Testing |
-| MM0005 | The ModeManager shall turn off all 8 load switches when entering safe mode | Integration Testing |
-| MM0006 | The ModeManager shall turn on face load switches (0-5) when exiting safe mode; payload switches (6-7) remain off | Integration Testing |
-| MM0007 | The ModeManager shall persist mode state to non-volatile storage and restore on initialization | Integration Testing |
-| MM0008 | The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT | Integration Testing |
-| MM0009 | The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold | Integration Testing |
-| MM0010 | The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold | Integration Testing |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|MM0001|The ModeManager shall maintain two operational modes: NORMAL and SAFE_MODE|Integration Test|Board|GET_CURRENT_MODE returns SAFE_MODE after FORCE_SAFE_MODE and NORMAL after EXIT_SAFE_MODE, each within 5 s|||
+|MM0002|The ModeManager shall enter safe mode when commanded manually via FORCE_SAFE_MODE command|Integration Test|Board|FORCE_SAFE_MODE from NORMAL: ManualSafeModeEntry and EnteringSafeMode(Ground command) events within 2 s; GET_SAFE_MODE_REASON = GROUND_COMMAND|||
+|MM0003|The ModeManager shall enter safe mode when requested by external components via forceSafeMode port|Integration Testing|||||
+|MM0004|The ModeManager shall exit safe mode only via explicit EXIT_SAFE_MODE command or automatic voltage recovery|Integration Test|Board|In SAFE_MODE with reason GROUND_COMMAND no AutoSafeModeExit occurs within 13 s (debounce 10 s + 3); EXIT_SAFE_MODE returns to NORMAL within 5 s|||
+|MM0005|The ModeManager shall turn off all 8 load switches when entering safe mode|Unit Test, Integration Test|Board|Unit: enterSafeMode calls loadSwitchTurnOff on all 8 connected ports exactly once; Board: every load switch reads OFF via GET_IS_ON within 5 s of FORCE_SAFE_MODE|||
+|MM0006|The ModeManager shall turn on face load switches (0-5) when exiting safe mode; payload switches (6-7) remain off|Integration Testing|||||
+|MM0007|The ModeManager shall persist mode state to non-volatile storage and restore on initialization|Integration Test|Board|After FORCE_SAFE_MODE then WARM_RESET, GET_CURRENT_MODE = SAFE_MODE and reason GROUND_COMMAND; no UnintendedRebootDetected event after a commanded reset|||
+|MM0008|The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT|Integration Testing|||||
+|MM0009|The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold|Unit Test|Unit|Voltage < SafeModeEntryVoltage (6.7 V) or invalid on 10 consecutive run ticks enters SAFE_MODE with AutoSafeModeEntry(LOW_BATTERY); 9 ticks or a good sample in between does not|||
+|MM0010|The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold|Unit Test|Unit|In SAFE_MODE(LOW_BATTERY) voltage > 8.0 V on 10 consecutive ticks exits with AutoSafeModeExit; exactly 8.0 V, 9 ticks, or reason GROUND_COMMAND/SYSTEM_FAULT does not|||
+|MM0011|The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically|Unit Test|Unit|The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart|||
+|MM0012|A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event|Unit Test|Unit|For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events|||
 
 ## Class Diagram
 
@@ -116,11 +118,60 @@ Parameters can be modified at runtime via `PRM_SET` commands.
 
 ## State Persistence
 
-State is persisted to `/mode_state.bin`:
-- Current mode (U8)
-- Safe mode entry count (U32)
-- Safe mode reason (U8)
-- Clean shutdown flag (U8)
+State is persisted to `/mode_state.bin` as a PersistedRecord (see
+`Components/PersistedRecord/docs/sdd.md`): a self-validating record carrying a
+record-type magic, a format version, a payload length and a CRC-32. Updates are
+atomic — the record is written and flushed to `/mode_state.tmp`, then renamed
+over the target — so a failure at any step leaves the previous record intact
+and still valid (MM0011).
+
+Record-type magic: `"MMS1"`. The 7-byte payload is packed as explicit
+little-endian bytes, not as a struct image, so the on-disk format does not
+depend on compiler padding or target endianness:
+
+| Offset | Size | Field | Values |
+|---|---|---|---|
+| 0 | 1 | mode | 1 = SAFE_MODE, 2 = NORMAL |
+| 1 | 4 | safeModeEntryCount | U32 little-endian |
+| 5 | 1 | safeModeReason | SafeModeReason ordinal, 0..5 |
+| 6 | 1 | cleanShutdown | 1 = clean, 0 = unclean |
+
+### Load outcomes
+
+A load returns one of the PersistedRecord statuses; each maps to exactly one
+behaviour and at most one `StatePersistenceFailure(operation, status)` event
+(MM0012). `status` is the numeric PersistedRecord status.
+
+| Load result | Boot behaviour | Event |
+|---|---|---|
+| Valid record | Restore mode, entry count and reason; SAFE_MODE re-asserts the load switches off, NORMAL turns them on; a clear clean-shutdown flag in NORMAL is an unintended reboot | none |
+| File absent (first boot) | NORMAL, entry count 0, reason NONE | none |
+| Truncated, wrong magic, bad length, bad CRC, unknown version, or a CRC-valid record with an out-of-range field | Entry count 0, reason NONE, then safe-mode entry with reason SYSTEM_FAULT (switches off, `EnteringSafeMode`, record rewritten) | one `StatePersistenceFailure("load-corrupt", status)` |
+| File present but unopenable or unreadable | NORMAL defaults, switches on — a storage fault, not a failed validation | one `StatePersistenceFailure("load-open"/"load-read", status)` |
+
+Absence is distinguished from an unopenable file by a `stat` inside
+PersistedRecord, not by the open status: on Zephyr every open failure collapses
+to `OTHER_ERROR`. A first boot on a fresh filesystem therefore emits no event at
+all, which closes issue #1.
+
+Stores emit `StatePersistenceFailure("save-store", status)` on a mode change and
+`StatePersistenceFailure("shutdown-store", status)` from `prepareForReboot`; the
+successful paths are silent, as before.
+
+### Upgrade note
+
+The first boot of this image over a legacy `/mode_state.bin` — the 12-byte raw
+`PersistentState` struct written by the previous image — lands in SAFE_MODE with
+reason SYSTEM_FAULT and one `StatePersistenceFailure("load-corrupt")`. The
+legacy blob carries no magic, version or CRC, so it cannot be told apart from a
+torn record and is deliberately not migrated; the safe-mode entry count and the
+old clean-shutdown flag are lost (both telemetry-only). Recovery is a single
+`EXIT_SAFE_MODE`, which rewrites the record in the new format. Note that
+because `loadSwitchTurnOn` is unwired in the topology (GitHub issue #7), the
+face load switches stay OFF after `EXIT_SAFE_MODE` until commanded individually.
+Deleting `/mode_state.bin`, `/boot_count.bin` and `/quiescence_start.bin` before
+the upgrade reboot avoids the SAFE boot entirely by making the upgrade a clean
+first boot.
 
 ## Safe Mode Reason Logic
 
@@ -183,7 +234,8 @@ sequenceDiagram
 - **Reason tracking**: Only LOW_BATTERY allows auto-recovery; other reasons require manual EXIT_SAFE_MODE
 - **Mode query**: Both pull (getMode) and push (modeChanged) patterns supported
 
-## Additional Documentation
+## Change Log
 
-For a comprehensive finite state machine diagram documenting all Safe Mode entry and exit transitions, see:
-- [Safe Mode Finite State Machine](safe-mode-fsm.md)
+| Date | Description |
+|---|---|
+| 2026-09 | Persisted state moved from a raw `PersistentState` struct write to a PersistedRecord with magic `"MMS1"`, CRC-32 and atomic replace via `/mode_state.tmp`. A state that fails validation now boots SAFE/SYSTEM_FAULT with one `StatePersistenceFailure`; a missing file is a silent NORMAL first boot (MM0011, MM0012, issue #1). |

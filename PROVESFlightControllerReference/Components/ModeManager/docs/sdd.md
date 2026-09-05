@@ -118,11 +118,60 @@ Parameters can be modified at runtime via `PRM_SET` commands.
 
 ## State Persistence
 
-State is persisted to `/mode_state.bin`:
-- Current mode (U8)
-- Safe mode entry count (U32)
-- Safe mode reason (U8)
-- Clean shutdown flag (U8)
+State is persisted to `/mode_state.bin` as a PersistedRecord (see
+`Components/PersistedRecord/docs/sdd.md`): a self-validating record carrying a
+record-type magic, a format version, a payload length and a CRC-32. Updates are
+atomic — the record is written and flushed to `/mode_state.tmp`, then renamed
+over the target — so a failure at any step leaves the previous record intact
+and still valid (MM0011).
+
+Record-type magic: `"MMS1"`. The 7-byte payload is packed as explicit
+little-endian bytes, not as a struct image, so the on-disk format does not
+depend on compiler padding or target endianness:
+
+| Offset | Size | Field | Values |
+|---|---|---|---|
+| 0 | 1 | mode | 1 = SAFE_MODE, 2 = NORMAL |
+| 1 | 4 | safeModeEntryCount | U32 little-endian |
+| 5 | 1 | safeModeReason | SafeModeReason ordinal, 0..5 |
+| 6 | 1 | cleanShutdown | 1 = clean, 0 = unclean |
+
+### Load outcomes
+
+A load returns one of the PersistedRecord statuses; each maps to exactly one
+behaviour and at most one `StatePersistenceFailure(operation, status)` event
+(MM0012). `status` is the numeric PersistedRecord status.
+
+| Load result | Boot behaviour | Event |
+|---|---|---|
+| Valid record | Restore mode, entry count and reason; SAFE_MODE re-asserts the load switches off, NORMAL turns them on; a clear clean-shutdown flag in NORMAL is an unintended reboot | none |
+| File absent (first boot) | NORMAL, entry count 0, reason NONE | none |
+| Truncated, wrong magic, bad length, bad CRC, unknown version, or a CRC-valid record with an out-of-range field | Entry count 0, reason NONE, then safe-mode entry with reason SYSTEM_FAULT (switches off, `EnteringSafeMode`, record rewritten) | one `StatePersistenceFailure("load-corrupt", status)` |
+| File present but unopenable or unreadable | NORMAL defaults, switches on — a storage fault, not a failed validation | one `StatePersistenceFailure("load-open"/"load-read", status)` |
+
+Absence is distinguished from an unopenable file by a `stat` inside
+PersistedRecord, not by the open status: on Zephyr every open failure collapses
+to `OTHER_ERROR`. A first boot on a fresh filesystem therefore emits no event at
+all, which closes issue #1.
+
+Stores emit `StatePersistenceFailure("save-store", status)` on a mode change and
+`StatePersistenceFailure("shutdown-store", status)` from `prepareForReboot`; the
+successful paths are silent, as before.
+
+### Upgrade note
+
+The first boot of this image over a legacy `/mode_state.bin` — the 12-byte raw
+`PersistentState` struct written by the previous image — lands in SAFE_MODE with
+reason SYSTEM_FAULT and one `StatePersistenceFailure("load-corrupt")`. The
+legacy blob carries no magic, version or CRC, so it cannot be told apart from a
+torn record and is deliberately not migrated; the safe-mode entry count and the
+old clean-shutdown flag are lost (both telemetry-only). Recovery is a single
+`EXIT_SAFE_MODE`, which rewrites the record in the new format. Note that
+because `loadSwitchTurnOn` is unwired in the topology (GitHub issue #7), the
+face load switches stay OFF after `EXIT_SAFE_MODE` until commanded individually.
+Deleting `/mode_state.bin`, `/boot_count.bin` and `/quiescence_start.bin` before
+the upgrade reboot avoids the SAFE boot entirely by making the upgrade a clean
+first boot.
 
 ## Safe Mode Reason Logic
 
@@ -184,3 +233,9 @@ sequenceDiagram
 - **Debounce**: Configurable consecutive samples prevent spurious transitions
 - **Reason tracking**: Only LOW_BATTERY allows auto-recovery; other reasons require manual EXIT_SAFE_MODE
 - **Mode query**: Both pull (getMode) and push (modeChanged) patterns supported
+
+## Change Log
+
+| Date | Description |
+|---|---|
+| 2026-09 | Persisted state moved from a raw `PersistentState` struct write to a PersistedRecord with magic `"MMS1"`, CRC-32 and atomic replace via `/mode_state.tmp`. A state that fails validation now boots SAFE/SYSTEM_FAULT with one `StatePersistenceFailure`; a missing file is a silent NORMAL first boot (MM0011, MM0012, issue #1). |

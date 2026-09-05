@@ -175,6 +175,63 @@ To run the SPI selection (otherwise the encryption will be the default encryptio
 | dataReturnOut | Output | Svc.ComDataWithContext | Port returning ownership of invalid/unauthorized packets back to upstream component (TcDeframer) for buffer deallocation. |
 | dataReturnIn | Input (sync) | Svc.ComDataWithContext | Port receiving back ownership of buffers sent to dataOut, to be forwarded to the upstream component. |
 
+## Sequence Number Persistence
+
+The anti-replay sequence number is persisted to `/sequence_number.bin` as a
+PersistedRecord (see `Components/PersistedRecord/docs/sdd.md`): a self-validating
+record carrying a record-type magic, a format version, a payload length and a
+CRC-32. Updates are atomic — the record is written and flushed to
+`/sequence_number.tmp`, then renamed over the target — so a failure at any step
+leaves the previous record intact and still valid (AUTH013).
+
+Record-type magic: `"ASN1"`. The 4-byte payload is the sequence number as an
+explicit little-endian U32. The decision logic lives in
+`SequenceNumberStore.hpp/.cpp`, which is deliberately free of F Prime, Zephyr and
+mbedTLS includes so it can be exercised by host unit tests; the component itself
+cannot be compiled off-target because it pulls in `<psa/crypto.h>`.
+
+| Load result | Baseline used | Event |
+|---|---|---|
+| Valid record | The stored sequence number | none |
+| File absent (first boot) | 0 | none; nothing is written |
+| Truncated, wrong magic, bad length, bad CRC, unknown version, or a payload that is not 4 bytes | 0 | one `FileOpenError(status, "/sequence_number.bin")`, then the baseline is stored so a damaged file stops re-warning on every `GET_SEQ_NUM` re-read |
+| File present but unopenable or unreadable | 0 | same as above |
+| Store failure (open, write, sync or rename) | the in-RAM value stands | one `FileOpenError(status, "/sequence_number.bin")` |
+
+Never adopting a value that failed validation is the point: a corrupted sequence
+number that was silently accepted would either lock the ground out of the replay
+window or open it. Falling back to 0 means the ground resyncs through the window
+(or with `SET_SEQ_NUM`).
+
+`FileOpenError` is `throttle 2`, so a persistently unstorable file goes quiet
+after two events per boot.
+
+### Legacy file
+
+The retired image wrote a bare big-endian U32 to `//sequence_number.txt` (binary
+despite the extension, and with no magic, version or CRC). The new path is
+different, so that file is orphaned rather than migrated: the first boot of this
+image is a clean first boot with baseline 0 and no warning. Ground that is ahead
+of the satellite by less than `SEQ_NUM_WINDOW` (50000) is accepted, so the
+resync is silent.
+
+### Two writers on one file
+
+Three Authenticate instances are declared (LoRa, UART, S-band) and two are
+built; S-band is commented out of the topology. Both built instances persist to
+the same target and the same staging file, and `dataIn` is `guarded` per
+instance only, so two accepted packets arriving on both links inside one write
+window can interleave the staging file. That exposure is identical to the
+previous implementation, which opened the same path with `OVERWRITE`. The
+difference is the outcome: an interleaved record now fails its CRC on the next
+load and yields baseline 0 plus one warning, instead of being silently adopted.
+Per-instance staging names (derived from the instance number) are a cheap
+follow-up if a board test ever shows a collision.
+
+Not addressed here (pre-existing): each instance keeps its own in-RAM sequence
+number so only the last writer's value is on disk, and `SET_SEQ_NUM` writes the
+file without updating RAM.
+
 ## Events
 
 | Name | Severity | Parameters | Description |
@@ -188,7 +245,7 @@ To run the SPI selection (otherwise the encryption will be the default encryptio
 | SetSequenceNumberSuccess | Activity High | seq_num: U32, status: bool | Emitted after SET_SEQ_NUM command execution to indicate whether the sequence number was successfully set. Format: "sequence number has been set to {}: {}" |
 | InvalidAuthenticationType | Warning High | authType: U32 | Emitted when an unsupported authentication type is encountered. Contains the invalid authentication type identifier. Format: "Invalid authentication type {}" |
 | EmitSpiKey | Activity High | key: HashString, authType: HashString | Emitted in response to GET_KEY_FROM_SPI command to report the key and authentication type associated with a given SPI. Format: "SPI key is {} type is {}" |
-| FileOpenError | Warning High | error: U32 | Emitted when there is an error opening or reading the SPI dictionary file. Contains the error code. Format: "File Error with Error {}" |
+| FileOpenError | Warning High | error: U32, filename: string size 64 | Emitted when a persisted file cannot be used. Since the sequence number moved to a PersistedRecord it is emitted when the sequence-number file is corrupt, unreadable, or cannot be stored; `error` carries the numeric PersistedRecord status and `filename` the path. Throttled at 2 per boot. Format: "File Error with Error {} for file: {}" |
 | FoundSPIKey | Activity Low | found: bool | Emitted during SPI lookup to indicate whether a matching SPI key was found in the dictionary file. Format: "Found SPI status: {}" |
 | PacketTooShort | Warning High | packet_size: U32 | Emitted when a received packet is too short to contain the required security header and trailer. Contains the actual packet size. Format: "Received packet is too short ({}) to process for authentication" |
 | CryptoComputationError | Warning High | status: U32 | Emitted when there is an error during HMAC computation (e.g., PSA crypto initialization failure, hash operation failure). Contains the error status code. Format: "Crypto Computation Error: {}" |
@@ -235,3 +292,9 @@ to build the framer plugin
 and to start the gds with the
 
 > make gds-with-framer
+
+## Change Log
+
+| Date | Description |
+|---|---|
+| 2026-09 | Sequence-number persistence moved from a bare big-endian U32 at `//sequence_number.txt` to a PersistedRecord at `/sequence_number.bin` (magic `"ASN1"`, CRC-32, atomic replace via `/sequence_number.tmp`). A corrupt, unreadable or unstorable file now emits `FileOpenError` and falls back to baseline 0 instead of silently becoming 0; the first boot no longer writes the baseline back (AUTH013). |
