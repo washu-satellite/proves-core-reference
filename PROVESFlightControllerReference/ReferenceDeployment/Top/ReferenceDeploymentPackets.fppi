@@ -130,6 +130,8 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.modeManager.CurrentMode
     ReferenceDeployment.modeManager.SafeModeEntryCount
     ReferenceDeployment.modeManager.CurrentSafeModeReason
+    ReferenceDeployment.telemetryGate.TransmitState
+    ReferenceDeployment.telemetryGate.GatedTicks
   }
 
   packet HealthWarnings id 3 group 5 {
