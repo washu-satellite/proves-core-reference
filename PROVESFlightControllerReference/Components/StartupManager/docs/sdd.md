@@ -99,7 +99,6 @@ Waiting for Quiescence → Running (quiescence period expires OR ARMED=false)
 
 | Name | Description | Method | Level | Pass Criteria | Status | Reason |
 |---|---|---|---|---|---|---|
-|Requirement ID|Description|Validation Method|||||
 |REQ-SM-001|StartupManager shall track boot count across power cycles|Verification: Check that boot count increments on each boot via telemetry|||||
 |REQ-SM-002|StartupManager shall support configurable quiescence waiting period|Verification: Confirm QUIESCENCE_TIME parameter affects wait duration|||||
 |REQ-SM-003|StartupManager shall automatically dispatch startup sequence on first run call|inspection|||||

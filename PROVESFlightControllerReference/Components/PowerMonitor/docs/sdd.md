@@ -78,15 +78,15 @@ sequenceDiagram
 ```
 
 ## Requirements
-| Name | Description | Validation |
-|---|---|---|
-| PWR-MON-REQ-001 | The component shall respond to scheduler calls via the run port | Integration test |
-| PWR-MON-REQ-002 | The component shall request voltage measurements from the system power driver on each run cycle | Integration test |
-| PWR-MON-REQ-003 | The component shall request current measurements from the system power driver on each run cycle | Integration test |
-| PWR-MON-REQ-004 | The component shall request power measurements from the system power driver on each run cycle | Integration test |
-| PWR-MON-REQ-005 | The component shall request voltage measurements from the solar panel power driver on each run cycle | Integration test |
-| PWR-MON-REQ-006 | The component shall request current measurements from the solar panel power driver on each run cycle | Integration test |
-| PWR-MON-REQ-007 | The component shall request power measurements from the solar panel power driver on each run cycle | Integration test |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|PWR-MON-REQ-001|The component shall respond to scheduler calls via the run port|Integration Test|Board|GET_TOTAL_POWER returns TotalPowerConsumptionReading > 0 and a second reading 10 s later is strictly greater (run port executing each cycle)|||
+|PWR-MON-REQ-002|The component shall request voltage measurements from the system power driver on each run cycle|Integration test|||||
+|PWR-MON-REQ-003|The component shall request current measurements from the system power driver on each run cycle|Integration test|||||
+|PWR-MON-REQ-004|The component shall request power measurements from the system power driver on each run cycle|Integration Test|Board|TotalPowerConsumption increases between two readings 10 s apart, which requires a system power request on each 1 Hz run|||
+|PWR-MON-REQ-005|The component shall request voltage measurements from the solar panel power driver on each run cycle|Integration test|||||
+|PWR-MON-REQ-006|The component shall request current measurements from the solar panel power driver on each run cycle|Integration test|||||
+|PWR-MON-REQ-007|The component shall request power measurements from the solar panel power driver on each run cycle|Integration test|||||
 
 ## Change Log
 | Date | Description |

@@ -5,16 +5,16 @@ The ModeManager component manages system operational modes and orchestrates tran
 ## Requirements
 | Name | Description | Method | Level | Pass Criteria | Status | Reason |
 |---|---|---|---|---|---|---|
-|MM0001|The ModeManager shall maintain two operational modes: NORMAL and SAFE_MODE|Integration Testing|||||
-|MM0002|The ModeManager shall enter safe mode when commanded manually via FORCE_SAFE_MODE command|Integration Testing|||||
+|MM0001|The ModeManager shall maintain two operational modes: NORMAL and SAFE_MODE|Integration Test|Board|GET_CURRENT_MODE returns SAFE_MODE after FORCE_SAFE_MODE and NORMAL after EXIT_SAFE_MODE, each within 5 s|||
+|MM0002|The ModeManager shall enter safe mode when commanded manually via FORCE_SAFE_MODE command|Integration Test|Board|FORCE_SAFE_MODE from NORMAL: ManualSafeModeEntry and EnteringSafeMode(Ground command) events within 2 s; GET_SAFE_MODE_REASON = GROUND_COMMAND|||
 |MM0003|The ModeManager shall enter safe mode when requested by external components via forceSafeMode port|Integration Testing|||||
-|MM0004|The ModeManager shall exit safe mode only via explicit EXIT_SAFE_MODE command or automatic voltage recovery|Integration Testing|||||
-|MM0005|The ModeManager shall turn off all 8 load switches when entering safe mode|Integration Testing|||||
+|MM0004|The ModeManager shall exit safe mode only via explicit EXIT_SAFE_MODE command or automatic voltage recovery|Integration Test|Board|In SAFE_MODE with reason GROUND_COMMAND no AutoSafeModeExit occurs within 13 s (debounce 10 s + 3); EXIT_SAFE_MODE returns to NORMAL within 5 s|||
+|MM0005|The ModeManager shall turn off all 8 load switches when entering safe mode|Unit Test, Integration Test|Board|Unit: enterSafeMode calls loadSwitchTurnOff on all 8 connected ports exactly once; Board: every load switch reads OFF via GET_IS_ON within 5 s of FORCE_SAFE_MODE|||
 |MM0006|The ModeManager shall turn on face load switches (0-5) when exiting safe mode; payload switches (6-7) remain off|Integration Testing|||||
-|MM0007|The ModeManager shall persist mode state to non-volatile storage and restore on initialization|Integration Testing|||||
+|MM0007|The ModeManager shall persist mode state to non-volatile storage and restore on initialization|Integration Test|Board|After FORCE_SAFE_MODE then WARM_RESET, GET_CURRENT_MODE = SAFE_MODE and reason GROUND_COMMAND; no UnintendedRebootDetected event after a commanded reset|||
 |MM0008|The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT|Integration Testing|||||
-|MM0009|The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold|Integration Testing|||||
-|MM0010|The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold|Integration Testing|||||
+|MM0009|The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold|Unit Test|Unit|Voltage < SafeModeEntryVoltage (6.7 V) or invalid on 10 consecutive run ticks enters SAFE_MODE with AutoSafeModeEntry(LOW_BATTERY); 9 ticks or a good sample in between does not|||
+|MM0010|The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold|Unit Test|Unit|In SAFE_MODE(LOW_BATTERY) voltage > 8.0 V on 10 consecutive ticks exits with AutoSafeModeExit; exactly 8.0 V, 9 ticks, or reason GROUND_COMMAND/SYSTEM_FAULT does not|||
 |MM0011|The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically|Unit Test|Unit|The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart|||
 |MM0012|A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event|Unit Test|Unit|For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events|||
 
