@@ -85,6 +85,26 @@ target_include_directories(thermal_manager_component PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
+# ADCS component (real ADCS.cpp built against the host stubs in support/: a
+# recording ComponentAc base and a host FW_ASSERT).
+add_library(adcs_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/ADCS/ADCS.cpp
+)
+target_include_directories(adcs_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# PowerMonitor component (real PowerMonitor.cpp built against the host stubs in
+# support/: a recording ComponentAc base and the fake Fw::Time).
+add_library(power_monitor_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/PowerMonitor/PowerMonitor.cpp
+)
+target_include_directories(power_monitor_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
 # ModeManager component (real ModeManager.cpp built against the host stubs in
 # support/: a recording ComponentAc base, the in-memory Os::File, and the Fw
 # string / assert stubs).
@@ -138,6 +158,8 @@ foreach(test_src ${TEST_SOURCES})
         persisted_record_file
         telemetry_gate_component
         thermal_manager_component
+        adcs_component
+        power_monitor_component
         mode_manager_component
         authenticate_sequence_store
         startup_manager_component

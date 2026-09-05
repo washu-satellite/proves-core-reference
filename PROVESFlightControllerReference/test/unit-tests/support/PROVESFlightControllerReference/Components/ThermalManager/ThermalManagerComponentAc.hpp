@@ -57,6 +57,9 @@ class ThermalManagerComponentBase {
     explicit ThermalManagerComponentBase(const char* const compName) : compName(compName) {}
     virtual ~ThermalManagerComponentBase() {}
 
+    //! Parameter id of COLLECTION_INTERVAL_S (ThermalManager.fpp "id 4").
+    static constexpr FwPrmIdType PARAMID_COLLECTION_INTERVAL_S = 4;
+
     // ---- port counts (constexpr: ThermalManager.hpp:29-32 uses them as array bounds) ----
     static constexpr FwIndexType getNum_faceTempGet_OutputPorts() { return 5; }
     static constexpr FwIndexType getNum_battCellTempGet_OutputPorts() { return 4; }
@@ -64,6 +67,10 @@ class ThermalManagerComponentBase {
 
     // ---- handlers implemented by the component (private overrides there) ----
     virtual void run_handler(FwIndexType portNum, U32 context) = 0;
+
+    //! Public here so a test can drive the parameter-update path directly; the
+    //! component overrides it privately, exactly as against real autocode.
+    virtual void parameterUpdated(FwPrmIdType id) = 0;
 
     // ---- test-controlled sensor readings ----
     F64 faceTemp[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
@@ -80,6 +87,7 @@ class ThermalManagerComponentBase {
     F64 faceUpperThreshold = 60.0;
     F64 battLowerThreshold = 5.0;
     F64 battUpperThreshold = 60.0;
+    U8 collectionIntervalS = 1;
     Fw::ParamValid paramValidity = Fw::ParamValid::VALID;
 
     // ---- recorded outgoing effects, public for test inspection ----
@@ -89,6 +97,8 @@ class ThermalManagerComponentBase {
     U32 faceTempReads = 0;
     U32 battTempReads = 0;
     U32 picoTempReads = 0;
+    std::vector<U8> tlmCollectionIntervalS;
+    std::vector<U8> eventsCollectionIntervalRejected;
 
   protected:
     // ---- base-class services the component implementation calls ----
@@ -129,6 +139,17 @@ class ThermalManagerComponentBase {
     F64 paramGet_BATT_CELL_TEMP_UPPER_THRESHOLD(Fw::ParamValid& valid) {
         valid = this->paramValidity;
         return this->battUpperThreshold;
+    }
+
+    U8 paramGet_COLLECTION_INTERVAL_S(Fw::ParamValid& valid) {
+        valid = this->paramValidity;
+        return this->collectionIntervalS;
+    }
+
+    void tlmWrite_CollectionIntervalS(U8 interval_s) { this->tlmCollectionIntervalS.push_back(interval_s); }
+
+    void log_WARNING_LO_CollectionIntervalRejected(U8 requested) {
+        this->eventsCollectionIntervalRejected.push_back(requested);
     }
 
     void log_WARNING_LO_TemperatureAboveThreshold(const ThermalManager_TempSensorType& sensorType,

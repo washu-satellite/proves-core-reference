@@ -24,6 +24,8 @@ typedef float F32;
 typedef double F64;
 typedef int32_t FwIndexType;
 typedef uint32_t FwOpcodeType;
+//! Mirrors lib/fprime/default/config/FpConfig.fpp:42,72 (FwPrmIdType = FwIdType = U32).
+typedef uint32_t FwPrmIdType;
 typedef uint64_t FwSizeType;
 typedef int32_t FwEnumStoreType;
 //! Mirrors lib/fprime/default/config/FpConfig.fpp:79,92.
