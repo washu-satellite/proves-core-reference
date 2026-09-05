@@ -131,3 +131,31 @@ code it describes changes and the fact no longer holds.
 - clang-format hook reformats in place on the first run and reports Failed; a second run passes. Expect one failing gate run after any C++ edit unless files are formatted first.
 - In the host fake FS, `files[PATH].clear()` makes a present zero-length file: `exists()` true, open OK, decode TRUNCATED — the "empty file is corruption, not first boot" case.
 - Target build after Cycle A: FLASH 685824 B / 65.68 %, RAM 340080 B / 63.87 %.
+
+## Cycle D planner findings, merged 2026-09-05 (fault paths, packetizer, rate groups)
+- Health FATAL chain: `HLTH_PING_LATE` is FATAL after `FATAL` missed pings (`lib/fprime/Svc/Health/HealthComponentImpl.cpp:119-123`) →
+- `watchdog.stop` already fans in from two outputs (`topology.fpp:297` router `reset_watchdog`, `:495` fatalHandler) — precedent for a third.
+- Router command-loss action (`Components/AuthenticationRouter/AuthenticationRouter.cpp:44-51` `CallSafeMode`): `reset_watchdog_out` (guarded by
+- ModeManager `run` is a sync port (`ModeManager.fpp:38`) → voltage debounce executes on the rateGroup1Hz thread; `forceSafeMode` is async (`:45`) →
+- 1 Hz group: index 12 unused (`topology.fpp:271-290`); `ActiveRateGroupOutputPorts = 25` (`P/project/config/AcConstants.fpp:7`; lib default 10,
+- Generated component bases expose protected `virtual void lock()/unLock()` and a private `Os::Mutex m_guardedPortMutex` (copy build,
+- Packet id 9 is free (`ReferenceDeploymentPackets.fppi` uses 1-8, 10-22); "group" in a packet line is the SET_LEVEL level; `FW_COM_BUFFER_MAX_SIZE = 233`
+- Precedents: `param ARMED: bool default true` (`StartupManager.fpp:49`); enum-returning port `GetSystemMode -> SystemMode` (`ModeManager.fpp:23`).
+- `scripts/req.py` discovers component groups only from a heading matching `^##\s+Requirements\s*$` (`req.py:150`), group = component dir name
+- Clean-path copy is at 93d28b5; its dictionary has 339 commands / 89 params / 194 channels / 662 events / 0 records / 0 containers.
+- `Watchdog.hpp:12-14` includes `<atomic>` and `Fw/Types/OnEnumAc.hpp`; `Watchdog.cpp:9` includes `config/FpConfig.hpp`; no Zephyr includes → host-buildable
+- ThermalManager/ModeManager recorder stubs have no `faultOut`; the ModeManager stub's `isConnected_*` flags (`ModeManagerComponentAc.hpp:158-176`) are the
+- `test_ThermalManager_Thresholds.cpp:81,124,160,185` claims TM-L2-08/FD-L2-03; `test_ModeManager_VoltageDebounce.cpp:122` claims MM0009/MS-L2-08.
+- Docs plumbing lines: `mkdocs.yml:72` (Watchdog nav entry), `Makefile:101` (Watchdog cp), `:124` (PersistedRecord cp); `docs-site/components/Watchdog.md` exists.
+- `loraRetry` is `Svc.ComRetry` (`Top/instances.fpp:220`; wiring `topology.fpp:207-214`) — FD-L2-08 clause 1 is library behaviour already present.
+- `Svc.Health` (`CdhCore.$health`) is a *queued* component drained by `Run` on rateGroup1Hz[2] (`CdhCore.fpp:18-33`, `topology.fpp:274`) — the
+- New packet Faults id 9 (Cycle D) brings the packet count to 22 = MAX_PACKETIZER_PACKETS (project/config/TlmPacketizerCfg.hpp:19); any further packet needs the config raised.
+
+## Cycle B coder findings, merged 2026-09-05
+- PowerMonitor::updateGeneration never accumulates: updatePower stores m_lastUpdateTime_s before updateGeneration computes dt from it, so dt is always 0 and TotalPowerGenerated has always reported 0 (PowerMonitor.cpp ~142,163). Issue #9.
+- Adding a port class (e.g. param get/set) to a component that lacked it needs a full fprime-util generate: the stale per-module fpp-to-cpp -i list lacks Fw/Prm/Prm.fpp and an incremental ninja run fails with 'symbol PrmGet is not defined'.
+- -Wreorder: declare new component members last so declaration order matches the constructor initializer order; ARM warnings are visible in this project.
+- fpp-to-dict can be run standalone from its ninja COMMAND line (~10 s) with --cmake-bin-dir redirected to $TMPDIR: cheap packet-set completeness and dictionary-count check without a Zephyr link.
+- Dictionary after Cycle B: 347 commands, 93 params, 198 channels, 666 events.
+- fprime_gds ChannelTemplate: get_full_name() returns comp.channel, get_name() the bare name; filter subhistories by get_full_name().
+- Sandbox (2026-09-05): writes denied to .vscode/, .github/, .claude/, .gitmodules and ~/.cache/pre-commit; reads denied to every *.pem/*.key under $HOME, which breaks fprime-util (requests→certifi cacert.pem) and the Zephyr build (keys/proves.pem in ninja regen deps).

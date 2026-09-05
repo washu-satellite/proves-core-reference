@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**262** requirements &middot; **79** linked to automated tests &middot; **28** verified by passing unit tests in this build &middot; **51** deferred to hardware (environment: host, no board in this environment)
+**269** requirements &middot; **86** linked to automated tests &middot; **34** verified by passing unit tests in this build &middot; **52** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -81,12 +81,12 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## CDH Telemetry Acquisition and Monitoring (TM-L2)
 
-*9 requirements &middot; 6 automated &middot; 1 passing*
+*9 requirements &middot; 7 automated &middot; 1 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
 | TM-L2-01 | System shall collect telemetry from all registered subsystem sources. | Integration Test | Board | Within 70 s at level 5 at least one update from each source: imuManager (3 channels), tmp112 x9, pico, ina219Sys/Sol, powerMonitor, fsSpace, startupManager, modeManager, lora, rateGroups x3; payload [not integrated] | `telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | Payload data not yet received into the telemetry pipeline |
-| TM-L2-02 | System shall support configurable telemetry collection intervals. | Integration Test | Board | After a collection-interval parameter is set to N s (1..60), that source's channel updates are spaced N +/-1 s over 5 consecutive updates [no such parameter exists] | *none* | 📋 CDR: Not met | Subsystem sampling loops are tied to fixed frequencies; not configurable at runtime |
+| TM-L2-02 | System shall support configurable telemetry collection intervals. | Integration Test | Board | After a source's COLLECTION_INTERVAL_S is set to N s (1..60), that source's channel updates are spaced N +/-1 s over 5 consecutive updates (telemetryDelay.DIVIDER 0, packet level 3) | `collection_interval_test.py` :: test_01_interval_spaces_channel_updates<br>`collection_interval_test.py` :: test_03_default_interval_updates_every_second | ⏸ Integration (deferred: no board in host env) | Subsystem sampling loops are tied to fixed frequencies; not configurable at runtime |
 | TM-L2-03 | System shall timestamp all collected telemetry. | Integration Test | Board | Every telemetry item received over 70 s carries a non-zero FSW time and per-channel timestamps are non-decreasing | `telemetry_sources_test.py` :: test_02_timestamps_present_and_monotonic | ⏸ Integration (deferred: no board in host env) |  |
 | TM-L2-04 | System shall package telemetry into structured data records. | Inspection | Unit | Every channel is packed by Svc.TlmPacketizer into the packets of ReferenceDeploymentPackets.fppi (id + time + values) and the GDS decodes all packets against the dictionary with zero decode errors | *none* | 📋 CDR: Met |  |
 | TM-L2-05 | System shall support monitoring of thermal data. | Integration Test | Board | With face switches ON and level 5: Temperature for each TMP112 (face0-3,5; batt1-4) and picoTempManager.PicoTemperature update at least once per 45 s with value in -40..125 C | `telemetry_sources_test.py` :: test_03_thermal_channels | ⏸ Integration (deferred: no board in host env) |  |
@@ -103,12 +103,12 @@ assessment (e.g. from CDR) with no automated evidence yet.
 |---|---|---|---|---|---|---|---|
 | DH-L2-01 | System shall buffer telemetry data prior to downlink. | Integration Test | Board | Radio link: events generated while lora.TRANSMIT is DISABLED (3 OpCodeCompleted) are delivered within 45 s of TRANSMIT ENABLED; the latest telemetry packet is delivered on the next run | *none* | 📋 CDR: Met |  |
 | DH-L2-02 | System shall allocate and manage memory for telemetry buffers. | Integration Test | Board | ComCcsdsLora/Uart commsBufferManager.NoBuffs and payloadBufferManager.NoBuffs stay 0 over 70 s (level 5); pool sizes are static (ComCcsdsConfig.fpp:38-42) | `telemetry_sources_test.py` :: test_06_buffer_pools_never_exhausted | ⏸ Integration (deferred: no board in host env) |  |
-| DH-L2-03 | System shall support configuration of telemetry storage buffer sizes. | Inspection | Unit | After a buffer-size parameter is set by command, the reported capacity equals the new size on the next period [not implemented: sizes are compile-time constants] | *none* | 📋 CDR: Partial | Buffer sizes editable in source code only; not command-configurable at runtime |
-| DH-L2-04 | System shall validate requested buffer sizes against available memory. | Unit Test | Unit | A requested buffer size larger than the configured pool is rejected with VALIDATION_ERROR and the previous size is retained [not implemented] | *none* | 📋 CDR: Partial | No runtime buffer configuration exists to validate |
-| DH-L2-05 | System shall apply buffer configuration changes only after successful command processing. | Integration Test | Board | The new buffer size takes effect only after the set command returns OK; a command that returns an error leaves the old size in force [not implemented] | *none* | 📋 CDR: Not met | Buffer configuration is not runtime command-configurable |
+| DH-L2-03 | System shall support configuration of telemetry storage buffer sizes. | Inspection | Unit | After a buffer-size parameter is set by command, the reported capacity equals the new size on the next period [not implemented: sizes are compile-time constants] | *none* | 📋 CDR: Partial | Svc::BufferManager/ComQueue are configured once at boot (lib); no project-owned telemetry buffer; needs TelemetryStore design |
+| DH-L2-04 | System shall validate requested buffer sizes against available memory. | Unit Test | Unit | A requested buffer size larger than the configured pool is rejected with VALIDATION_ERROR and the previous size is retained [not implemented] | *none* | 📋 CDR: Partial | Svc::BufferManager/ComQueue are configured once at boot (lib); no project-owned telemetry buffer; needs TelemetryStore design |
+| DH-L2-05 | System shall apply buffer configuration changes only after successful command processing. | Integration Test | Board | The new buffer size takes effect only after the set command returns OK; a command that returns an error leaves the old size in force [not implemented] | *none* | 📋 CDR: Not met | Svc::BufferManager/ComQueue are configured once at boot (lib); no project-owned telemetry buffer; needs TelemetryStore design |
 | DH-L2-06 | System shall prioritize stored data based on configurable priority levels. | Inspection | Unit | comQueue serves EVENTS(0) before FILE(1) before TLM(2) when all are non-empty (ComCcsdsConfig.fpp:31-33); commandable per-packet priority tags [not implemented] | *none* | 📋 CDR: Partial | Packet context header has no priority field; only coarse {events, file, tlm} queue priorities |
 | DH-L2-07 | System shall support selective downlink of stored data. | Integration Test | Board | fileDownlink.SendFile of a 4 KB file previously uplinked completes (FileSent event) within 60 s and the downlinked file is byte-identical to the source | *none* | 📋 CDR: Met |  |
-| DH-L2-08 | System shall retain telemetry for a configurable duration. | Integration Test | Board | Telemetry retained on board for a commanded duration D: a record older than D is absent and one younger than D is present on retrieval [not implemented: no on-board telemetry store] | *none* | 📋 CDR: Not met | Retention duration is not configurable |
+| DH-L2-08 | System shall retain telemetry for a configurable duration. | Integration Test | Board | Telemetry retained on board for a commanded duration D: a record older than D is absent and one younger than D is present on retrieval [not implemented: no on-board telemetry store] | *none* | 📋 CDR: Not met | No on-board telemetry store (TlmPacketizer latest-value only, comQueue tlm depth 1, no DataProducts); needs TelemetryStore design |
 | DH-L2-09 | System shall delete or overwrite data when storage capacity is exceeded. | Inspection | Unit | When a comQueue is full the next packet is dropped and exactly one QueueOverflow event is emitted for that queue (latched, ComQueue.cpp:257-265); FreeSpace never reaches 0 in a 70 s run | *none* | 📋 CDR: Partial |  |
 | DH-L2-10 | System shall implement buffer overflow handling with defined data discard policy. | Inspection | Unit | Discard policy documented as drop-newest with a latched QueueOverflow warning (Svc/ComQueue/ComQueue.cpp:257-265); depths events 50, tlm 1, file 1 | *none* | 📋 CDR: Partial | Discard policy not explicitly defined |
 | DH-L2-11 | System shall ensure data integrity during storage. | Integration Test | Board | PersistedRecord-1..7 pass at unit; PersistedRecord-5 power-cut test: zero silent wrong reads over >= 20 cycles; every persisted consumer (MM0011/12, AUTH013, REQ-SM-008, TelemetryGate-9) linked | *none* | 📋 CDR: Partial | SD writes are a known corruption source (risk 2); decomposed into PersistedRecord-1..7 plus consumer adoption MM0011-MM0012, AUTH013, REQ-SM-008, TelemetryGate-9 (Components/PersistedRecord/docs/sdd.md) |
@@ -177,12 +177,14 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ADCS
 
-*2 requirements &middot; 0 automated &middot; 0 passing*
+*4 requirements &middot; 2 automated &middot; 2 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
 | Light Sensor Data Collection | The component shall trigger data collection from connected light sensors when run is called | Verify all connected light sensor output ports are called |  |  | *none* | ⬜ No automated test |  |
 | Periodic Operation | The component shall operate as a scheduled component responding to scheduler calls | Verify component responds correctly to scheduler input |  |  | *none* | ⬜ No automated test |  |
+| ADCS-1 | run shall perform the light-sensor sweep every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sweeps occur (ticks 1,4,7,10); at the default interval every tick sweeps | `test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.IntervalThreeSweepsFourTimesInTwelveTicks<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.IntervalSixtyIsAccepted<br>`test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN | ✅ Unit (passing) |  |
+| ADCS-2 | An out-of-range or invalid COLLECTION_INTERVAL_S shall fall back to the 1 s default and report the rejection | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event, and CollectionIntervalS telemetry 1 | `test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.UninitParamIsRejectedAndFallsBackToOne<br>`test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange | ✅ Unit (passing) |  |
 
 ## AntennaDeployer
 
@@ -363,13 +365,14 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ImuManager
 
-*3 requirements &middot; 0 automated &middot; 0 passing*
+*4 requirements &middot; 0 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
 | Sensor Data Collection | The component shall trigger data collection from both LSM6DSO and LIS2MDL sensors when run is called | Verify telemetry output updates on run call |  |  | *none* | ⬜ No automated test |  |
 | Periodic Operation | The component shall operate as a scheduled component responding to scheduler calls | Verify component responds correctly to scheduler input |  |  | *none* | ⬜ No automated test |  |
 | Configuration | The component shall allow configuration of sampling frequencies and axis orientation via parameters | Verify parameters affect sensor configuration and data |  |  | *none* | ⬜ No automated test |  |
+| ImuManager-1 | imuManager run shall fetch IMU data every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Integration Test | Board | With detumble idle, after imuManager.COLLECTION_INTERVAL_S_PRM_SET N (1..60), imuManager.CollectionIntervalS reads N and MagneticField updates are spaced N +/-1 s over 5 consecutive updates | *none* | ⬜ No automated test |  |
 
 ## LoadSwitch
 
@@ -438,7 +441,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## PowerMonitor
 
-*7 requirements &middot; 2 automated &middot; 0 passing*
+*9 requirements &middot; 4 automated &middot; 2 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -449,6 +452,8 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | PWR-MON-REQ-005 | The component shall request voltage measurements from the solar panel power driver on each run cycle | Integration test |  |  | *none* | ⬜ No automated test |  |
 | PWR-MON-REQ-006 | The component shall request current measurements from the solar panel power driver on each run cycle | Integration test |  |  | *none* | ⬜ No automated test |  |
 | PWR-MON-REQ-007 | The component shall request power measurements from the solar panel power driver on each run cycle | Integration test |  |  | *none* | ⬜ No automated test |  |
+| PWR-MON-REQ-008 | run shall sample the power monitors every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sample sweeps occur (ticks 1,4,7,10); at the default interval every tick samples | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.IntervalThreeSamplesFourTimesInTwelveTicks<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN | ✅ Unit (passing) |  |
+| PWR-MON-REQ-009 | Energy accumulation shall remain correct at any configured collection interval, and an invalid interval shall fall back to 1 s | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event and CollectionIntervalS telemetry 1; TotalPowerConsumption keeps accumulating at interval 30 s | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultIntervalAccumulatesEverySecond<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultIntervalStillDropsATwelveSecondJump<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.IntervalThirtyKeepsAccumulating<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange | ✅ Unit (passing) |  |
 
 ## ResetManager
 
@@ -496,7 +501,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ThermalManager
 
-*6 requirements &middot; 0 automated &middot; 0 passing*
+*8 requirements &middot; 2 automated &middot; 2 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -506,3 +511,5 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | Threshold Monitoring | The component shall emit threshold events when face or battery sensor temperatures cross configured bounds | Verify `TemperatureBelowThreshold` and `TemperatureAboveThreshold` events are emitted appropriately |  |  | *none* | ⬜ No automated test |  |
 | Threshold Hysteresis | The component shall suppress repeated threshold events until the measured temperature returns past a debounce band | Verify events are not re-emitted until the temperature re-enters the hysteresis band |  |  | *none* | ⬜ No automated test |  |
 | Periodic Operation | The component shall operate as a scheduled component responding to scheduler calls | Verify component responds correctly to scheduler input |  |  | *none* | ⬜ No automated test |  |
+| ThermalManager-1 | run shall perform the sensor sweep every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sweeps occur (ticks 1,4,7,10); at the default interval every tick sweeps | `test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.IntervalThreeSweepsFourTimesInTwelveTicks<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.IntervalSixtyIsAccepted<br>`collection_interval_test.py` :: test_01_interval_spaces_channel_updates<br>`collection_interval_test.py` :: test_03_default_interval_updates_every_second | ✅ Unit (passing)<br>⏸ Integration (deferred: no board in host env) |  |
+| ThermalManager-2 | An out-of-range or invalid COLLECTION_INTERVAL_S shall fall back to the 1 s default and report the rejection | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event, and CollectionIntervalS telemetry 1 | `test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.UninitParamIsRejectedAndFallsBackToOne<br>`collection_interval_test.py` :: test_02_out_of_range_interval_is_rejected | ✅ Unit (passing)<br>⏸ Integration (deferred: no board in host env) |  |
