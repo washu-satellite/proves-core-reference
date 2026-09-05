@@ -155,6 +155,10 @@ telemetry packets ReferenceDeploymentPackets {
 #    ComCcsdsSband.comQueue.buffQueueDepth
     payloadBufferManager.HiBuffs
     CdhCore.tlmSend.SendLevel
+    ReferenceDeployment.taskGate.TasksEnabledMask
+    ReferenceDeployment.taskGate.GatedRuns
+    ReferenceDeployment.tcFrameCorrector.CorrectedFrames
+    ReferenceDeployment.tcFrameCorrector.UncorrectableFrames
   }
 
   packet FileSystem id 5 group 5 {

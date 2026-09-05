@@ -244,4 +244,8 @@ module ReferenceDeployment {
 
   instance picoTempManager: Drv.PicoTempManager base id 0x10079000
 
+  instance taskGate: Components.TaskGate base id 0x1007A000
+
+  instance tcFrameCorrector: Components.TcFrameCorrector base id 0x1007B000
+
 }

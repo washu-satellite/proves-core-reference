@@ -119,6 +119,9 @@ module ReferenceDeployment {
 
     instance picoTempManager
 
+    instance taskGate
+    instance tcFrameCorrector
+
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
   # ----------------------------------------------------------------------
@@ -199,9 +202,13 @@ module ReferenceDeployment {
       lora.allocate      -> ComCcsdsLora.commsBufferManager.bufferGetCallee
       lora.deallocate    -> ComCcsdsLora.commsBufferManager.bufferSendIn
 
-      # ComDriver <-> FrameAccumulator (Uplink)
-      lora.dataOut -> ComCcsdsLora.frameAccumulator.dataIn
-      ComCcsdsLora.frameAccumulator.dataReturnOut -> lora.dataReturnIn
+      # ComDriver <-> TcFrameCorrector <-> FrameAccumulator (Uplink)
+      # The corrector precedes the accumulator because CcsdsTcFrameDetector
+      # verifies the FECF itself: a corrupt frame never reaches the deframer.
+      lora.dataOut -> tcFrameCorrector.dataIn
+      tcFrameCorrector.dataOut -> ComCcsdsLora.frameAccumulator.dataIn
+      ComCcsdsLora.frameAccumulator.dataReturnOut -> tcFrameCorrector.dataReturnIn
+      tcFrameCorrector.dataReturnOut -> lora.dataReturnIn
 
       # ComStub <-> ComDriver (Downlink)
       ComCcsdsLora.framer.dataOut -> loraRetry.dataIn
@@ -275,18 +282,23 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[3] -> ComCcsdsLora.commsBufferManager.schedIn
       #rateGroup1Hz.RateGroupMemberOut[4] -> ComCcsdsSband.commsBufferManager.schedIn
       rateGroup1Hz.RateGroupMemberOut[5] -> watchdog.run
-      rateGroup1Hz.RateGroupMemberOut[6] -> imuManager.run
+      rateGroup1Hz.RateGroupMemberOut[6] -> taskGate.schedIn[Components.SchedTask.IMU]
+      taskGate.schedOut[Components.SchedTask.IMU] -> imuManager.run
       rateGroup1Hz.RateGroupMemberOut[7] -> telemetryDelay.runIn
       rateGroup1Hz.RateGroupMemberOut[8] -> burnwire.schedIn
       rateGroup1Hz.RateGroupMemberOut[9] -> antennaDeployer.schedIn
-      rateGroup1Hz.RateGroupMemberOut[10] -> fsSpace.run
+      rateGroup1Hz.RateGroupMemberOut[10] -> taskGate.schedIn[Components.SchedTask.FS_SPACE]
+      taskGate.schedOut[Components.SchedTask.FS_SPACE] -> fsSpace.run
       rateGroup1Hz.RateGroupMemberOut[11] -> payloadBufferManager.schedIn
       rateGroup1Hz.RateGroupMemberOut[13] -> FileHandling.fileDownlink.Run
       rateGroup1Hz.RateGroupMemberOut[14] -> startupManager.run
-      rateGroup1Hz.RateGroupMemberOut[15] -> powerMonitor.run
+      rateGroup1Hz.RateGroupMemberOut[15] -> taskGate.schedIn[Components.SchedTask.POWER_MONITOR]
+      taskGate.schedOut[Components.SchedTask.POWER_MONITOR] -> powerMonitor.run
       rateGroup1Hz.RateGroupMemberOut[16] -> modeManager.run
-      rateGroup1Hz.RateGroupMemberOut[17] -> adcs.run
-      rateGroup1Hz.RateGroupMemberOut[18] -> thermalManager.run
+      rateGroup1Hz.RateGroupMemberOut[17] -> taskGate.schedIn[Components.SchedTask.ADCS]
+      taskGate.schedOut[Components.SchedTask.ADCS] -> adcs.run
+      rateGroup1Hz.RateGroupMemberOut[18] -> taskGate.schedIn[Components.SchedTask.THERMAL]
+      taskGate.schedOut[Components.SchedTask.THERMAL] -> thermalManager.run
       rateGroup1Hz.RateGroupMemberOut[19] -> ComCcsdsLora.authenticationRouter.run
 
     }
