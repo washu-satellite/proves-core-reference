@@ -7,7 +7,7 @@
 // in-memory Os::File; no F Prime or Zephyr code is linked
 // (test/unit-tests/README.md).
 //
-// Requirements verified: MM0009, MM0010, MS-L2-08, MM0005.
+// Requirements verified: MM0009, MM0010, MS-L2-08, MM0005, MM0011.
 // MM0004 (Board level, Integration Test only) is claimed by safe_mode_test.py::test_safe_04;
 // NoAutoRecoveryForGroundCommand below still exercises its logic as regression cover (TP-2).
 //
@@ -29,8 +29,17 @@
 // Method to Integration Test, and its criterion is written entirely around a
 // commanded WARM_RESET on hardware. Per TP-2 a host test may not claim a
 // Board-level ID, so MM0007 is claimed by the board test
-// safe_mode_test.py::test_safe_09. StateFileRoundTripsAcrossRestart below is
-// kept as unclaimed regression cover for the load/save decision logic.
+// safe_mode_test.py::test_safe_09.
+//
+// StateFileRoundTripsAcrossCleanRestart below claims MM0011: that requirement's
+// second pass criterion is "commanded state round-trips across a component
+// restart", which is exactly what the test drives (a ground-commanded safe mode
+// in one component life, read back in the next). MM0011's first criterion --
+// the file decodes with the shared PersistedRecord codec -- and all of MM0012
+// are covered by test_ModeManager_StatePersistence.cpp.
+// UncleanRestartFromNormalEntersSafeModeWithSystemFault stays unclaimed: it is
+// regression cover for MM0008's unintended-reboot detection, not persistence
+// format evidence.
 // ======================================================================
 
 #include <gtest/gtest.h>
@@ -302,12 +311,14 @@ TEST_F(ModeManagerVoltageTest, DisconnectedSwitchPortsAreSkipped) {
 // ----------------------------------------------------------------------
 // Persistent state across a restart
 //
-// Unclaimed by design: MM0007's Level is Board (see the file header), so this
-// test is regression cover for the loadState()/saveState() decision logic
-// rather than requirement evidence.
+// The round-trip test claims MM0011 ("commanded state round-trips across a
+// component restart"); the unclean-restart test stays unclaimed, as MM0007's
+// Level is Board (see the file header) and it is regression cover for the
+// loadState()/saveState() decision logic rather than requirement evidence.
 // ----------------------------------------------------------------------
 
 TEST_F(ModeManagerVoltageTest, StateFileRoundTripsAcrossCleanRestart) {
+    RecordProperty("verifies", "MM0011");
     // First life: ground-commanded safe mode, then an orderly shutdown.
     {
         ModeManager first("modeManager");

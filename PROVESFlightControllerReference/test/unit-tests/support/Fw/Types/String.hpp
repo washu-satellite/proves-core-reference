@@ -27,6 +27,13 @@ class StringBase {
         return *this;
     }
 
+    //! Mirrors Fw::StringBase::operator=(const StringBase&): assignment across
+    //! the concrete string flavours (e.g. a port argument into a member).
+    StringBase& operator=(const StringBase& src) {
+        this->m_str = src.m_str;
+        return *this;
+    }
+
     const char* toChar() const { return this->m_str.c_str(); }
     const std::string& str() const { return this->m_str; }
     bool operator==(const char* other) const { return this->m_str == (other != nullptr ? other : ""); }
@@ -44,6 +51,10 @@ class String : public StringBase {
         StringBase::operator=(src);
         return *this;
     }
+    String& operator=(const StringBase& src) {
+        StringBase::operator=(src);
+        return *this;
+    }
 };
 
 class LogStringArg : public StringBase {
@@ -54,6 +65,10 @@ class LogStringArg : public StringBase {
         StringBase::operator=(src);
         return *this;
     }
+    LogStringArg& operator=(const StringBase& src) {
+        StringBase::operator=(src);
+        return *this;
+    }
 };
 
 class ParamString : public StringBase {
@@ -61,6 +76,10 @@ class ParamString : public StringBase {
     ParamString() {}
     ParamString(const char* src) : StringBase(src) {}  // NOLINT(runtime/explicit) -- mirrors generated code
     ParamString& operator=(const char* src) {
+        StringBase::operator=(src);
+        return *this;
+    }
+    ParamString& operator=(const StringBase& src) {
         StringBase::operator=(src);
         return *this;
     }

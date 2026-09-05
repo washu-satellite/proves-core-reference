@@ -15,15 +15,25 @@
 typedef uint8_t U8;
 typedef uint16_t U16;
 typedef uint32_t U32;
+typedef uint64_t U64;
 typedef int8_t I8;
 typedef int16_t I16;
 typedef int32_t I32;
+typedef int64_t I64;
 typedef float F32;
 typedef double F64;
 typedef int32_t FwIndexType;
 typedef uint32_t FwOpcodeType;
 typedef uint64_t FwSizeType;
 typedef int32_t FwEnumStoreType;
+//! Mirrors lib/fprime/default/config/FpConfig.fpp:79,92.
+typedef uint8_t FwTimeContextStoreType;
+typedef uint16_t FwTimeBaseStoreType;
+
+//! Mirrors lib/fprime/Fw/Types/BasicTypes.h:91.
+#ifndef FW_MAX
+#define FW_MAX(a, b) (((a) > (b)) ? (a) : (b))  //!< MAX macro
+#endif
 
 namespace Fw {
 

@@ -95,6 +95,30 @@ target_include_directories(mode_manager_component PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/support
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
+target_link_libraries(mode_manager_component PUBLIC persisted_record_file)
+
+# Authenticate sequence-number store (real SequenceNumberStore.cpp; F Prime
+# free by construction, so it links against the host stubs without a recorder).
+add_library(authenticate_sequence_store STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/Authenticate/SequenceNumberStore.cpp
+)
+target_include_directories(authenticate_sequence_store PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(authenticate_sequence_store PUBLIC persisted_record_file)
+
+# StartupManager component (real StartupManager.cpp built against the host
+# stubs in support/: a recording ComponentAc base, the in-memory Os::File, a
+# fake Fw::Time and a fake <zephyr/drivers/rtc.h>).
+add_library(startup_manager_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/StartupManager/StartupManager.cpp
+)
+target_include_directories(startup_manager_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(startup_manager_component PUBLIC persisted_record_file)
 
 # --- Auto-discover and build tests ---
 
@@ -115,6 +139,8 @@ foreach(test_src ${TEST_SOURCES})
         telemetry_gate_component
         thermal_manager_component
         mode_manager_component
+        authenticate_sequence_store
+        startup_manager_component
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})
