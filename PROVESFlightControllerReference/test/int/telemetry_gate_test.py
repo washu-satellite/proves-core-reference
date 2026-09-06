@@ -63,6 +63,7 @@ def ensure_enabled(fprime_test_api: IntegrationTestAPI, start_gds):
     _set_state(fprime_test_api, "ENABLED")
 
 
+@pytest.mark.verifies("TelemetryGate-3")
 def test_01_telemetry_flows_when_enabled(
     fprime_test_api: IntegrationTestAPI, start_gds
 ):
@@ -77,6 +78,7 @@ def test_01_telemetry_flows_when_enabled(
     )
 
 
+@pytest.mark.verifies("TelemetryGate-1", "TelemetryGate-2")
 def test_02_disable_ceases_then_enable_resumes_telemetry(
     fprime_test_api: IntegrationTestAPI, start_gds
 ):

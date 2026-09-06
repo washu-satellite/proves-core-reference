@@ -30,6 +30,7 @@ Blob makeBlob(uint8_t state) {
 // ---- Roundtrip -------------------------------------------------------------
 
 TEST(TxStateCodecTest, RoundtripEnabled) {
+    RecordProperty("verifies", "TelemetryGate-4");
     Blob b = makeBlob(TX_STATE_ENABLED);
     ASSERT_EQ(b.len, TX_STATE_ENCODED_SIZE);
 
@@ -39,6 +40,7 @@ TEST(TxStateCodecTest, RoundtripEnabled) {
 }
 
 TEST(TxStateCodecTest, RoundtripDisabled) {
+    RecordProperty("verifies", "TelemetryGate-4");
     Blob b = makeBlob(TX_STATE_DISABLED);
     ASSERT_EQ(b.len, TX_STATE_ENCODED_SIZE);
 
@@ -102,6 +104,7 @@ TEST(TxStateCodecTest, CorruptIntegrityByteDetected) {
 }
 
 TEST(TxStateCodecTest, EverySingleByteFlipDetected) {
+    RecordProperty("verifies", "TelemetryGate-6");
     // Exhaustive: every single-bit flip in a valid blob must be rejected.
     for (uint8_t state : {TX_STATE_ENABLED, TX_STATE_DISABLED}) {
         Blob good = makeBlob(state);
@@ -120,6 +123,7 @@ TEST(TxStateCodecTest, EverySingleByteFlipDetected) {
 // ---- Length / truncation ---------------------------------------------------
 
 TEST(TxStateCodecTest, TruncatedBufferDetected) {
+    RecordProperty("verifies", "TelemetryGate-6");
     Blob b = makeBlob(TX_STATE_ENABLED);
     uint8_t out = 0xEE;
     EXPECT_EQ(decodeTxState(b.bytes, TX_STATE_ENCODED_SIZE - 1, &out), TxStateDecodeStatus::BAD_LENGTH);

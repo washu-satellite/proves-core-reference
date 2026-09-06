@@ -95,6 +95,7 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/Components/Watchdog/docs/sdd.md docs-site/components/Watchdog.md
 	@cp PROVESFlightControllerReference/Components/BootloaderTrigger/docs/sdd.md docs-site/components/BootloaderTrigger.md
 	@cp PROVESFlightControllerReference/Components/DetumbleManager/docs/sdd.md docs-site/components/DetumbleManager.md
+	@cp PROVESFlightControllerReference/Components/TelemetryGate/docs/sdd.md docs-site/components/TelemetryGate.md
 	@# Copy Hardware Components
 	@cp PROVESFlightControllerReference/Components/AntennaDeployer/docs/sdd.md docs-site/components/AntennaDeployer.md
 	@cp PROVESFlightControllerReference/Components/Burnwire/docs/sdd.md docs-site/components/Burnwire.md
@@ -120,7 +121,7 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/Components/ProvesRouter/docs/sdd.md docs-site/components/ProvesRouter.md
 	@# Copy images
 	@find PROVESFlightControllerReference -path "*/docs/img/*" -type f -exec cp {} docs-site/components/img/ \; 2>/dev/null || true
-	@echo "✓ Synced 32 component SDDs and images"
+	@echo "✓ Synced 33 component SDDs and images"
 
 .PHONY: docs-serve
 docs-serve: uv ## Serve MkDocs documentation site locally
@@ -222,7 +223,11 @@ debug-install: $(OPENOCD_DIR)/.built ## Flash a file via SWD with OpenOCD. Usage
 test-unit: ## Run unit tests
 	cmake -S PROVESFlightControllerReference/test/unit-tests -B build-gtest -DBUILD_TESTING=ON
 	cmake --build build-gtest
-	ctest --test-dir build-gtest
+	ctest --test-dir build-gtest --output-junit junit.xml
+
+.PHONY: rtm
+rtm: ## Regenerate docs-site/requirements-matrix.md (run make test-unit first for statuses)
+	python3 scripts/generate_rtm.py --junit build-gtest/junit.xml
 
 FILTER ?= not sync_sequence_number and not format_filesystem
 
