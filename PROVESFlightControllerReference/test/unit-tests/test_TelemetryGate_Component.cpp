@@ -70,7 +70,7 @@ class TelemetryGateComponentTest : public ::testing::Test {
 // ----------------------------------------------------------------------
 
 TEST_F(TelemetryGateComponentTest, EnabledForwardsEveryTick) {
-    RecordProperty("verifies", "TelemetryGate-3");
+    RecordProperty("verifies", "TelemetryGate-3,CH-L2-17");
     TelemetryGate gate("gate");
     tick(gate, 7);
     tick(gate, 8);
@@ -85,7 +85,7 @@ TEST_F(TelemetryGateComponentTest, EnabledForwardsEveryTick) {
 }
 
 TEST_F(TelemetryGateComponentTest, DisabledDropsTicksAndCountsThem) {
-    RecordProperty("verifies", "TelemetryGate-2,TelemetryGate-8");
+    RecordProperty("verifies", "TelemetryGate-2,TelemetryGate-8,CH-L2-17");
     TelemetryGate gate("gate");
     sendSetState(gate, TelemetryTxState::DISABLED);
     tick(gate);
@@ -116,7 +116,7 @@ TEST_F(TelemetryGateComponentTest, ReEnableResumesForwardingAndStopsCounting) {
 // ----------------------------------------------------------------------
 
 TEST_F(TelemetryGateComponentTest, SetStateEmitsEventAndRespondsOk) {
-    RecordProperty("verifies", "TelemetryGate-1,TelemetryGate-4,TelemetryGate-9");
+    RecordProperty("verifies", "TelemetryGate-1,TelemetryGate-4,TelemetryGate-9,SC-L2-02");
     TelemetryGate gate("gate");
     sendSetState(gate, TelemetryTxState::DISABLED, 5);
 

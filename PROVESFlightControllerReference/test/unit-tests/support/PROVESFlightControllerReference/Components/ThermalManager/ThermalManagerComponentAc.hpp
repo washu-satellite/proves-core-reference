@@ -1,0 +1,149 @@
+// ======================================================================
+// \title  ThermalManagerComponentAc.hpp (host-test stub)
+// \brief  Stand-in for the fpp-generated ThermalManager component base.
+//
+// Declares the exact base-class surface ThermalManager.cpp/.hpp use, and
+// records every threshold event into public members so host tests can assert
+// on them — the same role the autocoded TesterBase plays in a full F Prime UT
+// build. Sensor readings and parameter values are public members the test
+// writes before invoking run_handler.
+//
+// Port counts and parameter defaults mirror ThermalManager.fpp:
+//   numFaceTempSensors = 5, numBattCellTempSensors = 4,
+//   FACE_TEMP_LOWER/UPPER = -40.0 / 60.0, BATT_CELL_TEMP_LOWER/UPPER = 5.0 / 60.0
+// Port signature mirrors Tmp112Manager.fpp:2
+//   port temperatureGet(ref condition: Fw.Success) -> F64
+// and PicoTempManager.fpp:2 for picoTemperatureGet.
+// ======================================================================
+
+#ifndef UnitTestSupport_ThermalManagerComponentAc_HPP
+#define UnitTestSupport_ThermalManagerComponentAc_HPP
+
+#include <string>
+#include <vector>
+
+#include "../../../FpTypesStub.hpp"
+
+namespace Components {
+
+//! Mirrors the generated shape of the FPP enum ThermalManager.TempSensorType:
+//! values addressed as ThermalManager_TempSensorType::FACE / ::BATTERY, and
+//! implicitly convertible to the underlying enumerator so that the switch in
+//! ThermalManager.cpp:65 compiles exactly as it does against real autocode.
+class ThermalManager_TempSensorType {
+  public:
+    enum T { FACE = 0, BATTERY = 1 };
+    ThermalManager_TempSensorType() : m_value(FACE) {}
+    // NOLINTNEXTLINE(runtime/explicit) -- implicit by design, mirrors generated code
+    ThermalManager_TempSensorType(T value) : m_value(value) {}
+    operator T() const { return this->m_value; }  // NOLINT(runtime/explicit) -- enables switch/case
+    bool operator==(const ThermalManager_TempSensorType& other) const { return this->m_value == other.m_value; }
+    bool operator==(T value) const { return this->m_value == value; }
+    T value() const { return this->m_value; }
+
+  private:
+    T m_value;
+};
+
+class ThermalManagerComponentBase {
+  public:
+    //! One recorded threshold event.
+    struct TempEventRecord {
+        ThermalManager_TempSensorType::T sensorType;
+        U32 sensorId;
+        F64 temperature;
+    };
+
+    explicit ThermalManagerComponentBase(const char* const compName) : compName(compName) {}
+    virtual ~ThermalManagerComponentBase() {}
+
+    // ---- port counts (constexpr: ThermalManager.hpp:29-32 uses them as array bounds) ----
+    static constexpr FwIndexType getNum_faceTempGet_OutputPorts() { return 5; }
+    static constexpr FwIndexType getNum_battCellTempGet_OutputPorts() { return 4; }
+    static constexpr FwIndexType getNum_picoTempGet_OutputPorts() { return 1; }
+
+    // ---- handlers implemented by the component (private overrides there) ----
+    virtual void run_handler(FwIndexType portNum, U32 context) = 0;
+
+    // ---- test-controlled sensor readings ----
+    F64 faceTemp[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    Fw::Success faceTempStatus[5] = {Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS,
+                                     Fw::Success::SUCCESS, Fw::Success::SUCCESS};
+    F64 battTemp[4] = {0.0, 0.0, 0.0, 0.0};
+    Fw::Success battTempStatus[4] = {Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS,
+                                     Fw::Success::SUCCESS};
+    F64 picoTemp = 0.0;
+    Fw::Success picoTempStatus = Fw::Success::SUCCESS;
+
+    // ---- test-controlled parameter values (defaults from ThermalManager.fpp:7-16) ----
+    F64 faceLowerThreshold = -40.0;
+    F64 faceUpperThreshold = 60.0;
+    F64 battLowerThreshold = 5.0;
+    F64 battUpperThreshold = 60.0;
+    Fw::ParamValid paramValidity = Fw::ParamValid::VALID;
+
+    // ---- recorded outgoing effects, public for test inspection ----
+    std::string compName;
+    std::vector<TempEventRecord> eventsAboveThreshold;
+    std::vector<TempEventRecord> eventsBelowThreshold;
+    U32 faceTempReads = 0;
+    U32 battTempReads = 0;
+    U32 picoTempReads = 0;
+
+  protected:
+    // ---- base-class services the component implementation calls ----
+    F64 faceTempGet_out(FwIndexType portNum, Fw::Success& condition) {
+        this->faceTempReads++;
+        condition = this->faceTempStatus[portNum];
+        return this->faceTemp[portNum];
+    }
+
+    F64 battCellTempGet_out(FwIndexType portNum, Fw::Success& condition) {
+        this->battTempReads++;
+        condition = this->battTempStatus[portNum];
+        return this->battTemp[portNum];
+    }
+
+    F64 picoTempGet_out(FwIndexType portNum, Fw::Success& condition) {
+        (void)portNum;
+        this->picoTempReads++;
+        condition = this->picoTempStatus;
+        return this->picoTemp;
+    }
+
+    F64 paramGet_FACE_TEMP_LOWER_THRESHOLD(Fw::ParamValid& valid) {
+        valid = this->paramValidity;
+        return this->faceLowerThreshold;
+    }
+
+    F64 paramGet_FACE_TEMP_UPPER_THRESHOLD(Fw::ParamValid& valid) {
+        valid = this->paramValidity;
+        return this->faceUpperThreshold;
+    }
+
+    F64 paramGet_BATT_CELL_TEMP_LOWER_THRESHOLD(Fw::ParamValid& valid) {
+        valid = this->paramValidity;
+        return this->battLowerThreshold;
+    }
+
+    F64 paramGet_BATT_CELL_TEMP_UPPER_THRESHOLD(Fw::ParamValid& valid) {
+        valid = this->paramValidity;
+        return this->battUpperThreshold;
+    }
+
+    void log_WARNING_LO_TemperatureAboveThreshold(const ThermalManager_TempSensorType& sensorType,
+                                                  U32 sensorId,
+                                                  F64 temperature) {
+        this->eventsAboveThreshold.push_back(TempEventRecord{sensorType.value(), sensorId, temperature});
+    }
+
+    void log_WARNING_LO_TemperatureBelowThreshold(const ThermalManager_TempSensorType& sensorType,
+                                                  U32 sensorId,
+                                                  F64 temperature) {
+        this->eventsBelowThreshold.push_back(TempEventRecord{sensorType.value(), sensorId, temperature});
+    }
+};
+
+}  // namespace Components
+
+#endif
