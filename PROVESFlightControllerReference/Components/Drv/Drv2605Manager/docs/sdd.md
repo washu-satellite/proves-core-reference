@@ -211,16 +211,16 @@ All warning events are throttled to reduce log spam; `_ThrottleClear` calls in t
 
 ## Requirements
 
-| Name    | Description                                                                                   | Validation                                                                                 |
-| ------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| DRV-001 | Component shall initialize the DRV2605 device via the Zephyr driver when needed.             | Exercise `start`/`START` with an uninitialized device and verify `device_init()` is called. |
-| DRV-002 | Component shall verify TCA and mux health before initializing the DRV2605 device.            | Force `device_is_ready(m_tca/m_mux)` to fail and verify `TcaUnhealthy`/`MuxUnhealthy` events. |
-| DRV-003 | Component shall respect the load switch warm-up delay before using the DRV2605.              | Toggle `loadSwitchStateChanged(ON)` then call `start` before and after timeout; expect failure then success. |
-| DRV-004 | Component shall configure DRV2605 with RTP data based on the requested signed value.         | Inspect calls to `drv2605_haptic_config()` and resulting behavior for various `val` inputs. |
-| DRV-005 | Component shall start output using `haptics_start_output()` and report failures.             | Induce a driver error and verify `TriggerFailed` is emitted and `start` returns FAILURE.    |
-| DRV-006 | Component shall validate device pointer and state before use.                                | Force `m_dev` or `m_dev->state` to be null and verify `DeviceNil` or `DeviceStateNil` events. |
-| DRV-007 | Component shall report device-not-ready conditions for already initialized devices.          | Make `isDeviceInitialized()` true but `device_is_ready(m_dev)` false and verify `DeviceNotReady`. |
-| DRV-008 | Component shall support ground commands to start and stop output.                            | Send `START`/`STOP` commands and verify correct mapping to ports and command responses.     |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|DRV-001|Component shall initialize the DRV2605 device via the Zephyr driver when needed.|Exercise `start`/`START` with an uninitialized device and verify `device_init()` is called.|||||
+|DRV-002|Component shall verify TCA and mux health before initializing the DRV2605 device.|Force `device_is_ready(m_tca/m_mux)` to fail and verify `TcaUnhealthy`/`MuxUnhealthy` events.|||||
+|DRV-003|Component shall respect the load switch warm-up delay before using the DRV2605.|Toggle `loadSwitchStateChanged(ON)` then call `start` before and after timeout; expect failure then success.|||||
+|DRV-004|Component shall configure DRV2605 with RTP data based on the requested signed value.|Inspect calls to `drv2605_haptic_config()` and resulting behavior for various `val` inputs.|||||
+|DRV-005|Component shall start output using `haptics_start_output()` and report failures.|Induce a driver error and verify `TriggerFailed` is emitted and `start` returns FAILURE.|||||
+|DRV-006|Component shall validate device pointer and state before use.|Force `m_dev` or `m_dev->state` to be null and verify `DeviceNil` or `DeviceStateNil` events.|||||
+|DRV-007|Component shall report device-not-ready conditions for already initialized devices.|Make `isDeviceInitialized()` true but `device_is_ready(m_dev)` false and verify `DeviceNotReady`.|||||
+|DRV-008|Component shall support ground commands to start and stop output.|Integration Test|Board|START 127 raises ina219Sys power by >= 0.3 W within 1 s over the pre-command baseline; STOP acked OK|||
 
 ## Change Log
 
