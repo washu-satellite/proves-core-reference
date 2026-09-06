@@ -1,18 +1,35 @@
 #!/usr/bin/env python3
 """Generate the requirements traceability matrix (RTM).
 
-Joins three sources into docs-site/requirements-matrix.md:
+Joins these sources into docs-site/requirements-matrix.md:
 
-1. Requirements: the "## Requirements" table in every component
+1. Component requirements: the "## Requirements" table in every
    PROVESFlightControllerReference/Components/**/docs/sdd.md.
-2. Test links: requirement IDs declared in tests —
+2. System requirements: every "## <group>" table in docs-site/requirements/*.md
+   (e.g. the CDH L1/L2 requirements transcribed from the CDR).
+3. Test links: requirement IDs declared in tests —
    - gtest:  RecordProperty("verifies", "Comp-1,Comp-2") inside TEST/TEST_F
    - pytest: @pytest.mark.verifies("Comp-1", "Comp-2") on integration tests
-3. Results: an optional ctest JUnit XML (ctest --output-junit). gtest results
+4. Results: an optional ctest JUnit XML (ctest --output-junit). gtest results
    are reported per test binary (one ctest case per binary), so a unit test's
    status is the status of the binary that contains it. Integration tests
    require flight hardware and are never run in CI; they are listed as
    hardware-verified evidence without a CI status.
+
+Requirement tables support two formats:
+
+  Legacy:   | Name | Description | Validation |
+  Extended: | Name | Description | Method | Level | Pass Criteria | Status | Reason |
+
+Method is the verification method (Unit Test, Integration Test, Analysis,
+Inspection, Demonstration). Level is where the requirement is proven (Unit,
+Board, Subsystem, Flatsat, Environmental). Pass Criteria is the measurable
+pass/fail condition and MUST be defined before a linked test result is
+accepted — a requirement with test links but no criteria is flagged in the
+matrix and generates a warning. Status/Reason hold a manual assessment (e.g.
+"CDR: Not met" and why) used only until automated evidence exists.
+
+Edit requirements with scripts/req.py rather than hand-editing the tables.
 
 Usage:
     python3 scripts/generate_rtm.py [--junit build-gtest/junit.xml] [--sha <sha>]
@@ -26,6 +43,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPONENTS_DIR = REPO_ROOT / "PROVESFlightControllerReference" / "Components"
+SYSTEM_REQ_DIR = REPO_ROOT / "docs-site" / "requirements"
 UNIT_TEST_DIR = REPO_ROOT / "PROVESFlightControllerReference" / "test" / "unit-tests"
 INT_TEST_DIR = REPO_ROOT / "PROVESFlightControllerReference" / "test" / "int"
 OUTPUT = REPO_ROOT / "docs-site" / "requirements-matrix.md"
@@ -37,40 +55,104 @@ RECORD_PROP_RE = re.compile(r'RecordProperty\(\s*"verifies"\s*,\s*"([^"]+)"')
 PYTEST_MARK_RE = re.compile(r"@pytest\.mark\.verifies\(([^)]*)\)")
 PY_DEF_RE = re.compile(r"^def\s+(test_[A-Za-z0-9_]+)", re.M)
 TABLE_SEP_RE = re.compile(r"^:?-+:?$")
+SECTION_RE = re.compile(r"^##\s+(.+?)\s*$(.*?)(?=^##\s|\Z)", re.M | re.S)
+
+# Header-cell aliases -> canonical field name. Legacy "Validation" maps to
+# the verification method so old three-column tables keep working.
+HEADER_ALIASES = {
+    "name": "id",
+    "requirement": "id",
+    "id": "id",
+    "description": "description",
+    "validation": "method",
+    "method": "method",
+    "verification method": "method",
+    "level": "level",
+    "proof level": "level",
+    "criteria": "criteria",
+    "pass criteria": "criteria",
+    "pass/fail criteria": "criteria",
+    "status": "status",
+    "cdr status": "status",
+    "reason": "reason",
+    "failure reason": "reason",
+    "notes": "reason",
+}
+
+CRITERIA_PLACEHOLDERS = {"", "tbd", "todo", "-", "n/a"}
+
+
+def split_cells(line):
+    """Split a markdown table line into stripped cell strings."""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def parse_table(block):
+    """Parse one markdown table into a list of requirement dicts."""
+    rows = []
+    columns = None
+    for line in block.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = split_cells(line)
+        if len(cells) < 2:
+            continue
+        if all(TABLE_SEP_RE.match(c) or not c for c in cells):
+            continue
+        lowered = [c.lower() for c in cells]
+        if columns is None and lowered[0] in ("name", "requirement", "id"):
+            columns = [HEADER_ALIASES.get(c) for c in lowered]
+            continue
+        if columns is None:
+            # Table without a recognized header: assume legacy positional.
+            columns = ["id", "description", "method"]
+        req = {
+            "id": "",
+            "description": "",
+            "method": "",
+            "level": "",
+            "criteria": "",
+            "status": "",
+            "reason": "",
+        }
+        for field, value in zip(columns, cells):
+            if field:
+                req[field] = value
+        if req["id"]:
+            rows.append(req)
+    return rows
+
+
+def has_criteria(req):
+    """Return True if the requirement has real pass criteria (not TBD/blank)."""
+    return req["criteria"].lower() not in CRITERIA_PLACEHOLDERS
 
 
 def parse_requirements():
-    """Return {component: [(req_id, description, validation)]}, insertion-ordered."""
+    """Return {group: [req dict]}, system-level groups first."""
     requirements = {}
+    if SYSTEM_REQ_DIR.is_dir():
+        for doc in sorted(SYSTEM_REQ_DIR.glob("*.md")):
+            text = doc.read_text(encoding="utf-8")
+            for match in SECTION_RE.finditer(text):
+                rows = parse_table(match.group(2))
+                if rows:
+                    requirements[match.group(1)] = rows
     for sdd in sorted(COMPONENTS_DIR.rglob("docs/sdd.md")):
         component = sdd.parent.parent.name
         text = sdd.read_text(encoding="utf-8")
         match = re.search(r"^##\s+Requirements\s*$(.*?)(?=^##\s|\Z)", text, re.M | re.S)
         if not match:
             continue
-        rows = []
-        for line in match.group(1).splitlines():
-            line = line.strip()
-            if not line.startswith("|"):
-                continue
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            if len(cells) < 2:
-                continue
-            req_id = cells[0]
-            # Skip header, separator, and placeholder rows.
-            if req_id.lower() == "name" or not req_id:
-                continue
-            if all(TABLE_SEP_RE.match(c) or not c for c in cells):
-                continue
-            description = cells[1] if len(cells) > 1 else ""
-            validation = cells[2] if len(cells) > 2 else ""
-            rows.append((req_id, description, validation))
+        rows = parse_table(match.group(1))
         if rows:
             requirements[component] = rows
     return requirements
 
 
 def split_ids(raw):
+    """Split a comma/space separated requirement-ID string into a list."""
     return [r for r in re.split(r"[,\s]+", raw.strip().strip('"').strip("'")) if r]
 
 
@@ -79,8 +161,8 @@ def parse_unit_test_links():
     links = {}
     for src in sorted(UNIT_TEST_DIR.glob("test_*.cpp")):
         binary = src.stem
-        matches = list(TEST_MACRO_RE.finditer(src.read_text(encoding="utf-8")))
         text = src.read_text(encoding="utf-8")
+        matches = list(TEST_MACRO_RE.finditer(text))
         for i, m in enumerate(matches):
             body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
             body = text[m.start() : body_end]
@@ -126,8 +208,11 @@ def parse_junit(junit_path):
     return statuses
 
 
-def status_cell(unit_refs, int_refs, junit):
+def status_cell(req, unit_refs, int_refs, junit):
+    """Build the Status cell: test results, criteria flag, or manual assessment."""
     parts = []
+    if (unit_refs or int_refs) and not has_criteria(req):
+        parts.append("🚫 Tested without pass criteria")
     if unit_refs:
         binaries = sorted({binary for binary, _ in unit_refs})
         if junit:
@@ -143,19 +228,22 @@ def status_cell(unit_refs, int_refs, junit):
     if int_refs:
         parts.append("🛰️ Integration (hardware)")
     if not parts:
-        parts.append("⬜ No automated test")
+        if req["status"]:
+            parts.append(f"📋 {req['status']}")
+        else:
+            parts.append("⬜ No automated test")
     return "<br>".join(parts)
 
 
-def verification_cell(unit_refs, int_refs, validation):
+def verification_cell(unit_refs, int_refs):
+    """Build the Verified-by cell listing linked unit and integration tests."""
     lines = [f"`{binary}` :: {case}" for binary, case in unit_refs]
     lines += [f"`{fname}` :: {test}" for fname, test in int_refs]
-    if not lines:
-        return f"*{validation}*" if validation else "*none*"
-    return "<br>".join(lines)
+    return "<br>".join(lines) if lines else "*none*"
 
 
 def main():
+    """Parse args, join requirements/tests/results, and write the matrix."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--junit",
@@ -176,7 +264,7 @@ def main():
             file=sys.stderr,
         )
 
-    all_ids = {req_id for rows in requirements.values() for req_id, _, _ in rows}
+    all_ids = {req["id"] for rows in requirements.values() for req in rows}
     for req_id in sorted(set(unit_links) | set(int_links)):
         if req_id not in all_ids:
             print(
@@ -186,31 +274,50 @@ def main():
 
     total = automated = passing = 0
     sections = []
-    for component, rows in requirements.items():
+    for group, rows in requirements.items():
+        group_total = group_automated = group_passing = 0
         lines = [
-            f"## {component}",
-            "",
-            "| Requirement | Description | Verified by | Status |",
-            "|---|---|---|---|",
+            "| Requirement | Description | Method | Level | Pass Criteria "
+            "| Verified by | Status | Reason |",
+            "|---|---|---|---|---|---|---|---|",
         ]
-        for req_id, description, validation in rows:
+        for req in rows:
+            req_id = req["id"]
             unit_refs = unit_links.get(req_id, [])
             int_refs = int_links.get(req_id, [])
-            total += 1
+            group_total += 1
             if unit_refs or int_refs:
-                automated += 1
+                group_automated += 1
+                if not has_criteria(req):
+                    print(
+                        f"warning: '{req_id}' has linked tests but no pass criteria"
+                        " — criteria must be decided before testing"
+                        " (fix: scripts/req.py set"
+                        f' {req_id} --criteria "...")',
+                        file=sys.stderr,
+                    )
             if (
                 unit_refs
                 and junit
+                and has_criteria(req)
                 and all(junit.get(b) is True for b in {b for b, _ in unit_refs})
             ):
-                passing += 1
+                group_passing += 1
             lines.append(
-                f"| {req_id} | {description} | "
-                f"{verification_cell(unit_refs, int_refs, validation)} | "
-                f"{status_cell(unit_refs, int_refs, junit)} |"
+                f"| {req_id} | {req['description']} | {req['method']} "
+                f"| {req['level']} | {req['criteria']} "
+                f"| {verification_cell(unit_refs, int_refs)} "
+                f"| {status_cell(req, unit_refs, int_refs, junit)} "
+                f"| {req['reason']} |"
             )
-        sections.append("\n".join(lines))
+        total += group_total
+        automated += group_automated
+        passing += group_passing
+        summary = (
+            f"{group_total} requirements &middot; {group_automated} automated "
+            f"&middot; {group_passing} passing"
+        )
+        sections.append(f"## {group}\n\n*{summary}*\n\n" + "\n".join(lines))
 
     stamp = f" at commit `{args.sha[:9]}`" if args.sha else ""
     header = "\n".join(
@@ -220,10 +327,14 @@ def main():
             "<!-- GENERATED FILE — do not edit by hand. Regenerate with: make rtm -->",
             "",
             f"Generated by `scripts/generate_rtm.py`{stamp} from the `## Requirements` tables in each",
-            "component's `docs/sdd.md`, the `verifies` tags in `test/unit-tests/` (gtest",
+            "component's `docs/sdd.md`, the system-level tables in `docs-site/requirements/`,",
+            "the `verifies` tags in `test/unit-tests/` (gtest",
             '`RecordProperty("verifies", ...)`) and `test/int/` (`@pytest.mark.verifies(...)`),',
             "and the unit-test results from CI. Integration tests require flight hardware and are",
-            "listed as evidence without a CI status.",
+            "listed as evidence without a CI status. Edit requirements with `scripts/req.py`;",
+            "a requirement's test results only count as *passing* once its pass criteria are",
+            "defined (🚫 marks tests run against undefined criteria). 📋 marks a manual",
+            "assessment (e.g. from CDR) with no automated evidence yet.",
             "",
             f"**{total}** requirements &middot; **{automated}** linked to automated tests &middot; "
             f"**{passing}** verified by passing unit tests in this build",

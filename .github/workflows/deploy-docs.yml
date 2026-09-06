@@ -31,6 +31,14 @@ jobs:
         run: |
           pip install -r requirements-docs.txt
 
+      # The host unit tests only need googletest, which lives inside the
+      # fprime submodule. Shallow-init just that path — a recursive submodule
+      # update would pull the entire Zephyr tree.
+      - name: Fetch googletest submodule
+        run: |
+          git submodule update --init --depth 1 lib/fprime
+          git -C lib/fprime submodule update --init --depth 1 googletest
+
       # Unit-test results feed the requirements traceability matrix. A test
       # failure must not block the docs deploy — the matrix reports it as ❌.
       - name: Run unit tests for requirements matrix

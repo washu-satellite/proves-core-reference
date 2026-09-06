@@ -55,16 +55,19 @@ gated.
 |StateFileCorrupt|Emitted when the persisted state file is corrupt; state defaults to ENABLED (fail-operational)|
 
 ## Requirements
-| Name | Description | Validation |
-|---|---|---|
-|TelemetryGate-1|SET_TRANSMIT_STATE shall latch the requested state immediately, effective on the next scheduler tick|Unit Test, Integration Test|
-|TelemetryGate-2|While DISABLED, the component shall not forward the scheduler tick, ceasing all channelized telemetry within one scheduler cycle|Unit Test, Integration Test|
-|TelemetryGate-3|While ENABLED, the component shall forward every scheduler tick unchanged|Unit Test, Integration Test|
-|TelemetryGate-4|The transmission state shall persist across reboot via a flash state file|Unit Test|
-|TelemetryGate-5|A missing state file shall default to ENABLED without emitting a corruption event|Unit Test|
-|TelemetryGate-6|A corrupt or truncated state file (including any single-byte corruption) shall be detected, default the state to ENABLED, and emit StateFileCorrupt exactly once|Unit Test|
-|TelemetryGate-7|A failure to persist the state shall emit StateFileWriteFailure and return EXECUTION_ERROR while the in-RAM state change stands|Unit Test|
-|TelemetryGate-8|Scheduler ticks gated while DISABLED shall be counted and reported in telemetry|Unit Test|
+
+Pass criteria are decided before testing; edit with `scripts/req.py`, not by hand.
+
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|TelemetryGate-1|SET_TRANSMIT_STATE shall latch the requested state immediately, effective on the next scheduler tick|Unit Test, Integration Test|Board|Command returns OK; the tick immediately following the command is gated/forwarded per the new state (no stale tick)|||
+|TelemetryGate-2|While DISABLED, the component shall not forward the scheduler tick, ceasing all channelized telemetry within one scheduler cycle|Unit Test, Integration Test|Board|Zero runOut calls over N consecutive DISABLED ticks; on hardware, no telemetry packets received after 1 cycle|||
+|TelemetryGate-3|While ENABLED, the component shall forward every scheduler tick unchanged|Unit Test, Integration Test|Board|Exactly one runOut call per tick with the context value unchanged|||
+|TelemetryGate-4|The transmission state shall persist across reboot via a flash state file|Unit Test|Unit|A new component instance reading the same file restores the commanded state (DISABLED round-trips)|||
+|TelemetryGate-5|A missing state file shall default to ENABLED without emitting a corruption event|Unit Test|Unit|State is ENABLED and zero StateFileCorrupt events with no file present|||
+|TelemetryGate-6|A corrupt or truncated state file (including any single-byte corruption) shall be detected, default the state to ENABLED, and emit StateFileCorrupt exactly once|Unit Test|Unit|For every single-byte corruption and every truncation length: state ENABLED, exactly 1 StateFileCorrupt event|||
+|TelemetryGate-7|A failure to persist the state shall emit StateFileWriteFailure and return EXECUTION_ERROR while the in-RAM state change stands|Unit Test|Unit|On injected open/write/partial-write failure: 1 StateFileWriteFailure event, EXECUTION_ERROR response, gating follows the newly commanded state|||
+|TelemetryGate-8|Scheduler ticks gated while DISABLED shall be counted and reported in telemetry|Unit Test|Unit|GatedTicks telemetry equals the exact number of dropped ticks|||
 
 ## Change Log
 | Date | Description |

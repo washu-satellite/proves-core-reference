@@ -104,7 +104,9 @@ nav:
       - Security Components:
           - Tc Security Deframer: components/TcSecurityDeframer.md
           - PROVES Router: components/ProvesRouter.md
-  - Requirements Matrix: requirements-matrix.md
+  - Requirements:
+      - Traceability Matrix: requirements-matrix.md
+      - CDH System Requirements: requirements/cdh.md
   - Additional Resources:
       - Troubleshooting: additional-resources/troubleshooting.md
       - WSL Notes: additional-resources/wsl-notes.md
