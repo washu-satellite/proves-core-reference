@@ -10,7 +10,7 @@
 | Destructive | Yes: >= 20 power cuts |
 | Duration | ~40 min scripted (20 cycles x ~2 min) |
 
-Records under test: TelemetryGate tx-state record (`SET_TRANSMIT_STATE` writes it; corruption event `StateFileCorrupt`, write failure `StateFileWriteFailure`) and ModeManager mode record (`FORCE_SAFE_MODE`/`EXIT_SAFE_MODE`; MM0011/12).
+Records under test: the TelemetryGate tx-state record (`SET_TRANSMIT_STATE` writes it; corruption event `StateFileCorrupt`, write failure `StateFileWriteFailure`). The ModeManager mode record is written by `FORCE_SAFE_MODE`/`EXIT_SAFE_MODE` but is not a PersistedRecord on this branch.
 
 ## Procedure
 1. Record the current pair (TransmitState S, mode M). Choose the write command that flips one of them (alternate gate and mode records across cycles).
@@ -25,12 +25,12 @@ Records under test: TelemetryGate tx-state record (`SET_TRANSMIT_STATE` writes i
 | ID | Criterion | Automated | Evidence |
 |---|---|---|---|
 | PersistedRecord-5 | Over repeated power-cycle-during-write iterations every post-reboot load returns old, new, or a detected-corrupt status; zero silent wrong reads over >= 20 cycles | manual (scripted host loop; no int test) | Step 6 table; GDS event log per boot |
-| DH-L2-11 | PersistedRecord-1..7 pass at unit; PersistedRecord-5 power-cut: zero silent wrong reads >= 20 cycles; every persisted consumer (MM0011/12, AUTH013, REQ-SM-008, TelemetryGate-9) linked | unit tests (host) + this procedure + RTM link check | Unit run log; step 6 table; RTM rows |
+| DH-L2-11 | PersistedRecord-1..7 pass at unit; PersistedRecord-5 power-cut: zero silent wrong reads >= 20 cycles; every persisted consumer on this branch (TelemetryGate-9) linked | unit tests (host) + this procedure + RTM link check | Unit run log; step 6 table; RTM rows |
 
 ## Why this verifies it
 - PersistedRecord-5: the requirement's observable is the post-loss load result on the target filesystem, which only exists with real flash, real FAT `rename` semantics and a real power cut; the host fake cannot show it. Randomised d, with forced end-points, sweeps the vulnerable window rather than sampling one phase. The oracle is the ground's record of what was commanded (old/new pair) against the read-back, independent of the codec under test; a corruption *event* is required, so a silent fallback counts as a failure.
 - DH-L2-11: composite; this group supplies the only clause not provable on the host. The link check is a matrix query, not a bench step.
-- Remainder: Authenticate and StartupManager records are not toggled here; if their write paths differ from the two exercised, add them to the alternation.
+- Remainder: the ModeManager, TcSecurityDeframer and StartupManager files are not toggled here; when they adopt PersistedRecord, add them to the alternation if their write paths differ.
 
 ## Known traps
 - Zephyr FAT `rename` unlinks the destination first (not atomic on target) and `Os::File::write(WAIT)` discards flush status: this is exactly the failure class targeted; do not shorten d's range.

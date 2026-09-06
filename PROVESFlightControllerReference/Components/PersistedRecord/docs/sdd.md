@@ -142,8 +142,9 @@ verified by the hardware filesystem-resilience test, not by any host unit test.
 
 ## Consumers
 
-ModeManager (MM0011–MM0012), Authenticate (AUTH013), StartupManager
-(REQ-SM-008), TelemetryGate (TelemetryGate-9).
+TelemetryGate (TelemetryGate-9) is the only consumer on this branch. Adoption by
+ModeManager and StartupManager is planned but not part of this change, so no
+requirement rows exist for it yet.
 
 ## Requirements
 
