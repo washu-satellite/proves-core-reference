@@ -54,8 +54,27 @@ The copy's venv launchers were rewritten to that path once; do not rsync `fprime
 
 - Zephyr `Os::File::open` returns `OTHER_ERROR` for every failure including a missing file (`lib/fprime-zephyr/fprime-zephyr/Os/File.cpp` ~L77); the host fake returns `DOESNT_EXIST`. Never branch on `DOESNT_EXIST` for first-boot detection; use `Os::FileSystem::exists()` (see `Components/PersistedRecord/PersistedRecordFile.cpp`).
 - Zephyr FAT `rename` unlinks the destination before renaming (`lib/zephyr-workspace/zephyr/subsys/fs/fat_fs.c` `fatfs_rename`), so rename-over-existing is not atomic on target. `Os::File::write(WAIT)` calls flush but discards its status; call `flush()` explicitly.
-- `NullPrmDb` does not persist F´ parameters; anything that must survive reboot goes through PersistedRecord.
+- Parameters: the topology wires the real `Svc.PrmDb` as `FileHandling.prmDb` on `/prmDb.dat` (`ReferenceDeploymentTopology.cpp:69`), read at boot by the FileHandling subtopology (`lib/fprime/Svc/Subtopologies/FileHandling/FileHandling.fpp:39`). `PRM_SET` is RAM-only until `PRM_SAVE_FILE` is commanded; after that the value survives reboot. `Components/NullPrmDb` is compiled but not instantiated. (Earlier notes saying "NullPrmDb does not persist parameters" were wrong; corrected 2026-09-05.) PersistedRecord is for state that must be CRC-protected and atomically replaced, not a substitute for PrmDb.
 - Every new `telemetry` channel in a component `.fpp` must be added to `PROVESFlightControllerReference/ReferenceDeployment/Top/ReferenceDeploymentPackets.fppi` (a packet or the `omit` block) in the same change, or `fpp-to-dict` fails the firmware build. This fork's CI cannot run the target build (no self-hosted runner), so the only check is a local build from the clean-path copy (issue #3, #5).
+
+Longer list of verified facts (parameter names, unwired ports, library behaviour, CI quirks): `docs-site/dev-loop-findings.md`. Read it before exploring; append to it when you verify something new.
+
+## Read discipline (token budget)
+
+Never `Read` a file over ~300 lines whole. Fetch the section you need. This table says where each kind of information lives and how to fetch it cheaply:
+
+| You need | Do this, not a whole-file Read |
+|---|---|
+| One requirement's text, method, level, criteria | `fprime-venv/bin/python3 scripts/req.py show <ID>` |
+| A requirement's test links / status | `grep -E "^\| ?<ID> ?\|" docs-site/requirements-matrix.md` (the matrix is 92 KB; never open it whole) |
+| A component's requirements table only | `sed -n '/## Requirements/,/^## /p' Components/<X>/docs/sdd.md` |
+| A verified fact about the code | grep `docs-site/dev-loop-findings.md` by keyword; sections are per area |
+| Build/test/commit conventions | this file; `AGENTS.md` only for first-time environment setup (25 KB) |
+| A function's body | `grep -n "name" file` then `sed -n 'a,bp'` or Read with offset/limit |
+| The CDR deck | extracted text is ~600 lines; use the line ranges in `docs-site/dev-loop-findings.md` or grep the requirement ID |
+| A plan/spec handed to you | read its index/README first; open only the part named in your brief |
+
+When you write a plan or spec longer than ~150 lines, write it as a directory with a `README.md` index (what each file holds, when to read it) and one file per part, so the next agent reads one part.
 
 ## Rules
 
