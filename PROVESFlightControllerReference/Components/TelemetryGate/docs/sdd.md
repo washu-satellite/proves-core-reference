@@ -7,10 +7,17 @@ TlmChan stops running and all channelized telemetry ceases within one scheduler
 cycle. Events, command acknowledgements, and file downlink are not gated.
 
 The state persists to a flash file (`/tlm_tx_state.bin`) because NullPrmDb does
-not persist fprime parameters. The persisted blob is protected by a magic
-prefix and an integrity byte (see `TxStateCodec`); a missing file defaults to
-ENABLED silently (first boot), and a corrupt or truncated file defaults to
-ENABLED with a `StateFileCorrupt` warning (fail-operational).
+not persist fprime parameters. The record is written through the shared
+`Components::PersistedRecord` mechanism: record-type magic `TGS2`, a one-byte
+payload holding the `TelemetryTxState` ordinal, and a CRC-32 over magic,
+version and payload. Updates are atomic — the record is written and flushed to
+`/tlm_tx_state.tmp` and then renamed over the target — so a failure at any step
+leaves the previously persisted state intact. A missing file defaults to
+ENABLED silently (first boot), and a corrupt, truncated, wrong-version or
+unreadable file defaults to ENABLED with a `StateFileCorrupt` warning
+(fail-operational). A legacy 6-byte `TGS1` blob left by an older image is
+shorter than the record overhead and is therefore reported as corrupt rather
+than migrated; the next `SET_TRANSMIT_STATE` rewrites it in the new format.
 
 ## Usage Examples
 
@@ -68,8 +75,10 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 |TelemetryGate-6|A corrupt or truncated state file (including any single-byte corruption) shall be detected, default the state to ENABLED, and emit StateFileCorrupt exactly once|Unit Test|Unit|For every single-byte corruption and every truncation length: state ENABLED, exactly 1 StateFileCorrupt event|||
 |TelemetryGate-7|A failure to persist the state shall emit StateFileWriteFailure and return EXECUTION_ERROR while the in-RAM state change stands|Unit Test|Unit|On injected open/write/partial-write failure: 1 StateFileWriteFailure event, EXECUTION_ERROR response, gating follows the newly commanded state|||
 |TelemetryGate-8|Scheduler ticks gated while DISABLED shall be counted and reported in telemetry|Unit Test|Unit|GatedTicks telemetry equals the exact number of dropped ticks|||
+|TelemetryGate-9|TelemetryGate shall persist its transmit state via the shared PersistedRecord mechanism, replacing the bespoke TxStateCodec, with TelemetryGate-4 through TelemetryGate-7 behavior unchanged|Unit Test|Unit|TelemetryGate-4 through TelemetryGate-7 unit tests pass against the shared codec; a legacy 6-byte TGS1-format file is handled per TelemetryGate-6 (state ENABLED, one StateFileCorrupt event) or migrated losslessly|||
 
 ## Change Log
 | Date | Description |
 |---| --- |
 |Jul 2026| Initial version |
+|Sep 2026|Migrated persistence to the shared PersistedRecord codec and atomic store; retired TxStateCodec (TelemetryGate-9)|

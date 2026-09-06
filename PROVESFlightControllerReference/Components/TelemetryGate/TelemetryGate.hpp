@@ -59,13 +59,18 @@ class TelemetryGate final : public TelemetryGateComponentBase {
 
     //! \brief Load the persisted state from flash into m_state.
     //!
-    //! Missing file -> default ENABLED (no event). Corrupt/truncated file ->
-    //! default ENABLED plus a StateFileCorrupt event. Called lazily on the first
-    //! runIn tick so it runs after the filesystem is mounted.
+    //! Reads the shared PersistedRecord blob (magic "TGS2", one-byte payload).
+    //! Missing file -> default ENABLED (no event). Corrupt/truncated file, an
+    //! unrecognized format version, or an undefined state byte -> default
+    //! ENABLED plus a StateFileCorrupt event. Called lazily on the first runIn
+    //! tick so it runs after the filesystem is mounted.
     void loadState();
 
     //! \brief Persist the given state to flash.
-    //! \return true on success, false if encode or file write failed.
+    //!
+    //! Writes through PersistedRecord's atomic replace (staging file, flush,
+    //! rename), so a failure at any step leaves the previous record intact.
+    //! \return true on success, false if encode or any file step failed.
     bool persistState(Components::TelemetryTxState state);
 
   private:
