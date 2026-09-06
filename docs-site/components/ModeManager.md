@@ -3,19 +3,19 @@
 The ModeManager component manages system operational modes and orchestrates transitions between NORMAL and SAFE_MODE. It evaluates voltage conditions and detects unintended reboots to make mode decisions, controls power to non-critical subsystems during transitions, and maintains/persists mode state across reboots.
 
 ## Requirements
-| Name | Description | Validation |
-|---|---|---|
-| MM0001 | The ModeManager shall maintain two operational modes: NORMAL and SAFE_MODE | Integration Testing |
-| MM0002 | The ModeManager shall enter safe mode when commanded manually via FORCE_SAFE_MODE command | Integration Testing |
-| MM0003 | The ModeManager shall enter safe mode when requested by external components via forceSafeMode port | Integration Testing |
-| MM0004 | The ModeManager shall exit safe mode only via explicit EXIT_SAFE_MODE command or automatic voltage recovery | Integration Testing |
-| MM0005 | The ModeManager shall turn off all 8 load switches when entering safe mode | Integration Testing |
-| MM0006 | The ModeManager shall turn on face load switches (0-5) when exiting safe mode; payload switches (6-7) remain off | Integration Testing |
-| MM0007 | The ModeManager shall persist mode state to non-volatile storage and restore on initialization | Integration Testing |
-| MM0008 | The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT | Integration Testing |
-| MM0009 | The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold | Integration Testing |
-| MM0010 | The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold | Integration Testing |
-| MM0011 | The ModeManager shall enter safe mode with reason COMMAND_LOSS if no authenticated packet is received within COMM_LOSS_TIME after the first packet | Integration Testing |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|MM0001|The ModeManager shall maintain two operational modes: NORMAL and SAFE_MODE|Integration Test|Board|GET_CURRENT_MODE returns SAFE_MODE after FORCE_SAFE_MODE and NORMAL after EXIT_SAFE_MODE, each within 5 s|||
+|MM0002|The ModeManager shall enter safe mode when commanded manually via FORCE_SAFE_MODE command|Integration Test|Board|FORCE_SAFE_MODE from NORMAL: ManualSafeModeEntry and EnteringSafeMode(Ground command) events within 2 s; GET_SAFE_MODE_REASON = GROUND_COMMAND|||
+|MM0003|The ModeManager shall enter safe mode when requested by external components via forceSafeMode port|Integration Testing|||||
+|MM0004|The ModeManager shall exit safe mode only via explicit EXIT_SAFE_MODE command or automatic voltage recovery|Integration Test|Board|In SAFE_MODE with reason GROUND_COMMAND no AutoSafeModeExit occurs within 13 s (debounce 10 s + 3); EXIT_SAFE_MODE returns to NORMAL within 5 s|||
+|MM0005|The ModeManager shall turn off all 8 load switches when entering safe mode|Unit Test, Integration Test|Board|Unit: enterSafeMode calls loadSwitchTurnOff on all 8 connected ports exactly once; Board: every load switch reads OFF via GET_IS_ON within 5 s of FORCE_SAFE_MODE|||
+|MM0006|The ModeManager shall turn on face load switches (0-5) when exiting safe mode; payload switches (6-7) remain off|Integration Testing|||||
+|MM0007|The ModeManager shall persist mode state to non-volatile storage and restore on initialization|Integration Test|Board|After FORCE_SAFE_MODE then WARM_RESET, GET_CURRENT_MODE = SAFE_MODE and reason GROUND_COMMAND; no UnintendedRebootDetected event after a commanded reset|||
+|MM0008|The ModeManager shall detect unintended reboots and enter safe mode with reason SYSTEM_FAULT|Integration Testing|||||
+|MM0009|The ModeManager shall automatically enter safe mode when voltage drops below configurable threshold|Unit Test|Unit|Voltage < SafeModeEntryVoltage (6.7 V) or invalid on 10 consecutive run ticks enters SAFE_MODE with AutoSafeModeEntry(LOW_BATTERY); 9 ticks or a good sample in between does not|||
+|MM0010|The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold|Unit Test|Unit|In SAFE_MODE(LOW_BATTERY) voltage > 8.0 V on 10 consecutive ticks exits with AutoSafeModeExit; exactly 8.0 V, 9 ticks, or reason GROUND_COMMAND/SYSTEM_FAULT does not|||
+|MM0011|The ModeManager shall enter safe mode with reason COMMAND_LOSS if no authenticated packet is received within COMM_LOSS_TIME after the first packet|Integration Testing|||||
 
 ## Class Diagram
 

@@ -28,6 +28,7 @@ TEST(BDotTest, SamplingCompleteAndTimeDelta) {
 }
 
 TEST(BDotTest, MagneticMomentLinearXAxis) {
+    RecordProperty("verifies", "ADCS-L2-02");
     BDot bdot;
 
     const double gain = 2.0;
@@ -55,6 +56,7 @@ TEST(BDotTest, MagneticMomentLinearXAxis) {
 }
 
 TEST(BDotTest, MagneticMomentLinearMultiAxis) {
+    RecordProperty("verifies", "ADCS-L2-02");
     BDot bdot;
 
     const double gain = -1.5;

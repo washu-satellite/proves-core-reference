@@ -1,0 +1,125 @@
+# Dev-loop findings ledger
+
+Verified facts about this codebase discovered while planning, coding, or verifying,
+kept so no agent re-derives them. One line per fact, with the file:line it was
+verified at and the date. Pointers, not prose. Facts that turn out wrong are
+corrected here in the same turn (see CLAUDE.md rules). Traps that must never be
+re-tripped are promoted to CLAUDE.md §Traps; the rest stay here.
+
+Tag `(historical, pre-cdd44e4)`: the fact was verified against the `Components/Authenticate` + `Components/AuthenticationRouter` uplink stack, which upstream replaced with `Components/TcSecurityDeframer` + `Components/ProvesRouter` at cdd44e4. The line is kept because the behaviour it records may still be re-derived from the new components, but it has NOT been re-verified against them.
+
+Maintenance: every planner/coder/reviewer brief requires a "Findings" section;
+the orchestrator merges it here at the end of each cycle. Delete a line when the
+code it describes changes and the fact no longer holds.
+
+## Persistence and OS layer (2026-09-04/05)
+- Zephyr `Os::File::open` returns OTHER_ERROR for every failure incl. missing file; host fake returns DOESNT_EXIST. `lib/fprime-zephyr/fprime-zephyr/Os/File.cpp` ~77-81. Use `Os::FileSystem::exists()`.
+- FAT rename unlinks the destination before renaming; not atomic. `lib/zephyr-workspace/zephyr/subsys/fs/fat_fs.c` `fatfs_rename`.
+- `ZephyrFile::write(WAIT)` calls flush but discards its status. `lib/fprime-zephyr/fprime-zephyr/Os/File.cpp` ~252-254.
+- `Os::FileSystem::rename/exists` exist in F´ 4.1.1 and are implemented for Zephyr. `lib/fprime/Os/FileSystem.hpp:237,280`; `lib/fprime-zephyr/fprime-zephyr/Os/FileSystem.cpp:36,96`.
+- ModeManager persists a raw struct via reinterpret_cast (sizeof = 12 bytes with padding, not 7); validation is size + mode range; corrupt boots NORMAL today (MM0012 says SAFE). `Components/ModeManager/ModeManager.cpp` ~247-342; loadState calls saveState every boot to clear the clean flag.
+- ModeManager `!= DOESNT_EXIST` first-boot guard is unreachable on Zephyr (issue #1). `ModeManager.cpp` ~319.
+- Authenticate sequence-number path is `"//sequence_number.txt"` (double slash), no validation, non-OK read writes 0 back. `Components/Authenticate/Authenticate.cpp` ~21, 60-67, 108-112. Both Authenticate instances (LoRa, UART) write the same file. (historical, pre-cdd44e4)
+- StartupManager `read<T>/write<T>` use `Fw::ExternalSerializeBuffer`; read failure on first boot is silent by design; quiescence file rejects useconds >= 1e6 (boot-loop fix eb2df70). `Components/StartupManager/StartupManager.cpp` ~39-149.
+- CORRECTED 2026-09-05: the real `Svc.PrmDb` is wired as `FileHandling.prmDb` on `/prmDb.dat` (`ReferenceDeploymentTopology.cpp:69`) and read at boot (`lib/fprime/Svc/Subtopologies/FileHandling/FileHandling.fpp:39`); `PRM_SET` is RAM-only until `PRM_SAVE_FILE`, then persists. `Components/NullPrmDb` is compiled but not instantiated. `PRMDB_NUM_DB_ENTRIES` default 25 (`lib/fprime/Svc/PrmDb/PrmDbImpl.hpp:118`) bounds saved params; dictionary at 96a0ed7 has 339 commands / 89 params; `CMD_DISPATCHER_DISPATCH_TABLE_SIZE` = 350 (`project/config/CommandDispatcherImplCfg.hpp:14`).
+- `tlmSend` is `Svc.TlmPacketizer` (project config override), not TlmChan as the TelemetryGate sdd says; packets are sent on change, which is why board telemetry-interval tests must lower `telemetryDelay.DIVIDER`.
+
+## Comms and command path (2026-09-04/05)
+- Command-loss timer lives only in the LoRa AuthenticationRouter; param is `COMM_LOSS_TIME` (default 259200 s), and `COMM_LOSS_TIME_START_FILE` is never used. UART/S-band routers never time out. `Components/AuthenticationRouter/AuthenticationRouter.fpp` ~94-97; `topology.fpp:466`. (historical, pre-cdd44e4)
+- `reset_watchdog` STOPS petting (→ reboot ≈26 s), it does not kick. `Components/Watchdog/Watchdog.cpp` ~48,71.
+- `CMD_NO_OP` and `GET_SEQ_NUM` bypass authentication. `Components/Authenticate/Authenticate.cpp` ~30-36. (historical, pre-cdd44e4)
+- Authenticate HMAC is truncated to 16 bytes in code; AUTH05 sdd says 64 bits. `Authenticate.cpp` ~136-166. (historical, pre-cdd44e4)
+- `SequenceNumberOutOfWindow` event is `throttle 2`. `Authenticate.fpp`. (historical, pre-cdd44e4)
+- AuthenticationRouter channels `PassedRouter/FailedRouter/ByPassedRouter` are declared but never written; Authenticate `PacketTooShort` event never emitted. (historical, pre-cdd44e4)
+- The GDS framer re-reads `Framing/src/sequence_number.bin` on every frame. `Framing/.../authenticate_plugin.py` ~129-142.
+- comQueue depths: events 50, tlm 1, file 1; priority order EVENTS(0) < FILE(1) < TLM(2). `ComCcsdsLora/ComCcsdsConfig.fpp` ~31-33.
+- Events and file downlink bypass TelemetryGate (only the TlmChan tick is gated). `topology.fpp:146-148,177-179,284`.
+
+## Telemetry (2026-09-05)
+- Telemetry is `Svc.TlmPacketizer` at default packet level 1: only the Beacon packet downlinks until `CdhCore.tlmSend.SET_LEVEL` is raised. Every telemetry test must raise and restore the level.
+- `WatchdogTransitions` and `CurrBuffs` are omitted channels in `ReferenceDeploymentPackets.fppi`.
+- `telemetryDelay` (Utilities.RateDelay) divides the 1 Hz tick by 29 → TlmChan runs ~every 30 s. `instances.fpp` ~218; `test/int/telemetry_gate_test.py:37-44`.
+- Every new `telemetry` channel must be added to `ReferenceDeploymentPackets.fppi` or `fpp-to-dict` fails the build (issue #5).
+- `startup.seq` lines 1-5 ID-filter `QueueOverflow` and `RateGroupCycleSlip` events at boot, hiding them from the ground.
+
+## Modes, faults, hardware (2026-09-05)
+- Only SAFE_MODE and NORMAL exist; STANDBY/CALIBRATION/EXPERIMENT behaviours are "to be determined by Mission Operations" (CDR slide 16). MS-L2-01 is Not Ready until then.
+- `loadSwitchTurnOn` is unwired, so faces stay OFF after EXIT_SAFE_MODE (MM0006 false today). Check `topology.fpp` before relying on MM0006.
+- `EXIT_SAFE_MODE` returns OK from NORMAL. `ModeManager.cpp` ~226-230 vs fpp comment ~81. `safeModeReason` byte restored unvalidated, ~266.
+- There is no on-board event log; CDH-16, DH-L2-12, FD-L2-04 cannot pass until one exists.
+- ThermalManager wires 5 face + 4 battery + pico sensors (fpp comment says 11). `Components/ThermalManager/ThermalManager.cpp` ~25-48; thresholds `ThermalManager.fpp` ~7-16, hysteresis 3 C `.hpp:27`.
+- Safe-mode entry 6.7 V / recovery 8.0 V / debounce 10 samples. `ModeManager.fpp` ~194-200.
+- Board `proves_flight_control_board_v5e/rp2350a/m33` (settings.ini); flash 65.7% / RAM 64.1% at 96a0ed7.
+
+## Build, test, CI (2026-09-04/05)
+- Unit tests live in `PROVESFlightControllerReference/test/unit-tests/` (not `Components/*/test/ut`); fakes in `support/`; tests auto-globbed; helper libs listed explicitly in its CMakeLists.
+- `-DBUILD_TESTING=ON` is not consumed by the unit-test CMake project (harmless).
+- This fork has zero self-hosted runners: CI `build`/`integration-*` jobs queue 24 h then cancel. Only lint/unit-test/yamcs-build are real on the fork.
+- Zephyr cannot configure at a path containing an apostrophe (`yaml.cmake` single-quoted Python literal) or spaces; firmware builds run from the clean-path copy `~/scalar-build/proves-core-reference` (CLAUDE.md).
+- Pre-commit hooks run from the interpreter recorded in `.git/hooks/pre-commit` (`INSTALL_PYTHON`); `uvx` is not installed. Codespell flags the plural of "static" as a misspelling (write "static objects"); cpplint rejects unknown NOLINT categories.
+- `ruff` 0.14.2 is in the venv; `pyflakes` and `cpplint` are not on PATH (cpplint runs via the hook).
+- iCloud leaves duplicate files named `<name> 2` in the venv `bin/`; ignore them.
+- iCloud Drive syncs this checkout (it lives under "Documents - Jesse's Mac") and drops conflict copies named `<name> 2.<ext>` next to files edited quickly in succession; they appear as untracked files, some are stale snapshots. Delete them; never commit them. Same artifact seen in the venv `bin/`.
+
+## Cycle A planner findings, merged 2026-09-05 (ModeManager / Authenticate / StartupManager persistence) (historical, pre-cdd44e4)
+- Three Authenticate instances declared (`ComCcsdsLora/ComCcsds.fpp:101`, `ComCcsdsUart/ComCcsds.fpp:113`, `ComCcsdsSband/ComCcsds.fpp:101`); S-band is commented out of `topology.fpp:22`, so two are built and both write the same sequence file. (historical, pre-cdd44e4)
+- `ModeManager::init` calls `loadState()` (`ModeManager.cpp:37-40`); `saveState()` callers: `:341` (end of loadState, clears clean flag), `:425` enterSafeMode, `:449` exitSafeMode, `:474` exitSafeModeAutomatic; `prepareForReboot_handler` `:168-203`.
+- `StatePersistenceFailure(operation: string 20, status: I32)` `ModeManager.fpp:117-123`; op strings today: load-corrupt, load-read, load-open, save-open, save-write, shutdown-open, shutdown-write.
+- ModeManager restores `safeModeReason`/`cleanShutdown` without range checks (`ModeManager.cpp:266,271`).
+- ModeManager host recorder stub records `StatePersistenceFailure{op,status}` and `UnintendedRebootDetected`; its `init()` is a no-op (`test/unit-tests/support/.../ModeManager/ModeManagerComponentAc.hpp:72,86-89,147,151,232`).
+- Authenticate includes `<psa/crypto.h>` (`Authenticate.cpp:9`) and `AuthDefaultKey.h` (`:16`): the component cannot be host-compiled; persistence logic must live in an F´-free helper to be unit-tested. (historical, pre-cdd44e4)
+- Authenticate file I/O: `readSequenceNumber` `:60-67`, `writeSequenceNumber` `:108-112`; callers `:53` init, `:373` accepted packet, `:386` GET_SEQ_NUM (re-reads file per command), `:403` SET_SEQ_NUM (writes file only; RAM counter untouched — latent bug). (historical, pre-cdd44e4)
+- `FileOpenError(error: U32, filename: string 64)` WARNING_HI throttle 2, declared `Authenticate.fpp:36`, never emitted before Cycle A; sdd Events row had a stale one-arg signature. (historical, pre-cdd44e4)
+- `FileHelper` (`lib/fprime-extras/.../FileHelper.hpp:206-224`) serializes big-endian and maps short reads to BAD_SIZE; only Authenticate used it. (historical, pre-cdd44e4)
+- StartupManager includes `<zephyr/drivers/rtc.h>` (`:10`) and calls `k_uptime_seconds()` (`:152`); host tests need a fake header. `get_boot_count` `:104-123` rewrote the file even for `increment=false` (GET_BOOT_COUNT `:228-232`) before Cycle A.
+- `FW_MAX` is `lib/fprime/Fw/Types/BasicTypes.h:91`; `Fw::Time::SERIALIZED_SIZE` = 11 (`lib/fprime/Fw/Time/Time.hpp:16`); `TimeBase` values in `Fw/Time/Time.fpp`.
+- Host `Os::File` fake: OPEN_READ fails only with DOESNT_EXIST, so OPEN_ERROR/READ_ERROR load paths are untestable on host (`test/unit-tests/support/Os/File.hpp:73-93`).
+- `PersistedRecord::load` returns MISSING (not a corruption status) when the target is absent and the temp is not fully valid (`PersistedRecordFile.cpp:63-73`); an empty present file decodes TRUNCATED.
+- `loadSwitchTurnOn[0..7]` connections are commented out in `topology.fpp:474-481`; only `loadSwitchTurnOff` is wired (`:483-490`). Issue #7.
+- FatFS treats `//x` and `/x` as the same entry; project convention is a single leading slash.
+
+## Cycle C planner findings, merged 2026-09-05 (uplink framing, scheduler, queues)
+- `CcsdsTcFrameDetector::detect` verifies the TC FECF itself; a CRC-failing frame is NO_FRAME_DETECTED and FrameAccumulator rotates 1 byte silently — `lib/fprime/Svc/FrameAccumulator/FrameDetector/CcsdsTcFrameDetector.cpp:55-81`, `lib/fprime/Svc/FrameAccumulator/FrameAccumulator.cpp:170-177`. Contradicts the CDR/brief premise "deframer reports a CRC mismatch": `TcDeframer::InvalidCrc` (`lib/fprime/Svc/Ccsds/TcDeframer/TcDeframer.cpp:91-104`) is unreachable behind the accumulator.
+- Detector header token = `(1 << TCSubfields::BypassFlagOffset(13)) | ComCfg::SpacecraftId(0x0044)` = 0x2044 — `CcsdsTcFrameDetector.hpp:45-46`, `lib/fprime/Svc/Ccsds/Types/Types.fpp:55-67`, `P/project/config/ComCfg.fpp:12`. Frame length field is bytes-1, mask 0x03FF — `TcDeframer.cpp:61`.
+- TC CRC = CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, MSB-first, xorout 0), "123456789" → 0x29B1 — `lib/fprime/Svc/Ccsds/Utils/CRC16.hpp:16,43-49`, `lib/fprime/Utils/Hash/libcrc/lib_crc.c:132-144`.
+- CRC-CCITT = (x+1)(x^15+x+1): single-bit syndromes unique, non-zero and disjoint from the 16 FECF-bit syndromes for 7/252/1024-byte frames; no 2-bit error maps to a single-bit syndrome (24-byte frame, all 18336 pairs); syndrome of the last data bit is 0x1021 and shifts by the 0x1021 LFSR per earlier bit; CRC is affine (crc(a^b)=crc(a)^crc(b)^crc(0)) — verified with venv python 2026-09-05.
+- LoRa RX delivers exactly one radio packet per `Fw::Buffer` (payload after a 4-byte all-zero header), allocated from `commsBufferManager` and freed on `dataReturnIn` — `lib/fprime-zephyr/fprime-zephyr/Drv/LoRa/LoRa.cpp:158-177`, `P/project/config/LoRaCfg.hpp:11`; `MAX_PACKET_SIZE = 252` — `LoRa.hpp:19`.
+- LoRa PHY CRC is OFF: `Radio.SetRxConfig(..., crcOn=false, ...)` — `lib/zephyr-workspace/zephyr/drivers/lora/loramac_node/sx12xx_common.c:357-360`; corrupted packets reach F´.
+- LoRa RX callback runs on the Zephyr system workqueue (DIO1 `k_work`) — `sx12xx_common.c:100-113`, `loramac_node/sx126x.c:412-444`; everything from `lora.dataOut` to `cmdDisp`'s async queue executes there.
+- Uplink ownership chain: `lora.dataOut → frameAccumulator.dataIn` (returns immediately via `dataReturnOut`, `FrameAccumulator.cpp:56-64`) → accumulator allocates its own frame buffer (`:142`) → `tcDeframer` (shrinks in place `:107-109`, returns on error) → `authenticatelora` → `spacePacketDeframer` → `authenticationRouter`; return ports chain back one hop each — `P/ComCcsdsLora/ComCcsds.fpp:170-186`, `Top/topology.fpp:203-204`.
+- `Svc.Deframer` interface = guarded `dataIn`, output `dataOut`/`dataReturnOut`, sync `dataReturnIn` (all `Svc.ComDataWithContext`) — `lib/fprime/Svc/Interfaces/Deframer.fpp:1-15`; `Authenticate.fpp:51-61` declares the same four explicitly. (historical, pre-cdd44e4)
+- UART uplink arrives as arbitrary chunks via `comDriver.$recv → comStub → frameAccumulator` at 10 Hz — `topology.fpp:238-239,256`, `P/ComCcsdsUart/ComCcsds.fpp:211-212`; no pre-accumulator frame boundary.
+- ComQueue drop policy: `enqueue` NO_ROOM_LEFT drops the *new* message, logs `QueueOverflow` once per queue while `m_throttle` is set, throttle cleared when that queue next sends — `lib/fprime/Svc/ComQueue/ComQueue.cpp:246-272,369`; buffer-port async overflow returns the buffer — `:237-240`; queues sorted by priority in `configure` `:64-90`; `processQueue` sends first non-empty in priority order, round-robins equal priorities — `:333-386`.
+- ComQueue is not host-buildable: `ComQueue.hpp:10-16` includes `Fw/Buffer`, `Fw/Com/ComBuffer`, `ComQueueComponentAc`, `Utils/Types/Queue`, `Os/Mutex`.
+- Thread priorities: `CdhCoreConfig.fpp:19-24` cmdDisp 4 / health 5 / events 6 / tlmSend 6; `ComCcsdsConfig.fpp:18-21` aggregator 7 / comQueue 8; `instances.fpp:31-69` rate groups 1/2/3, modeManager 4, cmdSeq 12, payloadSeq/safeModeSeq/payload 13. Zephyr `Os::Task` passes the number straight to `k_thread_create`, capped at 14 (lower = higher) — `lib/fprime-zephyr/fprime-zephyr/Os/Task.cpp:36-48`.
+- `Svc.ActiveRateGroup` has no per-member enable (`RateGroupMemberOut: [N] Sched` only) — `lib/fprime/Svc/ActiveRateGroup/ActiveRateGroup.fpp:15`. 1 Hz members and indices — `topology.fpp:271-290`; only `imuManager/fsSpace/powerMonitor/adcs/thermalManager` (idx 6/10/15/17/18) are stateless sensor polls (`ImuManager.cpp:43-55`, `FsSpace.cpp:27-35`, `PowerMonitor.cpp:28-38`, `ADCS.cpp:24-31`, `ThermalManager.cpp:24-`).
+- `Watchdog::run_handler` pets only while `m_run`; `STOP_WATCHDOG` also fires `prepareForReboot` — `Watchdog.cpp:25-35,69-75`.
+- `TlmPacketizer` FW_ASSERTs each packet ≤ `FW_COM_BUFFER_MAX_SIZE` at init (boot crash if exceeded) — `lib/fprime/Svc/TlmPacketizer/TlmPacketizer.cpp:88`; `HealthAuxiliary` (id 4) has 3 channels — `ReferenceDeploymentPackets.fppi:149-154`; `Health` (id 2) has 15 — `:119-135`.
+- Enum constants are legal port indices in topology connections — `topology.fpp:147,152`.
+- Highest instance base id in use is `picoTempManager` 0x10079000 — `instances.fpp:245`; ComCcsdsLora subtopology uses `BASE_ID_LORA + 0x0B000` last — `ComCcsds.fpp:112`.
+- Host recorder stubs: `UT/support/PROVESFlightControllerReference/Components/{ModeManager,TelemetryGate,ThermalManager}/*ComponentAc.hpp`; `FpTypesStub.hpp` provides `CmdResponse/Success/ParamValid`; `Fw/Types/Assert.hpp` stub keeps only the condition; `Os/File.hpp`, `Os/FileSystem.hpp` fakes. `UT/CMakeLists.txt:13-118` lists helper libs explicitly and globs `test_*.cpp`.
+- `req.py` refuses Pass/Fail without criteria (`scripts/req.py:206-213`) but accepts any other `--status` text; RTM shows `📋 <status>` only when no test is linked (`scripts/generate_rtm.py:250-253`); int tests are `⏸ deferred` under `--env host` (`:218-226`).
+- Docs plumbing for a new component: `mkdocs.yml:66-93` nav, `Makefile:83-…` `docs-sync` cp list, `docs-site/components/<Name>.md` copies; `P/ComCcsdsLora/docs/sdd.md` is a 4-line stub with no headings/tables.
+- `Framing/src/authenticate_plugin.py:129-167` adds the auth header/trailer only; LoRa packetisation is done by the CircuitPython passthrough board (`test/int/lora_passthrough_test.py:4-6`), not in this repo — one-frame-per-packet is an assumption.
+- TlmPacketizer FW_ASSERTs each packet <= FW_COM_BUFFER_MAX_SIZE at init (boot crash if exceeded): lib/fprime/Svc/TlmPacketizer/TlmPacketizer.cpp:87. Health packet has 13 small channels at 96a0ed7, far below the bound.
+
+## Cycle B planner findings, merged 2026-09-05 (parameters, telemetry sources)
+- `dev-loop-findings.md` line "NullPrmDb does not persist F´ parameters" is misleading: NullPrmDb is compiled (`Components/CMakeLists.txt`) but not instanced; the topology wires the real `Svc.PrmDb` (`topology.fpp:132` `param connections instance FileHandling.prmDb`, `ReferenceDeploymentTopology.cpp:69` `configure("/prmDb.dat")`, `:118-120` `readParameters(); loadParameters();`), and the dictionary has `FileHandling.prmDb.PRM_SAVE_FILE/PRM_LOAD_FILE/PRM_COMMIT_STAGED`. What is true: `X_PRM_SET` is RAM-only until `PRM_SAVE` + `PRM_SAVE_FILE`; whether that file path works on the board is unverified.
+- `telemetryDelay` is `Utilities.RateDelay` with `param DIVIDER: U8 default 29` and generated `DIVIDER_PRM_SET/_PRM_SAVE`; output every DIVIDER+1 ticks; INVALID/UNINIT falls back to 29; `DividerSet` event declared but never emitted. `lib/fprime-extras/FprimeExtras/Utilities/RateDelay/RateDelay.fpp:5,13,16`, `RateDelay.cpp:24-40`.
+- `tlmSend` is `Svc.TlmPacketizer` via the project override `project/config/CdhCoreTlmConfig.fpp:4-16` (the lib default `lib/fprime/Svc/Subtopologies/CdhCore/CdhCoreConfig/CdhCoreTlmConfig.fpp:3` is TlmChan; TelemetryGate sdd/fpp comments say "TlmChan" — wrong name, same tick). `PACKET_UPDATE_MODE = PACKET_UPDATE_ON_CHANGE` (`project/config/TlmPacketizerCfg.hpp:40`); a packet is sent on Run only if a member channel updated and its level <= start level (`TlmPacketizer.cpp:341-342`); packet time = latest member write time (`:237,367`).
+- `parameterUpdated(FwPrmIdType)` override exemplar: `Components/ComDelay/ComDelay.cpp:22-35`, `ComDelay.hpp:30`; ComDelay `DIVIDER` is U16 default 299 (`ComDelay.fpp:2,15`).
+- Generated `X_PRM_SET` always acks OK; rejection with VALIDATION_ERROR requires a hand-written command (F´ codegen; confirmed by absence of any hook in ComDelay/ThermalManager param flow).
+- 1 Hz sources and handlers: ThermalManager `run_handler` `ThermalManager.cpp:24-49`; ADCS `ADCS.cpp:24-31` (6 light ports, `ADCS.fpp:7`); PowerMonitor `PowerMonitor.cpp:28-45`, energy dt guard `dt_s < 10.0` at `:97,127`; ImuManager `ImuManager.cpp:43-58` (reads + ODR reconfigure check).
+- Channel writers are the driver port handlers, not the managers: `Drv/Tmp112Manager/Tmp112Manager.cpp:78`, `Drv/Ina219Manager/Ina219Manager.cpp:45,63,81`, `Drv/Veml6031Manager/Veml6031Manager.cpp:79`, `Drv/PicoTempManager/PicoTempManager.cpp:35`, `ImuManager.cpp:81,108,159`. ThermalManager, ADCS declare no telemetry channels.
+- DetumbleManager reads IMU ports at 50 Hz (`rateGroup50Hz` → `detumbleManager.run`, `topology.fpp:250`; `DetumbleManager.cpp:543,598`; wiring `topology.fpp:352-354`), so IMU channels update independently of `imuManager.run`.
+- `PowerMonitor.fpp` has no param ports; `ADCS.fpp` has no command or param ports (`ADCS.fpp:12-26`).
+- ImuManager is not host-buildable: `ImuManager.hpp:10-11` includes `<zephyr/device.h>`, `<zephyr/drivers/sensor.h>`.
+- Host stubs present: `TelemetryGate`, `ThermalManager`, `ModeManager` only (`test/unit-tests/support/PROVESFlightControllerReference/Components/`); `FpTypesStub.hpp` has `Fw::CmdResponse{OK,INVALID_OPCODE,VALIDATION_ERROR,FORMAT_ERROR,EXECUTION_ERROR,BUSY}`, `Fw::Success`, `Fw::ParamValid{UNINIT,VALID,INVALID,DEFAULT}`, no `FwPrmIdType`, no `Fw::Time`.
+- Library buffers are setup-once: `lib/fprime/Svc/BufferManager/BufferManagerComponentImpl.cpp:41-58` (`m_setup` guard), `lib/fprime/Svc/ComQueue/ComQueue.cpp:53` `configure()` from `configComponents` (`ComCcsdsLora/ComCcsds.fpp:6-31`); ComQueue channels report high-water marks, not capacity (`ComQueue.cpp:196-210`); BufferManager `TotalBuffs/CurrBuffs/HiBuffs/NoBuffs/EmptyBuffs` (`lib/fprime/Svc/BufferManager/Telemetry.fppi`). `payloadBufferManager` = 2 x 4 KB (`instances.fpp:134-154`); comms pools `project/config/ComCcsdsConfig.fpp:37-44`.
+- No on-board telemetry store: dictionary `records`=0, `containers`=0; `FsSpace.fpp` only `FreeSpace/TotalSpace`; `FlashWorker.fpp` is firmware-update only; `PayloadCom.fpp` has no buffers/params.
+- Command dispatch table: `CMD_DISPATCHER_DISPATCH_TABLE_SIZE = 350` (`project/config/CommandDispatcherImplCfg.hpp:14`); dictionary at 69e4b75 has 339 commands, 89 parameters.
+- Packet ids in use: 1-8, 10-22 (`ReferenceDeploymentPackets.fppi`); `omit` block starts ~line 253; Beacon is the only level-1 packet.
+- Board test helpers: `proves_send_and_assert_command(api, cmd, args, events, retries)` (`test/int/common.py:56`); markers `uart_only`, `verifies`, `sync_sequence_number`, `format_filesystem` (`$R/pytest.ini`); `_PRM_SET` usage exemplar `test/int/antenna_deployer_test.py:43-52`, `conftest.py:110`.
+- `scripts/req.py add` requires `--group` = exact group name from `req.py list` (component sdd groups are the component names, e.g. `ThermalManager`, `PowerMonitor`, `ADCS`, `ImuManager`); ThermalManager/ADCS/ImuManager sdd Requirements tables are legacy 3-column (Name/Description/Validation) and get normalised on first tool edit; PowerMonitor already uses `PWR-MON-REQ-00x` ids.
+- `docs-site/components/*.md` are `cp` copies of `Components/*/docs/sdd.md` (`$R/Makefile:84-95`); mkdocs nav lists ADCS/ImuManager/PowerMonitor/ThermalManager (`$R/mkdocs.yml:67,90-92`).
+- `Components/RunInterval/` (planned) needs no CMake registration if header-only; project-root includes resolve via the F´ build's global include path (`TelemetryGate.cpp:9` includes `PersistedRecord` headers by project-root path; that lib is registered only because it has `.cpp` sources, `PersistedRecord/CMakeLists.txt`).

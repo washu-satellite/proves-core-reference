@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(proves_unit_tests CXX)
 
+# Pin the standard: googletest and the sources under test require C++14+, and
+# some host compilers (e.g. AppleClang) default lower.
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 enable_testing()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/fprime/googletest googletest-build)
@@ -87,6 +92,58 @@ endif()
 target_include_directories(security_deframer_authenticator PUBLIC ${PSA_CRYPTO_H})
 target_link_libraries(security_deframer_authenticator PUBLIC ${MBEDCRYPTO_LIB})
 
+# PersistedRecord codec (pure logic, no F Prime / Os includes)
+add_library(persisted_record_codec STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordCodec.cpp
+)
+target_include_directories(persisted_record_codec PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# PersistedRecord file layer (real PersistedRecordFile.cpp built against the
+# in-memory Os::File / Os::FileSystem stubs in support/). support/ comes first
+# on the include path so "Os/File.hpp" resolves to the stub, not lib/fprime.
+add_library(persisted_record_file STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.cpp
+)
+target_include_directories(persisted_record_file PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(persisted_record_file PUBLIC persisted_record_codec)
+
+# TelemetryGate component (real TelemetryGate.cpp built against the host stubs
+# in support/: a recording ComponentAc base and an in-memory Os::File)
+add_library(telemetry_gate_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TelemetryGate/TelemetryGate.cpp
+)
+target_include_directories(telemetry_gate_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(telemetry_gate_component PUBLIC persisted_record_file)
+
+# ThermalManager component (real ThermalManager.cpp built against the host
+# stubs in support/: a recording ComponentAc base and a host FW_ASSERT).
+add_library(thermal_manager_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/ThermalManager/ThermalManager.cpp
+)
+target_include_directories(thermal_manager_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# ModeManager component (real ModeManager.cpp built against the host stubs in
+# support/: a recording ComponentAc base, the in-memory Os::File, and the Fw
+# string / assert stubs).
+add_library(mode_manager_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/ModeManager/ModeManager.cpp
+)
+target_include_directories(mode_manager_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
 # --- Auto-discover and build tests ---
 
 file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
@@ -105,6 +162,11 @@ foreach(test_src ${TEST_SOURCES})
         security_deframer_authenticator
         rtc_manager_rtc_helper
         proves_router_bypasser
+        persisted_record_codec
+        persisted_record_file
+        telemetry_gate_component
+        thermal_manager_component
+        mode_manager_component
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-07-29 (base 07b6046) What Changed: Telemetry Gating and Requirements Tracking</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #5c6570; --accent: #0b62a4;
+    --card: #f5f7f9; --border: #d8dee4; --code-bg: #eef1f4;
+    --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --box-new: #e6f4ea; --box-new-border: #1a7f37;
+    --box-old: #fbeaea; --box-old-border: #cf222e;
+    --box: #eef1f4; --box-border: #8a939c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --fg: #e6e9ec; --muted: #9aa4af; --accent: #5cb3e6;
+      --card: #171c22; --border: #2b333c; --code-bg: #1e252d;
+      --ok: #4ac26b; --warn: #d4a72c; --bad: #ff7b72;
+      --box-new: #12301c; --box-new-border: #4ac26b;
+      --box-old: #33191b; --box-old-border: #ff7b72;
+      --box: #1e252d; --box-border: #566069;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.8rem; margin-bottom: .3rem; }
+  h2 { font-size: 1.35rem; margin-top: 2.6rem; border-bottom: 2px solid var(--border); padding-bottom: .35rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.6rem; }
+  .sub { color: var(--muted); margin-top: 0; }
+  code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px;
+         font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .85em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+        padding: .9rem 1rem; overflow-x: auto; line-height: 1.45;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .85em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .tablewrap, .diagram { overflow-x: auto; }
+  .diagram svg { display: block; margin: 1rem auto; max-width: 100%; height: auto; }
+  .legend { font-size: .85rem; color: var(--muted); text-align: center; margin-top: -0.5rem; }
+  .beforeafter { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  @media (max-width: 760px) { .beforeafter { grid-template-columns: 1fr; } }
+  .beforeafter .col { border: 1px solid var(--border); border-radius: 10px; padding: .9rem 1.1rem; }
+  .beforeafter .before { border-left: 5px solid var(--box-old-border); }
+  .beforeafter .after  { border-left: 5px solid var(--box-new-border); }
+  .beforeafter h4 { margin: 0 0 .5rem; font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
+  .before h4 { color: var(--bad); } .after h4 { color: var(--ok); }
+  ul { padding-left: 1.35rem; } li { margin: .3rem 0; }
+  pre.diff .add { color: var(--ok); }
+  pre.diff .del { color: var(--bad); }
+  pre.diff .ctx { color: var(--muted); }
+  .change { border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.3rem; margin: 1.4rem 0; }
+  .change h3 { margin-top: 0; }
+  .meta { font-size: .85rem; color: var(--muted); margin: .1rem 0 .9rem; }
+  .meta b { color: var(--fg); }
+  .meta code { font-size: .95em; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>What Changed: Telemetry Gating and Requirements Tracking</h1>
+<p class="sub">Edit log entry: 2026-07-29. Base commit <code>07b6046</code> ("added requirements
+traceability matrix") on <code>main</code>; covers the uncommitted work on top of it and the
+<code>port/telemetry-gate-rtm</code> branch for the washu fork.</p>
+<p class="sub">A walkthrough of the work added to the PROVES CubeSat flight software, written
+for readers who do not work in this repository. Three deliverables:
+<strong>(1)</strong> a new telemetry gate component that lets the ground turn the satellite's
+routine data broadcasts off and on, <strong>(2)</strong> unit tests that run the real flight
+code on a laptop, and <strong>(3)</strong> an automatically generated requirements verification
+matrix, now loaded with the CDH requirements from the CDR and editable from the terminal.</p>
+
+<h2>0. Background: what this software is</h2>
+<p>This repository is the flight software for a PROVES-kit CubeSat. It runs on an RP2350
+microcontroller using NASA JPL's <strong>F´ (F Prime)</strong> framework. In F´, the software
+is built from small components connected by ports, like blocks in a circuit diagram. One stock
+component, <code>TlmChan</code>, is the telemetry channel database. Every sensor reading
+(battery voltage, temperatures, gyro rates) is written into it, and once per second a timer
+tick tells it to package everything up and push it to the radio for downlink.</p>
+
+<h2>1. The problem: no way to stop telemetry transmission</h2>
+<p>Before this change, that once-per-second tick was wired directly into the telemetry
+database, so the satellite always broadcast its housekeeping data. There was no command to
+stop telemetry transmission. That capability is required for RF-quiet operations, licensing
+constraints, and deployment timing rules. It is requirement <strong>CDH-3</strong> from the
+CDR ("Shall be capable of ceasing transmission on command") and its children
+<strong>CH-L2-13/15/17</strong>, which were marked <span class="bad">not met</span> at CDR.</p>
+
+<div class="beforeafter">
+  <div class="col before">
+    <h4>Before</h4>
+    <p>The scheduler tick flowed directly into the telemetry database. The only way to stop
+    telemetry was to power off the radio, which would also kill command uplink and warning
+    events.</p>
+  </div>
+  <div class="col after">
+    <h4>After</h4>
+    <p>A new component, the <strong>Telemetry Gate</strong>, sits in the middle of that
+    connection. A ground command opens or closes it. Closed means routine telemetry stops
+    within one second. Commands, acknowledgements, and warning events still flow, so the
+    satellite can always be recovered.</p>
+  </div>
+</div>
+
+<div class="diagram">
+<svg viewBox="0 0 860 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg)"/>
+    </marker>
+  </defs>
+  <!-- BEFORE row -->
+  <text x="20" y="28" font-weight="700" fill="var(--bad)">BEFORE</text>
+  <rect x="20" y="45" width="180" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="110" y="65" text-anchor="middle" fill="var(--fg)" font-weight="600">1 Hz scheduler tick</text>
+  <text x="110" y="82" text-anchor="middle" fill="var(--muted)" font-size="11">"time to send telemetry"</text>
+  <line x1="200" y1="68" x2="330" y2="68" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="332" y="45" width="200" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="432" y="65" text-anchor="middle" fill="var(--fg)" font-weight="600">Telemetry database</text>
+  <text x="432" y="82" text-anchor="middle" fill="var(--muted)" font-size="11">packages all sensor readings</text>
+  <line x1="532" y1="68" x2="662" y2="68" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="664" y="45" width="170" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="749" y="65" text-anchor="middle" fill="var(--fg)" font-weight="600">Radio downlink</text>
+  <text x="749" y="82" text-anchor="middle" fill="var(--muted)" font-size="11">always transmitting</text>
+
+  <!-- AFTER row -->
+  <text x="20" y="150" font-weight="700" fill="var(--ok)">AFTER</text>
+  <rect x="20" y="167" width="180" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="110" y="187" text-anchor="middle" fill="var(--fg)" font-weight="600">1 Hz scheduler tick</text>
+  <text x="110" y="204" text-anchor="middle" fill="var(--muted)" font-size="11">unchanged</text>
+  <line x1="200" y1="190" x2="270" y2="190" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="272" y="160" width="190" height="60" rx="8" fill="var(--box-new)" stroke="var(--box-new-border)" stroke-width="2"/>
+  <text x="367" y="182" text-anchor="middle" fill="var(--fg)" font-weight="700">TELEMETRY GATE (new)</text>
+  <text x="367" y="199" text-anchor="middle" fill="var(--muted)" font-size="11">ENABLED: pass tick along</text>
+  <text x="367" y="213" text-anchor="middle" fill="var(--muted)" font-size="11">DISABLED: drop tick, count it</text>
+  <line x1="462" y1="190" x2="532" y2="190" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="534" y="167" width="150" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="609" y="187" text-anchor="middle" fill="var(--fg)" font-weight="600">Telemetry database</text>
+  <text x="609" y="204" text-anchor="middle" fill="var(--muted)" font-size="11">only runs if tick arrives</text>
+  <line x1="684" y1="190" x2="734" y2="190" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="736" y="167" width="104" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="788" y="187" text-anchor="middle" fill="var(--fg)" font-weight="600">Radio</text>
+  <text x="788" y="204" text-anchor="middle" fill="var(--muted)" font-size="11">quiet on command</text>
+
+  <!-- Command + flash below the gate -->
+  <rect x="60" y="262" width="220" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="170" y="282" text-anchor="middle" fill="var(--fg)" font-weight="600">Ground command</text>
+  <text x="170" y="299" text-anchor="middle" fill="var(--muted)" font-size="11">SET_TRANSMIT_STATE ENABLED/DISABLED</text>
+  <line x1="280" y1="280" x2="340" y2="224" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="430" y="262" width="230" height="46" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="545" y="282" text-anchor="middle" fill="var(--fg)" font-weight="600">Flash memory file</text>
+  <text x="545" y="299" text-anchor="middle" fill="var(--muted)" font-size="11">state survives reboots (checksummed)</text>
+  <line x1="430" y1="278" x2="398" y2="224" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+  <text x="345" y="255" fill="var(--muted)" font-size="11">save / restore</text>
+</svg>
+<p class="legend">The telemetry path before and after. The gate is the only new element in the path. Everything around it is untouched.</p>
+</div>
+
+<h3>Design decisions worth knowing</h3>
+<ul>
+  <li><strong>Defaults to transmitting on any error.</strong> If the saved state file is
+  missing, unreadable, or corrupted (checked with a magic header and integrity byte), the gate
+  defaults to ENABLED and raises a warning event. This means a corrupted file can never leave
+  the satellite silent; it keeps transmitting and reports the corruption instead.</li>
+  <li><strong>The command takes effect within one cycle</strong> (requirement CH-L2-15, red at
+  CDR). The new state is set in memory first, then saved to flash. If the flash save fails,
+  the command reports an error but the state change still holds, and a warning event says
+  so.</li>
+  <li><strong>A commanded disable survives reboots.</strong> This is needed for RF-quiet
+  windows longer than one boot. It is safe because the command link is never gated: the ground
+  can always send ENABLE.</li>
+  <li><strong>While disabled, the gate counts what it dropped</strong> (<code>GatedTicks</code>),
+  so operators can see afterwards exactly how long the satellite was silent.</li>
+</ul>
+
+<h3>Command sequence: what happens when the ground sends DISABLE</h3>
+<pre><code>Ground          Radio/Uplink        TelemetryGate           Flash          Telemetry DB
+  |  DISABLE ---------> |                  |                    |                  |
+  |                     |  (authenticated, |                    |                  |
+  |                     |   routed by opcode)                   |                  |
+  |                     +----------------->|                    |                  |
+  |                                        | 1. set DISABLED in RAM                |
+  |                                        | 2. emit "TransmitStateSet" event      |
+  |                                        | 3. write state --->|  (5-byte file,   |
+  |                                        |                    |   checksummed)   |
+  |   <---- command OK -------------------- |                    |                  |
+  |                                        |                    |                  |
+  |        next 1 Hz tick arrives -------> | DISABLED: tick dropped, counter++     |
+  |                                        |        (nothing sent to  --------> not run
+  |                                        |         telemetry DB)                 |
+  |   ...telemetry is silent; events and command replies still flow...
+</code></pre>
+
+<h2>2. Testing flight code without a satellite on your desk</h2>
+<p>This repository has a rule that unit tests must run on a plain laptop with no F´ framework
+headers, and F´'s own test-generation tooling is not set up here. As a result, component
+behavior (commands, ports, events) could not be tested off-hardware at all. Only standalone
+math and logic files had tests.</p>
+
+<div class="beforeafter">
+  <div class="col before">
+    <h4>Before</h4>
+    <p>To find out whether a component behaved correctly you had to flash a physical board and
+    run radio tests. A logic bug in boot-time state loading could only be found on
+    hardware.</p>
+  </div>
+  <div class="col after">
+    <h4>After</h4>
+    <p>A small set of hand-written stand-in classes imitates exactly the framework surface the
+    component touches, and records everything the component does (ticks forwarded, events
+    emitted, command responses). The real, unmodified flight code compiles against these
+    stand-ins and runs under googletest on any laptop, in CI, in seconds.</p>
+  </div>
+</div>
+
+<div class="diagram">
+<svg viewBox="0 0 860 240" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg)"/>
+  </marker>
+  <rect x="290" y="20" width="280" height="56" rx="8" fill="var(--box-new)" stroke="var(--box-new-border)" stroke-width="2"/>
+  <text x="430" y="43" text-anchor="middle" font-weight="700" fill="var(--fg)">REAL flight code (unmodified)</text>
+  <text x="430" y="61" text-anchor="middle" fill="var(--muted)" font-size="11">TelemetryGate.cpp, the same file that flies</text>
+
+  <rect x="30" y="130" width="240" height="72" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="150" y="152" text-anchor="middle" font-weight="600" fill="var(--fg)">Recording base class</text>
+  <text x="150" y="169" text-anchor="middle" fill="var(--muted)" font-size="11">logs every tick forwarded, every</text>
+  <text x="150" y="184" text-anchor="middle" fill="var(--muted)" font-size="11">event and command response emitted</text>
+
+  <rect x="310" y="130" width="240" height="72" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="430" y="152" text-anchor="middle" font-weight="600" fill="var(--fg)">Fake in-memory "flash file"</text>
+  <text x="430" y="169" text-anchor="middle" fill="var(--muted)" font-size="11">can inject failures on demand:</text>
+  <text x="430" y="184" text-anchor="middle" fill="var(--muted)" font-size="11">open fails, write fails, short write</text>
+
+  <rect x="590" y="130" width="240" height="72" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="710" y="152" text-anchor="middle" font-weight="600" fill="var(--fg)">13 googletest cases</text>
+  <text x="710" y="169" text-anchor="middle" fill="var(--muted)" font-size="11">gating, command semantics, reboot</text>
+  <text x="710" y="184" text-anchor="middle" fill="var(--muted)" font-size="11">persistence, every corruption byte</text>
+
+  <line x1="310" y1="80" x2="200" y2="128" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr2)"/>
+  <line x1="430" y1="80" x2="430" y2="128" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr2)"/>
+  <line x1="556" y1="80" x2="666" y2="128" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr2)"/>
+  <text x="215" y="105" fill="var(--muted)" font-size="11">inherits from</text>
+  <text x="445" y="105" fill="var(--muted)" font-size="11">reads/writes</text>
+  <text x="580" y="105" fill="var(--muted)" font-size="11">exercised by</text>
+</svg>
+<p class="legend">The test setup: the flight source file is compiled as-is; only its surroundings are simulated.</p>
+</div>
+
+<p>This matters beyond TelemetryGate: the type stubs, fake file system with fault injection,
+and recording base class are a reusable pattern. Any future component can copy them to get
+fast tests of real flight logic.</p>
+
+<h2>3. Requirements verification, generated from the code</h2>
+<p>The team's requirements were in CDR slides, and their verification status was not recorded
+anywhere. Now the repository generates a <strong>Requirements Traceability Matrix (RTM)</strong>.
+The RTM lets devs make sure every requirement is covered and keeps track of how each one will
+be proven, at what level, against which pass criteria, and whether it is currently passing.
+It is not maintained by hand and is rebuilt from source on every push.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 860 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+  <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg)"/>
+  </marker>
+  <rect x="20" y="20" width="250" height="56" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="145" y="42" text-anchor="middle" font-weight="600" fill="var(--fg)">Requirement tables</text>
+  <text x="145" y="60" text-anchor="middle" fill="var(--muted)" font-size="11">per-component docs + CDH system reqs (from CDR)</text>
+
+  <rect x="20" y="96" width="250" height="56" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="145" y="118" text-anchor="middle" font-weight="600" fill="var(--fg)">Tags inside tests</text>
+  <text x="145" y="136" text-anchor="middle" fill="var(--muted)" font-size="11">each test declares which requirement it verifies</text>
+
+  <rect x="20" y="172" width="250" height="56" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="145" y="194" text-anchor="middle" font-weight="600" fill="var(--fg)">CI test results</text>
+  <text x="145" y="212" text-anchor="middle" fill="var(--muted)" font-size="11">pass/fail from every automated run</text>
+
+  <rect x="360" y="96" width="190" height="56" rx="8" fill="var(--box-new)" stroke="var(--box-new-border)" stroke-width="2"/>
+  <text x="455" y="118" text-anchor="middle" font-weight="700" fill="var(--fg)">RTM generator</text>
+  <text x="455" y="136" text-anchor="middle" fill="var(--muted)" font-size="11">runs on every docs deploy</text>
+
+  <rect x="630" y="96" width="210" height="56" rx="8" fill="var(--box)" stroke="var(--box-border)"/>
+  <text x="735" y="118" text-anchor="middle" font-weight="600" fill="var(--fg)">Published matrix page</text>
+  <text x="735" y="136" text-anchor="middle" fill="var(--muted)" font-size="11">251 requirements, live status</text>
+
+  <line x1="270" y1="48" x2="358" y2="110" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr3)"/>
+  <line x1="270" y1="124" x2="358" y2="124" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr3)"/>
+  <line x1="270" y1="200" x2="358" y2="138" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr3)"/>
+  <line x1="550" y1="124" x2="628" y2="124" stroke="var(--fg)" stroke-width="1.6" marker-end="url(#arr3)"/>
+</svg>
+<p class="legend">Rebuilt from source on every push.</p>
+</div>
+
+<h3>Every requirement now carries five verification fields</h3>
+<div class="tablewrap"><table>
+  <tr><th>Field</th><th>Meaning</th><th>Example (TelemetryGate-7)</th></tr>
+  <tr><td><strong>Method</strong></td><td>How it is verified: Unit Test, Integration Test, Analysis, Inspection, Demonstration</td><td>Unit Test</td></tr>
+  <tr><td><strong>Level</strong></td><td>Where it is proven: Unit, Board, Subsystem, Flatsat, Environmental</td><td>Unit</td></tr>
+  <tr><td><strong>Pass Criteria</strong></td><td>The measurable pass/fail condition. <span class="warn">Must be decided before testing.</span> The matrix marks any requirement whose tests ran without criteria, and the terminal tool refuses to record Pass/Fail without them.</td><td>On injected write failure: 1 warning event, EXECUTION_ERROR response, state still applied</td></tr>
+  <tr><td><strong>Status</strong></td><td>Automated result when tests are linked; otherwise the manual assessment (currently the CDR's Met / Partial / Not met)</td><td class="ok">Unit (passing)</td></tr>
+  <tr><td><strong>Reason</strong></td><td>Why a requirement fails. Mandatory when recording a Fail.</td><td>n/a</td></tr>
+</table></div>
+
+<h3>The CDH requirements from the CDR are now in the repository</h3>
+<p>All 105 requirements from the SCALAR Command and Data Handling CDR deck were transcribed:
+the 31 top-level requirements (CDH-1 to CDH-31) and all seven L2 groups: Command Handling (20),
+Telemetry Acquisition (9), Storage (14), Scheduling (7), Mode Management (9), FDIR (9), ADCS
+Enablement (6). Each row keeps the CDR's implementation verdict and, for everything marked
+Partial or Not met, the reason from the slides (for example TM-L2-02: "sampling loops are tied
+to fixed frequencies; not configurable at runtime"). Two of the red CDR items, CH-L2-15
+(stop transmission within one cycle) and CH-L2-17 (inhibit telemetry scheduling when
+disabled), are exactly what the Telemetry Gate implements.</p>
+
+<h3>Editing from the terminal (no hand-editing markdown)</h3>
+<pre><code>$ scripts/req.py list --group "Command Handling"     # browse
+$ scripts/req.py show CH-L2-15                       # full detail + where it lives
+$ scripts/req.py set CH-L2-15 --criteria "No telemetry frames on the air &gt; 1 s after ACK" --level Flatsat
+$ scripts/req.py set CH-L2-15 --status Fail          # refused if criteria still TBD
+error: refusing to set status 'Fail' on CH-L2-15: pass criteria must be
+decided before a requirement is tested.
+$ scripts/req.py add --group "CDH L1 Requirements" --id CDH-32 --description "..."
+$ make rtm                                           # regenerate the matrix
+</code></pre>
+<p>The tool finds the requirement wherever it lives, rewrites the table in place, and enforces
+two rules: criteria before testing, and a reason with every Fail.</p>
+
+<h2>4. What exactly changed, with diffs</h2>
+<p>Each change below shows the actual lines before and after
+(<span class="bad">red = removed</span>, <span class="ok">green = added</span>), what kind of
+change it is, and which requirements it serves. This is the full substance of the work;
+everything else in the branch is documentation or build plumbing for these.</p>
+
+<div class="change">
+<h3>4.1 The one rewired connection: inserting the gate into the telemetry path</h3>
+<p class="meta"><b>Type:</b> Feature &nbsp;&nbsp; <b>Verifies:</b> <code>CDH-3</code>, <code>CH-L2-17</code>, <code>TelemetryGate-2</code>, <code>TelemetryGate-3</code></p>
+<p>This is the core of the whole change. F´ wires components together in a topology file,
+which serves as the wiring diagram. Before, the once-per-second telemetry tick went straight
+to the telemetry database (<code>tlmSend</code>) and nothing could stop it. Now it passes
+through the gate first:</p>
+<pre class="diff"><code><span class="ctx">// ReferenceDeployment/Top/topology.fpp (the component wiring diagram)</span>
+<span class="del">-      telemetryDelay.runOut -> CdhCore.tlmSend.Run</span>
+<span class="add">+      # TelemetryGate sits between the rate divider and TlmChan so it can inhibit</span>
+<span class="add">+      # scheduled telemetry downlink when transmission is disabled.</span>
+<span class="add">+      telemetryDelay.runOut -> telemetryGate.runIn</span>
+<span class="add">+      telemetryGate.runOut -> CdhCore.tlmSend.Run</span></code></pre>
+<p>The gate is registered as a new component instance with its own command and telemetry
+ID range, verified unused on both repositories:</p>
+<pre class="diff"><code><span class="ctx">// ReferenceDeployment/Top/instances.fpp</span>
+<span class="add">+  instance telemetryGate: Components.TelemetryGate base id 0x1003C000</span></code></pre>
+</div>
+
+<div class="change">
+<h3>4.2 The gating decision</h3>
+<p class="meta"><b>Type:</b> Feature &nbsp;&nbsp; <b>Verifies:</b> <code>TelemetryGate-2</code>, <code>TelemetryGate-3</code>, <code>TelemetryGate-8</code>, <code>CH-L2-13</code></p>
+<p>New code; this component did not exist before. Every second the scheduler tick lands here,
+and the entire cease-transmission behavior is this if/else:</p>
+<pre><code>// Components/TelemetryGate/TelemetryGate.cpp, runs once per scheduler tick
+void TelemetryGate::runIn_handler(FwIndexType portNum, U32 context) {
+    if (!this->m_loaded) {          // first tick after boot: restore saved state
+        this->loadState();          // from flash, BEFORE the first gating decision
+        this->m_loaded = true;
+    }
+
+    if (this->m_state == TelemetryTxState::ENABLED) {
+        this->runOut_out(0, context);   // pass the tick along: telemetry runs
+    } else {
+        this->m_gated_ticks++;          // drop the tick: telemetry silent; count it
+    }
+
+    this->tlmWrite_TransmitState(this->m_state);   // report own state
+    this->tlmWrite_GatedTicks(this->m_gated_ticks);
+}</code></pre>
+</div>
+
+<div class="change">
+<h3>4.3 The command: takes effect next tick, survives a failed save</h3>
+<p class="meta"><b>Type:</b> Feature &nbsp;&nbsp; <b>Verifies:</b> <code>TelemetryGate-1</code>, <code>TelemetryGate-7</code>, <code>CH-L2-12</code>, <code>CH-L2-15</code>, <code>CH-L2-16</code></p>
+<p>CH-L2-15 (cease within one scheduler cycle) was <span class="bad">red at CDR</span>. The
+fix is the ordering here: memory first, flash second, so the very next tick obeys the command
+even if the flash write is slow or fails:</p>
+<pre><code>// Components/TelemetryGate/TelemetryGate.cpp
+void TelemetryGate::SET_TRANSMIT_STATE_cmdHandler(opCode, cmdSeq, txState) {
+    this->m_state = txState;      // 1. set in RAM: effective on the NEXT tick
+    this->m_loaded = true;        //    (a pending boot-load can no longer overwrite it)
+
+    this->log_ACTIVITY_HI_TransmitStateSet(txState);   // 2. tell the ground
+
+    if (!this->persistState(txState)) {                // 3. save for reboot survival
+        this->log_WARNING_HI_StateFileWriteFailure();  //    save failed: warn +
+        this->cmdResponse_out(..., EXECUTION_ERROR);   //    error response, BUT the
+        return;                                        //    state change still stands
+    }
+    this->cmdResponse_out(..., OK);
+}</code></pre>
+</div>
+
+<div class="change">
+<h3>4.4 Reboot persistence with corruption detection</h3>
+<p class="meta"><b>Type:</b> Feature &nbsp;&nbsp; <b>Verifies:</b> <code>TelemetryGate-4</code>, <code>TelemetryGate-5</code>, <code>TelemetryGate-6</code></p>
+<p>The saved state is a few bytes in flash: the letters <code>TGS1</code> (so a random file
+cannot be mistaken for a state file), the state byte, and an integrity byte that must be the
+exact bit-inverse of the state. Any single flipped bit fails the check:</p>
+<pre><code>// Components/TelemetryGate/TxStateCodec.cpp, the encode side
+buffer[0..3] = 'T','G','S','1';        // magic: is this even our file?
+buffer[4]    = state;                  // 0 = ENABLED, 1 = DISABLED
+buffer[5]    = ~state;                 // integrity: must be exact complement
+
+// decode: wrong magic, wrong length, state != ~integrity, or unknown
+// state value  ->  CORRUPT  ->  default: ENABLED + warning event</code></pre>
+<p>A missing file is not treated as corrupt: first boot has no file and silently defaults to
+ENABLED (TelemetryGate-5). A damaged file raises <code>StateFileCorrupt</code> exactly once
+(TelemetryGate-6).</p>
+</div>
+
+<div class="change">
+<h3>4.5 Tests that pin every one of those behaviors</h3>
+<p class="meta"><b>Type:</b> Test &nbsp;&nbsp; <b>Verifies:</b> <code>TelemetryGate-1</code> through <code>TelemetryGate-8</code>; evidence toward <code>CDH-3</code></p>
+<p>13 unit test cases plus a hardware test script. Each test declares which requirement it
+verifies with a tag, and the matrix generator reads these tags to connect requirements to
+their tests:</p>
+<pre><code>// test/unit-tests/test_TelemetryGate_Component.cpp
+TEST_F(TelemetryGateComponentTest, DisabledDropsTicksAndCountsThem) {
+    RecordProperty("verifies", "TelemetryGate-2,TelemetryGate-8");  // RTM link
+    gate.SET_TRANSMIT_STATE_cmdHandler(OPCODE, 1, TelemetryTxState::DISABLED);
+    for (U32 i = 0; i < 5; i++) { gate.runIn_handler(0, i); }
+    EXPECT_TRUE(base.runOutCalls.empty());       // pass criteria: ZERO ticks forwarded
+    EXPECT_EQ(base.tlmGatedTicks.back(), 5u);    // and every drop counted
+}
+
+# test/int/telemetry_gate_test.py, same idea for the on-hardware test
+@pytest.mark.verifies("TelemetryGate-1", "TelemetryGate-2")
+def test_02_disable_ceases_then_enable_resumes_telemetry(...):</code></pre>
+<p>The failure-injection tests flip every byte of the state file one at a time and assert the
+gate always boots ENABLED with exactly one corruption warning, which is exactly what
+requirement TelemetryGate-6's pass criteria specify.</p>
+</div>
+
+<div class="change">
+<h3>4.6 Adaptation for the washu fork: declaring the new telemetry channels</h3>
+<p class="meta"><b>Type:</b> Patch (build fix during the fork port) &nbsp;&nbsp; <b>Verifies:</b> supports <code>TelemetryGate-8</code> (makes the counters visible in downlink)</p>
+<p>The washu fork runs a newer F´ that refuses to build unless every telemetry channel is
+assigned to a downlink packet. The first firmware build failed with exactly that error. The
+fix adds the gate's two channels to the Health and Status packet:</p>
+<pre class="diff"><code><span class="ctx">// ReferenceDeployment/Top/ReferenceDeploymentPackets.fppi</span>
+<span class="ctx">   packet HealthAuxiliary id 4 group 5 {</span>
+<span class="ctx">     ...</span>
+<span class="ctx">     CdhCore.tlmSend.SectionEnabled</span>
+<span class="add">+    telemetryGate.TransmitState</span>
+<span class="add">+    telemetryGate.GatedTicks</span>
+<span class="ctx">   }</span></code></pre>
+<p>After this one change the full firmware build passed (bootable.uf2 plus signed image).</p>
+</div>
+
+<div class="change">
+<h3>4.7 RTM automation: CI builds the matrix on every push</h3>
+<p class="meta"><b>Type:</b> Tooling &nbsp;&nbsp; <b>Serves:</b> traceability for all 251 requirements</p>
+<p>The docs pipeline previously just rendered markdown. Now it runs the unit tests and
+regenerates the matrix from live results before publishing:</p>
+<pre class="diff"><code><span class="ctx"># .github/workflows/deploy-docs.yml</span>
+<span class="add">+      - name: Fetch googletest submodule        # shallow, avoids pulling all of Zephyr</span>
+<span class="add">+        run: |</span>
+<span class="add">+          git submodule update --init --depth 1 lib/fprime</span>
+<span class="add">+          git -C lib/fprime submodule update --init --depth 1 googletest</span>
+<span class="add">+      - name: Run unit tests for requirements matrix</span>
+<span class="add">+        continue-on-error: true                  # a failing test must show as failing, not block docs</span>
+<span class="add">+        run: make test-unit</span>
+<span class="add">+      - name: Generate requirements traceability matrix</span>
+<span class="add">+        run: python3 scripts/generate_rtm.py --junit build-gtest/junit.xml --sha ${{ github.sha }}</span>
+<span class="ctx">       - name: Build MkDocs site</span></code></pre>
+</div>
+
+<div class="change">
+<h3>4.8 Requirements schema upgrade and terminal editor</h3>
+<p class="meta"><b>Type:</b> Tooling &nbsp;&nbsp; <b>Serves:</b> <code>CDH-1</code> to <code>CDH-31</code> and all L2 groups</p>
+<p>Requirement tables gained Method, Level, Pass Criteria, Status, and Reason columns (old
+three-column tables still parse), the 105 CDR requirements were imported, and
+<code>scripts/req.py</code> edits any requirement from the terminal. The
+criteria-before-testing rule is enforced in code, not by convention:</p>
+<pre><code># scripts/req.py: refuses to record a result against undecided criteria
+if new_status.lower().startswith(("pass", "fail")) and \
+        new_criteria.lower() in CRITERIA_PLACEHOLDERS:   # "", TBD, TODO, -
+    sys.exit(f"error: refusing to set status '{new_status}' on {row['id']}: "
+             "pass criteria must be decided before a requirement is tested.")
+
+if new_status.lower().startswith("fail") and not reason:
+    sys.exit(f"error: a Fail status on {row['id']} requires --reason")</code></pre>
+<p>The matrix generator also flags any requirement whose tests ran while its criteria were
+still TBD.</p>
+</div>
+
+<h2>5. Verification status of all this work</h2>
+<div class="tablewrap"><table>
+  <tr><th>Check</th><th>Result</th></tr>
+  <tr><td>Host unit tests (component + codec, 10 suites)</td><td class="ok">All passing</td></tr>
+  <tr><td>Lint/format (clang-format, cpplint, ruff) and pre-commit</td><td class="ok">Clean</td></tr>
+  <tr><td>Topology/model validation (F´ FPP check)</td><td class="ok">Pass</td></tr>
+  <tr><td>Full firmware build on the washu-satellite fork</td><td class="ok">Pass, bootable.uf2 + signed image produced</td></tr>
+  <tr><td>On-hardware integration test of the gate</td><td class="warn">Written but not yet run; needs a flight board</td></tr>
+</table></div>
+
+<h2>6. Risks and open items</h2>
+<ul>
+  <li><span class="warn">Hardware test pending.</span> The over-the-radio enable/disable test
+  exists. Run it on a board before treating CDH-3 as verified above Unit level.</li>
+  <li><strong>A reset in the middle of the flash save</strong> can lose a commanded disable.
+  By design the satellite then boots ENABLED (transmitting). Operators should re-check the
+  state after any reboot during a quiet window.</li>
+  <li><strong>"Command failed" does not mean "nothing happened".</strong> If the flash save
+  fails, the error response is returned but the gate state did change in RAM. This is
+  documented, but ops procedures should reflect it.</li>
+  <li><strong>Almost all CDH requirements still have criteria = TBD.</strong> The matrix
+  shows which of the 251 requirements have criteria, tests, and passing results (currently
+  8 automated, 8 passing). Deciding the remaining criteria is the next team task, one
+  <code>req.py set</code> per requirement.</li>
+</ul>
+
+<h2>7. Where things stand for landing the code</h2>
+<ul>
+  <li><strong>Fork port (washu-satellite):</strong> everything is staged on branch
+  <code>port/telemetry-gate-rtm</code> in the <code>washu-port</code> worktree: 27 files,
+  zero commits, verified through the full firmware build. Ready to be committed and
+  pushed.</li>
+  <li><strong>This repository:</strong> the CDH requirements file
+  (<code>docs-site/requirements/cdh.md</code>), the extended RTM generator, the
+  <code>scripts/req.py</code> editor, the upgraded TelemetryGate requirement table, the docs
+  nav, and the regenerated matrix are new or updated on the working tree, ready to stage.</li>
+</ul>
+
+</main>
+</body>
+</html>

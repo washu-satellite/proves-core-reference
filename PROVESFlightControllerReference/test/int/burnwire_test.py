@@ -57,6 +57,7 @@ def stop_burnwire(fprime_test_api: IntegrationTestAPI):
     fprime_test_api.assert_event(f"{burnwire}.BurnwireEndCount", timeout=2)
 
 
+@pytest.mark.verifies("BW-002", "BW-003")
 def test_01_start_and_stop_burnwire(fprime_test_api: IntegrationTestAPI, start_gds):
     """Test that burnwire starts and stops as expected"""
 

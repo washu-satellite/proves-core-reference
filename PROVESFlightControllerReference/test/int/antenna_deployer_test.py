@@ -55,6 +55,7 @@ def configure_antenna_deployer(fprime_test_api: IntegrationTestAPI, start_gds):
     fprime_test_api.clear_histories()
 
 
+@pytest.mark.verifies("AD0002", "AD0005")
 def test_deploy_without_distance_sensor(fprime_test_api: IntegrationTestAPI, start_gds):
     """Verify the antenna deployer drives the burnwire and reports failure without distance data"""
 
@@ -82,6 +83,7 @@ def test_deploy_without_distance_sensor(fprime_test_api: IntegrationTestAPI, sta
 
 
 @pytest.mark.uart_only
+@pytest.mark.verifies("AD0003", "AD0005")
 def test_multiple_deploy_attempts(fprime_test_api: IntegrationTestAPI, start_gds):
     """Changes the deploy attempts parameter and ensures the burnwire deploys multiple times"""
 

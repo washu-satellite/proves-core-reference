@@ -51,6 +51,7 @@ module ReferenceDeployment {
     #instance comDelaySband
     instance downlinkDelay
     instance telemetryDelay
+    instance telemetryGate
     instance burnwire
     instance antennaDeployer
     instance comSplitterEvents
@@ -171,7 +172,10 @@ module ReferenceDeployment {
       safeModeSeq.comCmdOut -> CdhCore.cmdDisp.seqCmdBuff
       CdhCore.cmdDisp.seqCmdStatus -> safeModeSeq.cmdResponseIn
 
-      telemetryDelay.runOut -> CdhCore.tlmSend.Run
+      # TelemetryGate sits between the rate divider and TlmChan so it can inhibit
+      # scheduled telemetry downlink when transmission is disabled.
+      telemetryDelay.runOut -> telemetryGate.runIn
+      telemetryGate.runOut -> CdhCore.tlmSend.Run
 
     }
 
