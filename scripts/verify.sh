@@ -72,7 +72,9 @@ if [ -n "$HOOK_PY" ] && [ -x "$HOOK_PY" ]; then PC=("$HOOK_PY" -mpre_commit)
 elif command -v pre-commit >/dev/null 2>&1; then PC=(pre-commit)
 else PC=(); fi
 if [ ${#PC[@]} -gt 0 ]; then
-  if "${PC[@]}" run --all-files > build-gtest/pre-commit.log 2>&1; then echo "  all hooks passed"
+  # --all-files only visits tracked files; run untracked sources through the hooks too.
+  NEWF=$(git ls-files --others --exclude-standard | grep -vE "\.(pdf|html)$" || true)
+  if "${PC[@]}" run --all-files > build-gtest/pre-commit.log 2>&1 && { [ -z "$NEWF" ] || "${PC[@]}" run --files $NEWF >> build-gtest/pre-commit.log 2>&1; }; then echo "  all hooks passed"
   else echo "  hooks FAILED:"; grep -E "Failed|^[A-Za-z].*:[0-9]+:" build-gtest/pre-commit.log | head -20 | sed 's/^/    /'; fail=1; unverified+=("pre-commit hooks"); fi
 else echo "  pre-commit not available; hooks will run at commit time"; unverified+=("pre-commit hooks (not installed here)"); fi
 
