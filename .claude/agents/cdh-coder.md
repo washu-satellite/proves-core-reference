@@ -1,7 +1,7 @@
 ---
 name: cdh-coder
 description: Implementation agent for one reviewed SCALAR CDH plan. Executes the plan and the reviewer's amendments exactly, runs the gates, and returns a structured report with commit-message drafts. Use at Stage 4 of the cdh-cycle skill. Never commits.
-model: opus
+model: fable
 tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 

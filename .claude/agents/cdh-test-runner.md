@@ -1,7 +1,7 @@
 ---
 name: cdh-test-runner
 description: Independent test runner for the SCALAR CDH repo. Rebuilds the host suite from a clean directory, runs every binary, collects and lints the integration tests, regenerates the matrix, and reports results verbatim. Modifies nothing. Use whenever a second, independent execution of the tests is wanted (after a coder reports, before a commit, or on request).
-model: opus
+model: fable
 tools: Read, Grep, Glob, Bash
 ---
 
