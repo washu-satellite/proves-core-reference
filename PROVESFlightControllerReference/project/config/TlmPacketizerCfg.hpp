@@ -16,7 +16,7 @@
 #include <Fw/FPrimeBasicTypes.hpp>
 
 namespace Svc {
-static const FwChanIdType MAX_PACKETIZER_PACKETS = 22;
+static const FwChanIdType MAX_PACKETIZER_PACKETS = 24;
 static const FwChanIdType TLMPACKETIZER_NUM_TLM_HASH_SLOTS =
     15;  // !< Number of slots in the hash table.
          // Works best when set to about twice the number of components producing telemetry
@@ -25,8 +25,11 @@ static const FwChanIdType TLMPACKETIZER_HASH_MOD_VALUE =
           // Should be set to a little below the ID gaps to spread the entries around
 
 static const FwChanIdType TLMPACKETIZER_HASH_BUCKETS =
-    202;  // !< Buckets assignable to a hash slot.
-          // Buckets must be >= number of telemetry channels in system
+    256;  // !< Buckets assignable to a hash slot.
+          // Must be >= the number of distinct channels named in ReferenceDeploymentPackets.fppi
+          // (packets AND the omit block): findBucket takes one bucket per distinct channel in
+          // either list and asserts at boot when none is free. scripts/check_packet_set.py
+          // enforces this in scripts/verify.sh; the target build does not.
 static const FwChanIdType TLMPACKETIZER_MAX_MISSING_TLM_CHECK =
     25;  // !< Maximum number of missing telemetry channel checks
 

@@ -47,6 +47,14 @@ fi
 say "integration tests: collect + lint (import/syntax only)"
 if "$PY" -m pytest "$INT" --collect-only -q 2>&1 | tail -1 && "$PY" -m ruff check "$INT" 2>&1 | tail -1; then :; else fail=1; unverified+=("int test collection/lint"); fi
 
+say "packet set vs TlmPacketizer config (scripts/check_packet_set.py)"
+# The packetizer asserts at boot, not at build time, when the packet set has more
+# packets than MAX_PACKETIZER_PACKETS or more distinct channels than
+# TLMPACKETIZER_HASH_BUCKETS; this is the only check that runs before hardware.
+pkt_out=$("$PY" scripts/check_packet_set.py 2>&1); pkt_rc=$?
+printf '%s\n' "$pkt_out" | sed 's/^/  /'
+if [ "$pkt_rc" -ne 0 ]; then fail=1; unverified+=("packet set vs TlmPacketizer config"); fi
+
 case "$ENV" in
   host)
     deferred+=("Board-level integration tests (no board in host env)")
