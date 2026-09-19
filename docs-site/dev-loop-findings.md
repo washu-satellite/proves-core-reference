@@ -51,6 +51,9 @@ code it describes changes and the fact no longer holds.
 - Board `proves_flight_control_board_v5e/rp2350a/m33` (settings.ini); flash 65.7% / RAM 64.1% at 96a0ed7.
 
 ## Build, test, CI (2026-09-04/05)
+- 2026-09-18 (Cycle E row E1): the clean-path copy `~/scalar-build/proves-core-reference` had 7663 untracked files from a newer Zephyr under `lib/zephyr-workspace/zephyr` (dated 2026-09-05 19:50; tracked tree clean at v4.3.0) which made every fresh Kconfig pass abort, and its `fprime-venv` had fprime-fpp 3.2.0 / fprime-tools 4.2.1 / fprime-gds 4.2.1 although `lib/fprime/requirements.txt` pins 3.1.0 / 4.1.0 / 4.1.1a2, which fails `lib/fprime/cmake/required.cmake`. Fixed by `git clean -fd` inside the copy's zephyr checkout and `pip install` of the pinned versions into the copy's venv. The copy's previous artifacts were from 2026-09-05 20:17 (pre-Cycle C), so the Cycle C/D memory figures in this ledger were not produced from the copy as it stood.
+- Packetizer RAM cost: raising `TLMPACKETIZER_HASH_BUCKETS` 202 -> 256 and `MAX_PACKETIZER_PACKETS` 22 -> 24 plus the dispatch table 400 -> 512 cost +17888 B RAM (64.41 % -> 67.77 %); each bucket holds a packet-offset table sized by `MAX_PACKETIZER_PACKETS`, so every distinct channel costs roughly 200 B of RAM. Budget consequence: the E/A8/A9 sequencing assumed a 64.4 % baseline; A8's ring sizes must be re-planned against 67.8 %.
+- Post-E1 target build: FLASH 715080 B (68.48 %), RAM 360864 B (67.77 %); dictionary 361 / 98 / 215 / 676 / 22.
 - Unit tests live in `PROVESFlightControllerReference/test/unit-tests/` (not `Components/*/test/ut`); fakes in `support/`; tests auto-globbed; helper libs listed explicitly in its CMakeLists.
 - `-DBUILD_TESTING=ON` is not consumed by the unit-test CMake project (harmless).
 - This fork has zero self-hosted runners: CI `build`/`integration-*` jobs queue 24 h then cancel. Only lint/unit-test/yamcs-build are real on the fork.
