@@ -16,7 +16,11 @@ offset  size  field
 5+LEN   2     CRC16  CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflect, xorout 0)
               over TYPE..PAYLOAD inclusive, big-endian on the wire (matches Crc16::ccitt / CCSDS FECF)
 ```
-Max frame 39 bytes. Resync rule: a receiver in any state that sees a byte that cannot continue the current frame discards to the next 0x5C. A false SYNC inside a payload is caught by LEN > 32 or by CRC; both count as one rejection. Nothing is retransmitted at this layer; the host repeats a command if it gets no ACK within `LINK_TIMEOUT_MS`.
+Max frame 39 bytes. Nothing is retransmitted at this layer; the host repeats a command if it gets no ACK within `LINK_TIMEOUT_MS`.
+
+**Resync rule (made precise 2026-09-18 by E3, DriverBoardProtocol-3):** when a byte cannot continue the current candidate frame, or the CRC fails, the receiver **drops only the first byte of the buffered candidate and re-examines the rest** from the byte after it. It does not clear its buffer. This is required because a truncated frame, or a LEN corrupted upward, swallows the following frame's leading bytes; a receiver that clears its buffer on rejection loses the next good frame. Both ends implement this. A false SYNC inside a payload is caught by LEN > 32 or by CRC and handled the same way.
+
+**Rejection counting:** one rejection is counted per contiguous stretch of undeliverable bytes, reset by the next accepted frame — not per byte and not per SYNC candidate inside the stretch. Reject reasons: BAD_LEN, BAD_CRC, TRUNCATED, SYNC (garbage or a 0x5C not followed by 0xA1). The parser is type-agnostic; unknown TYPE values are the handler's to count and drop.
 
 ## Messages, host → board
 
@@ -38,7 +42,7 @@ Max frame 39 bytes. Resync rule: a receiver in any state that sees a byte that c
 | TYPE | Name | Payload |
 |---|---|---|
 | 0x81 | ACK | U8 ackedType, U8 status (0 OK, 1 REFUSED_NOT_ARMED, 2 REFUSED_FAULT, 3 BAD_ARG, 4 BUSY) |
-| 0x82 | HK | I16 currentMa[3], I16 tempDeciC[2], I8 dutyPct[3], U8 state (0 UNPOWERED-never sent, 1 DISARMED, 2 ARMED, 3 PULSING, 4 FAULT), U8 faultFlags, U32 uptimeMs, U32 boardTickMs — 22 bytes |
+| 0x82 | HK | I16 currentMa[3], I16 tempDeciC[2], I8 dutyPct[3], U8 state (0 UNPOWERED-never sent, 1 DISARMED, 2 ARMED, 3 PULSING, 4 FAULT), U8 faultFlags, U32 uptimeMs, U32 boardTickMs — **23 bytes** (corrected 2026-09-18 by E3; the field list is authoritative) |
 | 0x87 | PONG | U16 firmwareVersion, U8 protocolVersion (=1), U8 reserved |
 | 0x88 | SAMPLE | U32 tMs (board clock), I16 currentMa[3], I8 dutyPct[3] — 13 bytes (A9) |
 | 0x8F | FAULT | U8 faultFlags, I16 value |
