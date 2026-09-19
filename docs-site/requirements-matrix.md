@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**294** requirements &middot; **113** linked to automated tests &middot; **59** verified by passing unit tests in this build &middot; **54** deferred to hardware (environment: host, no board in this environment)
+**303** requirements &middot; **122** linked to automated tests &middot; **68** verified by passing unit tests in this build &middot; **54** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -269,6 +269,22 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | Cooldown Timing | After TORQUING, the component shall remain in COOLDOWN for at least `COOLDOWN_DURATION` before SENSING. | Instrument time via `timeCaller` and observe state changes. |  |  | *none* | ⬜ No automated test |  |
 | Parameter Telemetry | Coil configuration parameters shall be telemetered for all coils after configuration. | Call `configure()` and verify coil telemetry channels. |  |  | *none* | ⬜ No automated test |  |
 | Error Reporting | The component shall emit warning events when angular velocity or magnetic field retrieval fails. | Force non-success return codes and observe events. |  |  | *none* | ⬜ No automated test |  |
+
+## DriverBoardHandler
+
+*9 requirements &middot; 9 automated &middot; 9 passing*
+
+| Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
+|---|---|---|---|---|---|---|---|
+| DriverBoardHandler-1 | Boots DISARMED with LINK_DOWN; first frame after `uartReady` is DISARM; then exactly one host frame per 1 Hz tick (HK_REQUEST when `RunInterval::due(HK_INTERVAL_S)`, else HEARTBEAT) | Unit Test | Unit | After `uartReady` and 3 ticks with default HK_INTERVAL_S = 1: frames on `uartSend` are DISARM, HK_REQUEST, HK_REQUEST, HK_REQUEST; with HK_INTERVAL_S = 3: DISARM, HK_REQUEST, HEARTBEAT, HEARTBEAT; state DISARMED, no events | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.BootsDisarmedSendsDisarmThenOneFramePerTick | ✅ Unit (passing) |  |
+| DriverBoardHandler-2 | Link comes up on the first valid board frame and drops after `LINK_TIMEOUT_MS` of silence | Unit Test | Unit | PONG at tick 1 → LinkUp event, LinkState UP; no frames for ceil(timeout/1000)+1 ticks → LinkLost once, LinkState DOWN; a second silent tick emits nothing more | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.LinkUpOnFirstFrameAndLostAfterTimeoutOnce | ✅ Unit (passing) |  |
+| DriverBoardHandler-3 | ARM requires LINK_UP and mode != SAFE_MODE, and completes only on board ACK | Unit Test | Unit | ARM with link down → CommandRefused(LINK_DOWN), response EXECUTION_ERROR; with link up and `getMode` = SAFE_MODE → CommandRefused(SAFE_MODE); with link up in NORMAL → ARM frame sent and command response OK (the response means "sent", not "armed"); on ACK(ARM, OK) → Armed event, DriverState ARMED; on ACK(ARM, status != 0) → CommandRefused(BOARD_REFUSED), state stays DISARMED | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.ArmNeedsLinkUpAndNotSafeModeAndCompletesOnAck | ✅ Unit (passing) |  |
+| DriverBoardHandler-4 | PULSE uses the current parameters and requires ARMED | Unit Test | Unit | PULSE while DISARMED → CommandRefused(NOT_ARMED); while ARMED → one PULSE frame whose fields equal PULSE_DURATION_MS / PULSE_DUTY_PCT / PULSE_CHANNEL_MASK, PulseStarted event | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.PulseNeedsArmedAndUsesCurrentParameters | ✅ Unit (passing) |  |
+| DriverBoardHandler-5 | Link loss disarms | Unit Test | Unit | ARMED then silence past timeout → LinkLost, Disarmed(LINK_LOST), DriverState DISARMED, and the next PULSE is refused | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.LinkLossDisarms | ✅ Unit (passing) |  |
+| DriverBoardHandler-6 | SAFE_MODE disarms | Unit Test | Unit | ARMED, `getMode` returns SAFE_MODE on the next tick → DISARM frame sent, Disarmed(SAFE_MODE) | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.SafeModeDisarms | ✅ Unit (passing) |  |
+| DriverBoardHandler-7 | Housekeeping frames update telemetry | Unit Test | Unit | An HK frame with current {1500, -200, 0} mA, temp {251, 300}, duty {50, -50, 0}, state, flags → CoilCurrent0 = 1.5 F32, CoilTemperature0 = 25.1, PwmDuty1 = -50, DriverState, FaultFlags written once each | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.HousekeepingFramesUpdateTelemetry | ✅ Unit (passing) |  |
+| DriverBoardHandler-8 | Parameter validation falls back to default | Unit Test | Unit | PULSE_DURATION_MS 0 or 6000, PULSE_DUTY_PCT 101, LINK_TIMEOUT_MS 50, HK_INTERVAL_S 0 or 61, or INVALID → default value in effect, one ParameterRejected event each (throttle 5) | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.ParameterValidationFallsBackToDefault | ✅ Unit (passing) |  |
+| DriverBoardHandler-9 | Every received buffer is returned to the driver | Unit Test | Unit | For N `uartRecv` calls, N `uartRecvReturn` calls with the same buffer objects, regardless of content | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.EveryReceivedBufferIsReturned | ✅ Unit (passing) |  |
 
 ## DriverBoardProtocol
 

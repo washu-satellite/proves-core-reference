@@ -171,6 +171,28 @@ target_include_directories(driver_board_protocol PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
+# DriverBoardHandler link state machine (pure logic, no F Prime / Os includes)
+add_library(driver_board_link STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/DriverBoardHandler/DriverBoardLink.cpp
+)
+target_include_directories(driver_board_link PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
+# DriverBoardHandler component (real DriverBoardHandler.cpp built against the
+# host stubs in support/: a recording ComponentAc base whose lock()/unLock()
+# count the guarded region and flag uartSend/getMode calls made under it, the
+# minimal Fw::Buffer, the fake Fw::Time, and Drv::ByteStreamStatus). Links the
+# pure link machine and the wire codec.
+add_library(driver_board_handler_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/DriverBoardHandler/DriverBoardHandler.cpp
+)
+target_include_directories(driver_board_handler_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(driver_board_handler_component PUBLIC driver_board_link driver_board_protocol)
+
 # FaultManager fault table (pure logic, no F Prime / Os includes)
 add_library(fault_manager_table STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/FaultManager/FaultTable.cpp
@@ -237,6 +259,8 @@ foreach(test_src ${TEST_SOURCES})
         tc_frame_corrector_codec
         tc_frame_corrector_component
         driver_board_protocol
+        driver_board_link
+        driver_board_handler_component
         task_gate_component
         fault_manager_table
         fault_manager_component

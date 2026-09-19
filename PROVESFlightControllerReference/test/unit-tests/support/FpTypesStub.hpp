@@ -103,4 +103,22 @@ class ParamValid {
 
 }  // namespace Fw
 
+namespace Drv {
+
+//! Mirrors the generated Drv::ByteStreamStatus enum class
+//! (lib/fprime/Drv/ByteStreamDriverModel/ByteStreamDriverModel.fpp:4-9), the
+//! status argument of Drv.ByteStreamData and the return of Drv.ByteStreamSend.
+class ByteStreamStatus {
+  public:
+    enum T { OP_OK = 0, SEND_RETRY = 1, RECV_NO_DATA = 2, OTHER_ERROR = 3 };
+    ByteStreamStatus() : e(OP_OK) {}
+    ByteStreamStatus(T e1) : e(e1) {}       // NOLINT(runtime/explicit) -- mirrors generated code
+    operator T() const { return this->e; }  // NOLINT(runtime/explicit) -- enables switch/case
+    bool operator==(T e1) const { return this->e == e1; }
+    bool operator!=(T e1) const { return this->e != e1; }
+    T e;
+};
+
+}  // namespace Drv
+
 #endif
