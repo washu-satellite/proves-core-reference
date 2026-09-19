@@ -7,6 +7,9 @@ description: Run one cycle of the SCALAR CDH dev loop for a named requirement pa
 
 You are the orchestrator. Agents do the reading and writing; you brief, review, verify, and commit. Rules below are not advice; a step that skips a gate is a failed step.
 
+## Stage -1 — upstream check (ROADMAP rule 1)
+`git fetch proves-origin && git log --oneline HEAD..proves-origin/main | wc -l`. If non-zero, the cycle's first rows are the sync (analysis, plan, merge row) before any feature row. Record the count in the plan's README.
+
 ## Stage 0 — environment
 Run `VERIFY_ENV=<host|desk|rig> scripts/verify.sh`; it must PASS with `unverified: (none)` before anything starts. Record the executable levels line. Board-level rows are *deferred* in host, never "passing" and never "failing".
 
