@@ -36,7 +36,20 @@ events  ──comSplitterEvents[2]───────────────�
 A9 batches five 44-byte burst records into one 220-byte ring slot (A8's slots are `FW_COM_BUFFER_MAX_SIZE` = 233 B), so
 A9 needs no ring of its own — only a 220-byte staging buffer. That removes the 26 KB "RAM-only ring" from A9 entirely.
 
-## Budgets, cumulative (baseline 64.4 % RAM, 68.5 % FLASH, 357 opcodes, 22 packets)
+## Budgets — measured after Cycle E (2026-09-19, feat/driver-board @ d71fc8fd)
+
+| Resource | Cycle D baseline | After E (measured) | Note |
+|---|---|---|---|
+| RAM | 342976 B, 64.41 % | **363528 B, 68.27 %** | +17.9 KB was E1's packetizer/dispatch tables (~200 B per hash bucket), +2.7 KB the four E5 instances |
+| FLASH | 715104 B, 68.49 % | **735532 B, 70.44 %** of the 1 MB slot | handler + codec + topology autocode |
+| Opcodes | 361 | 377 of 512 | |
+| Packets | 22 | 23 of 24 | |
+| Hash buckets | 215 of 202 (boot assert) | **242 of 256** | A8 adds ≥ 14 channels → must raise to ≥ 288 (~6 KB RAM more); A9 adds more |
+| Parameters | 98 | 103, all RAM-only | persistence gate open |
+
+**Consequence for A8:** the original plan below assumed a 64.4 % RAM baseline. From 68.3 %, A8's two 32-slot rings (+15 KB) plus the bucket raise (+6 KB) land at ~72 %, over the 70 % guard. A8 Phase 0 must choose: 16-slot rings (+7.5 KB, ~70.9 %) plus the guard moved to 72 % with a stated reason, or keep 32 slots and move the guard to 75 %. The guard is a loop convention, not a hardware limit; the hardware limit is 520 KB minus thread-stack headroom, and the largest stacks are already allocated. Decide in A8-0, record in the ledger.
+
+## Budgets as originally planned (baseline 64.4 % RAM, 68.5 % FLASH, 357 opcodes, 22 packets) — superseded by the table above
 
 | | E | A8 | A9 | After all three |
 |---|---|---|---|---|

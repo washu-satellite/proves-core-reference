@@ -17,7 +17,9 @@ CMake, `docs(requirements)` = sdd tables via `req.py` + matrix regen, `docs(dev-
 
 ---
 
-## Cycle E — DriverBoardHandler (branch `feat/driver-board`)
+## Cycle E — DriverBoardHandler (branch `feat/driver-board`) — **DONE 2026-09-18/19**
+
+Landed as: E1 e08685af, E2 16904e63, E3 bc43f8a5, E4 0f356f21, E5 387374b8, E6 5f3f2c79, E7 898b6163, E8 d71fc8fd (plus review 72d98fcd, ledger f43484e9, spec errata a4d2b018). Every row gated with `VERIFY_ENV=host scripts/verify.sh` PASS run by the orchestrator from a clean `build-gtest`; rows E1-E5 target-built. CI not run (push not authorised). Not merged; not flashed; bench tag `e-bench-ok` pending HP-15.
 
 | # | Commit | Contents | Gate | Revert consequence |
 |---|---|---|---|---|
