@@ -189,7 +189,9 @@ def test_watchdog_stop_reports_then_reboots(
     )
 
 
-@pytest.mark.skip(reason="reboots and persists SAFE_MODE; run manually on flatsat")
+@pytest.mark.skip(
+    reason="producer 2 re-sourced in F3; reboots and persists SAFE_MODE; run manually on flatsat"
+)
 def test_command_loss_enters_safe_mode(fprime_test_api: IntegrationTestAPI, start_gds):
     """Command loss enters safe mode and the FaultManager observes it.
 

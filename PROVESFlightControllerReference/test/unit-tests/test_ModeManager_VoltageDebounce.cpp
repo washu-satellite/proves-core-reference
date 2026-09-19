@@ -23,7 +23,7 @@
 // constructor establishes NORMAL / reason NONE / zeroed counters, which is the
 // precondition every voltage-debounce criterion names, and it keeps the
 // persistent-state file out of the picture. StateFileRoundTripsAcrossRestart
-// is the one test that exercises init()/loadState() deliberately.
+// is the one test that exercises restorePersistentState()/loadState() deliberately.
 //
 // MM0007 is deliberately NOT claimed here: D1 set its Level to Board and its
 // Method to Integration Test, and its criterion is written entirely around a
@@ -331,6 +331,7 @@ TEST_F(ModeManagerVoltageTest, StateFileRoundTripsAcrossCleanRestart) {
     // Second life on the same filesystem.
     ModeManager second("modeManager");
     second.init(0);
+    second.restorePersistentState();
 
     EXPECT_EQ(currentMode(second), SystemMode::SAFE_MODE) << "Safe mode must survive a clean restart";
     EXPECT_EQ(reportedReason(second), SafeModeReason::GROUND_COMMAND) << "The entry reason must survive with it";
@@ -349,11 +350,13 @@ TEST_F(ModeManagerVoltageTest, UncleanRestartFromNormalEntersSafeModeWithSystemF
     {
         ModeManager first("modeManager");
         first.init(0);
+        first.restorePersistentState();
         ASSERT_EQ(currentMode(first), SystemMode::NORMAL);
     }
 
     ModeManager second("modeManager");
     second.init(0);
+    second.restorePersistentState();
 
     EXPECT_EQ(currentMode(second), SystemMode::SAFE_MODE)
         << "An unintended reboot out of NORMAL must land in safe mode";

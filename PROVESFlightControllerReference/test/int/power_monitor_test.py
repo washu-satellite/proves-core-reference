@@ -16,6 +16,8 @@ from fprime_gds.common.testing_fw.api import IntegrationTestAPI
 # is the interval named in the PWR-MON-REQ-001/004 pass criteria.
 ACCUMULATION_GAP_S = 10
 
+pytestmark = [pytest.mark.requires_battery]
+
 ina219SysManager = "ReferenceDeployment.ina219SysManager"
 ina219SolManager = "ReferenceDeployment.ina219SolManager"
 powerMonitor = "ReferenceDeployment.powerMonitor"

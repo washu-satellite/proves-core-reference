@@ -10,7 +10,7 @@ module ReferenceDeployment {
     rateGroup1Hz
   }
 
-  topology ReferenceDeployment {
+  deployment topology ReferenceDeployment {
 
   # ----------------------------------------------------------------------
   # Subtopology imports
@@ -161,14 +161,14 @@ module ReferenceDeployment {
       #comSplitterTelemetry.comOut -> ComCcsdsSband.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
 
       # Router to Command Dispatcher
-      ComCcsdsLora.authenticationRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
-      CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsLora.authenticationRouter.cmdResponseIn
+      ComCcsdsLora.provesRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
+      CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsLora.provesRouter.cmdResponseIn
 
-      #ComCcsdsSband.authenticationRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
-      #CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsSband.authenticationRouter.cmdResponseIn
+      #ComCcsdsSband.provesRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
+      #CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsSband.provesRouter.cmdResponseIn
 
-      ComCcsdsUart.authenticationRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
-      CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsUart.authenticationRouter.cmdResponseIn
+      ComCcsdsUart.provesRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
+      CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsUart.provesRouter.cmdResponseIn
 
       cmdSeq.comCmdOut -> CdhCore.cmdDisp.seqCmdBuff
       CdhCore.cmdDisp.seqCmdStatus -> cmdSeq.cmdResponseIn
@@ -226,11 +226,29 @@ module ReferenceDeployment {
       downlinkDelay.comStatusOut ->ComCcsdsLora.framer.comStatusIn
 
       startupManager.runSequence -> cmdSeq.seqRunIn
-      cmdSeq.seqStartOut -> startupManager.sequenceStarted
-      cmdSeq.seqDone -> startupManager.completeSequence
+
+      # StartupManager receives sequence status from CmdSeq
+      cmdSeq.seqStartOut -> startupManager.startupsequenceStarted
+      cmdSeq.seqDone -> startupManager.startupCompleteSequence
+
+      # StartupManager receives sequence status from PayloadSeq
+      payloadSeq.seqStartOut -> startupManager.payloadSequenceStarted
+      payloadSeq.seqDone -> startupManager.payloadCompleteSequence
+
+      # StartupManager receives sequence status from SafeModeSeq
+      # seqDone is owned by ModeManager; completion is forwarded via sequenceDoneNotify
+      safeModeSeq.seqStartOut -> startupManager.safeModeSequenceStarted
+
+      # StartupManager drives LoRa TX enable/disable around quiescence
+      startupManager.enableTransmit -> lora.enableTransmit
+      startupManager.disableTransmit -> lora.disableTransmit
+
+      # --- Radio ever enabled this boot? ---
+      lora.loraFirstStart -> startupManager.loraFirstStart
 
       modeManager.runSequence -> safeModeSeq.seqRunIn
       safeModeSeq.seqDone -> modeManager.completeSequence
+      modeManager.sequenceDoneNotify -> startupManager.safeModeCompleteSequence
 
       # RTC time change cancels running sequences
       rtcManager.cancelSequences[0] -> cmdSeq.seqCancelIn
@@ -306,10 +324,9 @@ module ReferenceDeployment {
       taskGate.schedOut[Components.SchedTask.ADCS] -> adcs.run
       rateGroup1Hz.RateGroupMemberOut[18] -> taskGate.schedIn[Components.SchedTask.THERMAL]
       taskGate.schedOut[Components.SchedTask.THERMAL] -> thermalManager.run
-      rateGroup1Hz.RateGroupMemberOut[19] -> ComCcsdsLora.authenticationRouter.run
-      # Must follow modeManager[16], thermalManager[18] and
-      # authenticationRouter[19]: members run in index order, so a fault
-      # reported this tick is decided in the same tick.
+      # Must follow modeManager[16] and thermalManager[18]: members run in
+      # index order, so a fault reported this tick is decided in the same tick.
+      # Slot 19 is free: its former member (the command-loss router) was retired in the 2026-09 upstream sync.
       rateGroup1Hz.RateGroupMemberOut[20] -> faultManager.run
 
     }
@@ -317,7 +334,6 @@ module ReferenceDeployment {
 
     connections Watchdog {
       watchdog.gpioSet -> gpioWatchdog.gpioWrite
-      ComCcsdsLora.authenticationRouter.reset_watchdog -> watchdog.stop
     }
 
     connections LoadSwitches {
@@ -437,12 +453,12 @@ module ReferenceDeployment {
       fileUplinkCollector.singleOut -> FileHandling.fileUplink.bufferSendIn
       FileHandling.fileUplink.bufferSendOut -> fileUplinkCollector.singleIn
 
-      #ComCcsdsSband.authenticationRouter.fileOut     -> fileUplinkCollector.multiIn[2]
-      #fileUplinkCollector.multiOut[2] -> ComCcsdsSband.authenticationRouter.fileBufferReturnIn
-      ComCcsdsUart.authenticationRouter.fileOut     -> fileUplinkCollector.multiIn[1]
-      fileUplinkCollector.multiOut[1] -> ComCcsdsUart.authenticationRouter.fileBufferReturnIn
-      ComCcsdsLora.authenticationRouter.fileOut     -> fileUplinkCollector.multiIn[0]
-      fileUplinkCollector.multiOut[0] -> ComCcsdsLora.authenticationRouter.fileBufferReturnIn
+      #ComCcsdsSband.provesRouter.fileOut     -> fileUplinkCollector.multiIn[2]
+      #fileUplinkCollector.multiOut[2] -> ComCcsdsSband.provesRouter.fileBufferReturnIn
+      ComCcsdsUart.provesRouter.fileOut     -> fileUplinkCollector.multiIn[1]
+      fileUplinkCollector.multiOut[1] -> ComCcsdsUart.provesRouter.fileBufferReturnIn
+      ComCcsdsLora.provesRouter.fileOut     -> fileUplinkCollector.multiIn[0]
+      fileUplinkCollector.multiOut[0] -> ComCcsdsLora.provesRouter.fileBufferReturnIn
     }
 
     connections sysPowerMonitor {
@@ -485,8 +501,12 @@ module ReferenceDeployment {
       resetManager.prepareForReboot -> modeManager.prepareForReboot
       watchdog.prepareForReboot -> modeManager.prepareForReboot
 
-      # Ports for Changing the mode - notify both LoRa and UART authentication routers
-      ComCcsdsLora.authenticationRouter.SetSafeMode -> modeManager.forceSafeMode
+      # Signal from PROVES routers to reset the command loss timer in ModeManager
+      ComCcsdsLora.provesRouter.packetRouted -> modeManager.packetRouted
+      ComCcsdsUart.provesRouter.packetRouted -> modeManager.packetRouted
+
+      # Stop watchdog on command loss to trigger hardware power cycle
+      modeManager.stopWatchdog -> watchdog.stop
 
       # Load switch control connections
       # The load switch index mapping below is non-sequential because it matches the physical board layout and wiring order.
@@ -519,7 +539,8 @@ module ReferenceDeployment {
       # Components.FaultInPorts in Components/FaultTypes/FaultTypes.fpp.
       thermalManager.faultOut -> faultManager.faultIn[0]
       modeManager.faultOut -> faultManager.faultIn[1]
-      ComCcsdsLora.authenticationRouter.faultOut -> faultManager.faultIn[2]
+      # faultIn[2] is unconnected since the 2026-09 upstream sync (producer 2, the command-loss
+      # router, was retired); F3 re-sources command loss through modeManager.faultOut -> faultIn[1].
       watchdog.faultOut -> faultManager.faultIn[3]
 
       # Recovery actions. Unreachable while AUTHORITY_ENABLED is false and

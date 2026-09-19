@@ -54,11 +54,11 @@ void TaskGate ::schedIn_handler(FwIndexType portNum, U32 context) {
 // Handler implementations for commands
 // ----------------------------------------------------------------------
 
-void TaskGate ::ENABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, Components::SchedTask task) {
+void TaskGate ::ENABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const Components::SchedTask& task) {
     this->setTaskEnabled(opCode, cmdSeq, task, true);
 }
 
-void TaskGate ::DISABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, Components::SchedTask task) {
+void TaskGate ::DISABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const Components::SchedTask& task) {
     this->setTaskEnabled(opCode, cmdSeq, task, false);
 }
 

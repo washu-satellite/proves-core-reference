@@ -17,6 +17,7 @@ The ModeManager component manages system operational modes and orchestrates tran
 |MM0010|The ModeManager shall automatically exit safe mode (LOW_BATTERY only) when voltage recovers above configurable threshold|Unit Test|Unit|In SAFE_MODE(LOW_BATTERY) voltage > 8.0 V on 10 consecutive ticks exits with AutoSafeModeExit; exactly 8.0 V, 9 ticks, or reason GROUND_COMMAND/SYSTEM_FAULT does not|||
 |MM0011|The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically|Unit Test|Unit|The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart|||
 |MM0012|A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event|Unit Test|Unit|For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events|||
+|MM0013|The ModeManager shall enter safe mode with reason COMMAND_LOSS when no packet is routed within COMM_LOSS_TIME (upstream MM0011, renumbered at the 2026-09 sync)|Integration Test|Board|With COMM_LOSS_TIME set to T <= 60 s and no uplink for T: CommandLossDetected within T+2 s, then EnteringSafeMode(COMMAND_LOSS), BootCount +1 within 60 s (watchdog stop), and after reboot GET_SAFE_MODE_REASON = COMMAND_LOSS|||
 
 ## Class Diagram
 
@@ -29,11 +30,13 @@ classDiagram
         - m_safeModeReason: SafeModeReason
         - m_safeModeVoltageCounter: U32
         - m_recoveryVoltageCounter: U32
+        - m_lastPacketRoutedTime: Fw::Time
         + init(queueDepth, instance)
         - run_handler()
         - forceSafeMode_handler(reason)
         - getMode_handler(): SystemMode
         - prepareForReboot_handler()
+        - packetRouted_handler()
         - enterSafeMode(reason)
         - exitSafeMode()
         - exitSafeModeAutomatic(voltage)
@@ -61,10 +64,11 @@ classDiagram
 ### Input Ports
 | Name | Type | Kind | Description |
 |---|---|---|---|
-| run | Svc.Sched | sync | 1Hz periodic calls for telemetry and voltage monitoring |
+| run | Svc.Sched | sync | 1Hz periodic calls for telemetry, voltage monitoring, and command loss detection |
 | forceSafeMode | ForceSafeModeWithReason | async | Safe mode requests from external components |
 | getMode | GetSystemMode | sync | Query current system mode |
 | prepareForReboot | Fw.Signal | sync | Set clean shutdown flag before intentional reboot |
+| packetRouted | Fw.Signal | sync | Resets the command loss timer when an authenticated packet is received from ProvesRouter |
 
 ### Output Ports
 | Name | Type | Description |
@@ -74,6 +78,7 @@ classDiagram
 | loadSwitchTurnOff | Fw.Signal [8] | Turn off load switches |
 | voltageGet | Drv.VoltageGet | Query system voltage |
 | faultOut | Components.FaultReport | Report each low-voltage sample to the FaultManager |
+| stopWatchdog | Fw.Signal | Stops the hardware watchdog to trigger a power cycle (called on command loss) |
 
 ### Fault reporting
 
@@ -101,13 +106,14 @@ deployment that does not instantiate a FaultManager. See
 
 ## Parameters
 
-Voltage thresholds are configurable via F-Prime parameters:
+Voltage thresholds and command loss timeout are configurable via F-Prime parameters:
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | SafeModeEntryVoltage | F32 | 6.7 | Voltage (V) below which safe mode is entered |
 | SafeModeRecoveryVoltage | F32 | 8.0 | Voltage (V) above which safe mode can be exited |
 | SafeModeDebounceSeconds | U32 | 10 | Consecutive seconds required for transitions |
+| COMM_LOSS_TIME | Fw.TimeIntervalValue | {seconds=3*60*60*24} | Time without an authenticated packet before command loss safe mode entry (default: 3 days) |
 
 Parameters can be modified at runtime via `PRM_SET` commands.
 
@@ -125,6 +131,7 @@ Parameters can be modified at runtime via `PRM_SET` commands.
 | PreparingForReboot | ACTIVITY_HI | Clean shutdown flag being set |
 | CommandValidationFailed | WARNING_LO | Command validation failed |
 | StatePersistenceFailure | WARNING_LO | State save/load failed |
+| CommandLossDetected | WARNING_HI | Command loss timeout exceeded; entering safe mode with reason COMMAND_LOSS |
 
 ## Telemetry
 
@@ -198,7 +205,7 @@ first boot.
 | LOW_BATTERY | Voltage below threshold | Yes (when voltage recovers) |
 | SYSTEM_FAULT | Unintended reboot detected | No |
 | GROUND_COMMAND | FORCE_SAFE_MODE command | No |
-| EXTERNAL_REQUEST | forceSafeMode port call | No |
+| EXTERNAL_REQUEST | forceSafeMode port call or command loss timeout | No |
 | LORA | LoRa communication fault | No |
 
 ## Load Switch Mapping
@@ -211,6 +218,25 @@ first boot.
 > When exiting to NORMAL, only face switches (0-5) turn ON. Payload switches must be controlled separately.
 
 ## Sequence Diagrams
+
+### Command Loss Detection
+```mermaid
+sequenceDiagram
+    participant AuthRouter as ProvesRouter
+    participant ModeManager
+    participant RateGroup
+
+    AuthRouter->>ModeManager: packetRouted() [on each authenticated packet]
+    Note over ModeManager: Resets m_commandLossStartTime to now
+
+    loop Every 1Hz (no packets received)
+        RateGroup->>ModeManager: run()
+        ModeManager->>ModeManager: Check if now > start + COMM_LOSS_TIME
+    end
+    Note over ModeManager: Timeout exceeded
+    ModeManager->>ModeManager: log CommandLossDetected event
+    ModeManager->>ModeManager: enterSafeMode(COMMAND_LOSS)
+```
 
 ### Safe Mode Entry (Low Voltage)
 ```mermaid
@@ -251,6 +277,8 @@ sequenceDiagram
 - **Debounce**: Configurable consecutive samples prevent spurious transitions
 - **Reason tracking**: Only LOW_BATTERY allows auto-recovery; other reasons require manual EXIT_SAFE_MODE
 - **Mode query**: Both pull (getMode) and push (modeChanged) patterns supported
+- **Command loss ownership**: ProvesRouter signals `packetRouted` on each routed packet; ModeManager owns the timer and the mode transition, keeping routing and mode management as separate concerns
+- **Command loss thread safety**: `m_commandLossStartTime` is protected by `m_commandLossMutex` since `packetRouted_handler` (called from the radio thread) and `run_handler` (called from the rate group thread) may run concurrently
 
 ## Change Log
 
@@ -258,3 +286,4 @@ sequenceDiagram
 |---|---|
 | 2026-09 | Persisted state moved from a raw `PersistentState` struct write to a PersistedRecord with magic `"MMS1"`, CRC-32 and atomic replace via `/mode_state.tmp`. A state that fails validation now boots SAFE/SYSTEM_FAULT with one `StatePersistenceFailure`; a missing file is a silent NORMAL first boot (MM0011, MM0012, issue #1). |
 | 2026-09-05 | Added `faultOut`: every low-voltage sample is reported to the FaultManager. A `CLAIMED` disposition hands the safe mode entry to that component; `OBSERVED` (the shipped configuration, and the behaviour when the port is unconnected) leaves the existing debounce and entry untouched. |
+| 2026-09 sync | Command-loss timer moved here from the retired AuthenticationRouter (upstream 1af2a0c5): `packetRouted` resets it, `stopWatchdog` fires after `COMM_LOSS_TIME`; `MAX_SAFE_MODE_REASON` raised 5 to 6 for `COMMAND_LOSS`; state restore now runs from the topology's `restorePersistentState()` call instead of an `init()` override. |

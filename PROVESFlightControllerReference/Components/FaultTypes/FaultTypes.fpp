@@ -19,7 +19,8 @@ module Components {
     enum FaultSource: U8 {
         THERMAL_MANAGER = 0 @< Components.ThermalManager threshold evaluation
         MODE_MANAGER = 1 @< Components.ModeManager voltage monitoring
-        AUTH_ROUTER = 2 @< Svc.AuthenticationRouter command loss timer
+        AUTH_ROUTER = 2 @< Retired 2026-09 upstream sync (the command-loss router is gone); value kept so
+        @< FaultCountCommandLoss and the fault table, which key on FaultType, do not renumber
         WATCHDOG = 3 @< Components.Watchdog stop path
         DETUMBLE_MANAGER = 4 @< Reserved for FD-L2-07 (no producer this cycle)
     }
@@ -58,7 +59,7 @@ module Components {
 
     @ Number of faultIn slots on the FaultManager. Index assignment (topology.fpp
     @ "connections FaultManager"): 0 thermalManager, 1 modeManager,
-    @ 2 ComCcsdsLora.authenticationRouter, 3 watchdog.
+    @ 2 free (its producer was retired in the 2026-09 upstream sync), 3 watchdog.
     constant FaultInPorts = 4
 
 }

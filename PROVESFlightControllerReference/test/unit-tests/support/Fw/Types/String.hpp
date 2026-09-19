@@ -47,6 +47,14 @@ class String : public StringBase {
   public:
     String() {}
     String(const char* src) : StringBase(src) {}  // NOLINT(runtime/explicit) -- mirrors generated code
+    //! Mirrors Fw::String(const StringBase&): copy across string flavours
+    //! (StartupManager builds "<path>.tmp" from a ParamString this way).
+    String(const StringBase& src) : StringBase(src.toChar()) {}  // NOLINT(runtime/explicit) -- mirrors generated code
+    //! Mirrors Fw::StringBase::operator+=(const char*).
+    String& operator+=(const char* src) {
+        this->m_str += (src != nullptr ? src : "");
+        return *this;
+    }
     String& operator=(const char* src) {
         StringBase::operator=(src);
         return *this;

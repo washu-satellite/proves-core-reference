@@ -98,6 +98,10 @@ class File {
         this->m_position = 0;
     }
 
+    //! Mirrors lib/fprime/Os/File.hpp: the two-argument forms wait.
+    Status read(U8* buffer, FwSizeType& size) { return this->read(buffer, size, WAIT); }
+    Status write(const U8* buffer, FwSizeType& size) { return this->write(buffer, size, WAIT); }
+
     Status read(U8* buffer, FwSizeType& size, WaitType wait) {
         (void)wait;
         if (!this->m_open || this->m_mode != OPEN_READ) {

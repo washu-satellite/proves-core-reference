@@ -104,6 +104,7 @@ class ModeManagerStatePersistenceTest : public ::testing::Test {
     static void seedPristineRecord() {
         ModeManager first("modeManager");
         first.init(0);
+        first.restorePersistentState();
         prepareForReboot(first);
     }
 
@@ -151,6 +152,7 @@ TEST_F(ModeManagerStatePersistenceTest, StateFileDecodesWithSharedCodecAndDocume
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
     forceSafeModeCmd(mm);
 
     const std::vector<U8>& blob = stateBlob();
@@ -178,6 +180,7 @@ TEST_F(ModeManagerStatePersistenceTest, PrepareForRebootStoresCleanFlagAndLeaves
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
     forceSafeModeCmd(mm);
     prepareForReboot(mm);
 
@@ -227,6 +230,7 @@ TEST_F(ModeManagerStatePersistenceTest, NoFileBootsNormalWithZeroEvents) {
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
 
     EXPECT_EQ(currentMode(mm), SystemMode::NORMAL) << "A first boot on a fresh filesystem is NORMAL";
     EXPECT_EQ(reportedReason(mm), SafeModeReason::NONE);
@@ -252,6 +256,7 @@ TEST_F(ModeManagerStatePersistenceTest, EmptyFileBootsSafeWithOneEvent) {
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
 
     expectCorruptBootsSafe(mm, "empty file");
     EXPECT_EQ(mm.loadSwitchTurnOffCalls.size(), 8u) << "Safe mode entry turns the non-critical switches off";
@@ -273,6 +278,7 @@ TEST_F(ModeManagerStatePersistenceTest, EverySingleByteCorruptionBootsSafeWithSy
 
             ModeManager mm("modeManager");
             mm.init(0);
+            mm.restorePersistentState();
 
             const std::string where = "offset " + std::to_string(offset) + " value " + std::to_string(value);
             ASSERT_NO_FATAL_FAILURE(expectCorruptBootsSafe(mm, where));
@@ -290,6 +296,7 @@ TEST_F(ModeManagerStatePersistenceTest, EveryTruncationLengthBootsSafeWithSystem
 
         ModeManager mm("modeManager");
         mm.init(0);
+        mm.restorePersistentState();
 
         ASSERT_NO_FATAL_FAILURE(expectCorruptBootsSafe(mm, "length " + std::to_string(length)));
     }
@@ -309,6 +316,7 @@ TEST_F(ModeManagerStatePersistenceTest, WrongMagicBootsSafe) {
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
 
     expectCorruptBootsSafe(mm, "wrong magic");
 }
@@ -329,6 +337,7 @@ TEST_F(ModeManagerStatePersistenceTest, WrongVersionWithValidCrcBootsSafe) {
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
 
     expectCorruptBootsSafe(mm, "wrong version");
 }
@@ -342,10 +351,10 @@ TEST_F(ModeManagerStatePersistenceTest, OutOfRangeFieldsInCrcValidRecordBootSafe
         U8 reason;
         U8 clean;
     };
-    // Mode outside {SAFE_MODE, NORMAL}, a SafeModeReason past LORA (=5), and a
+    // Mode outside {SAFE_MODE, NORMAL}, a SafeModeReason past COMMAND_LOSS (=6), and a
     // clean-shutdown flag that is neither 0 nor 1.
     const Case cases[] = {{"mode 0", 0, 0, 0},   {"mode 3", 3, 0, 0},       {"mode 255", 255, 0, 0},
-                          {"reason 6", 2, 6, 0}, {"reason 255", 2, 255, 0}, {"clean 2", 2, 0, 2}};
+                          {"reason 7", 2, 7, 0}, {"reason 255", 2, 255, 0}, {"clean 2", 2, 0, 2}};
 
     for (const Case& c : cases) {
         Os::Test::resetFileSystem();
@@ -356,6 +365,7 @@ TEST_F(ModeManagerStatePersistenceTest, OutOfRangeFieldsInCrcValidRecordBootSafe
 
         ModeManager mm("modeManager");
         mm.init(0);
+        mm.restorePersistentState();
 
         ASSERT_NO_FATAL_FAILURE(expectCorruptBootsSafe(mm, c.name));
     }
@@ -373,6 +383,7 @@ TEST_F(ModeManagerStatePersistenceTest, ShortPayloadInCrcValidRecordBootsSafe) {
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
 
     expectCorruptBootsSafe(mm, "short payload");
 }
@@ -391,6 +402,7 @@ TEST_F(ModeManagerStatePersistenceTest, LegacyRawStructFileBootsSafeWithOneEvent
 
     ModeManager mm("modeManager");
     mm.init(0);
+    mm.restorePersistentState();
 
     expectCorruptBootsSafe(mm, "legacy 12-byte struct");
     // The upgrade boot loses the old entry count (telemetry only) and restarts

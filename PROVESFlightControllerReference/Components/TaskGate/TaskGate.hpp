@@ -47,9 +47,9 @@ class TaskGate final : public TaskGateComponentBase {
     //! Latches the task enabled in RAM so the very next tick is forwarded.
     //! Idempotent: enabling an already-enabled task still responds OK and still
     //! emits TaskEnabled.
-    void ENABLE_TASK_cmdHandler(FwOpcodeType opCode,        //!< The opcode
-                                U32 cmdSeq,                 //!< The command sequence number
-                                Components::SchedTask task  //!< The task to enable
+    void ENABLE_TASK_cmdHandler(FwOpcodeType opCode,               //!< The opcode
+                                U32 cmdSeq,                        //!< The command sequence number
+                                const Components::SchedTask& task  //!< The task to enable
                                 ) override;
 
     //! Handler implementation for command DISABLE_TASK
@@ -57,9 +57,9 @@ class TaskGate final : public TaskGateComponentBase {
     //! Latches the task disabled in RAM so the very next tick is dropped.
     //! Idempotent: disabling an already-disabled task still responds OK and
     //! still emits TaskDisabled.
-    void DISABLE_TASK_cmdHandler(FwOpcodeType opCode,        //!< The opcode
-                                 U32 cmdSeq,                 //!< The command sequence number
-                                 Components::SchedTask task  //!< The task to disable
+    void DISABLE_TASK_cmdHandler(FwOpcodeType opCode,               //!< The opcode
+                                 U32 cmdSeq,                        //!< The command sequence number
+                                 const Components::SchedTask& task  //!< The task to disable
                                  ) override;
 
   private:

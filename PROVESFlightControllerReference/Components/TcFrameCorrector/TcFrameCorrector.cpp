@@ -17,8 +17,8 @@ namespace {
 //! detector's m_expectedFlagsAndScIdToken
 //! (lib/fprime/Svc/FrameAccumulator/FrameDetector/CcsdsTcFrameDetector.hpp:45-46),
 //! so a frame this component accepts is one the detector would accept.
-constexpr U16 EXPECTED_TOKEN = static_cast<U16>((1u << Svc::Ccsds::TCSubfields::BypassFlagOffset) |
-                                                static_cast<U32>(ComCfg::FppConstant_SpacecraftId::SpacecraftId));
+constexpr U16 EXPECTED_TOKEN =
+    static_cast<U16>((1u << Svc::Ccsds::TCSubfields::BypassFlagOffset) | static_cast<U32>(ComCfg::SpacecraftId));
 }  // namespace
 
 // ----------------------------------------------------------------------

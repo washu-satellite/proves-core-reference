@@ -32,6 +32,9 @@ typedef int32_t FwEnumStoreType;
 typedef uint8_t FwTimeContextStoreType;
 typedef uint16_t FwTimeBaseStoreType;
 
+//! Mirrors lib/fprime/default/config/FpConfig.fpp (FwAssertArgType = U32 on this platform).
+typedef uint32_t FwAssertArgType;
+
 //! Mirrors lib/fprime/Fw/Types/BasicTypes.h:91.
 #ifndef FW_MAX
 #define FW_MAX(a, b) (((a) > (b)) ? (a) : (b))  //!< MAX macro
@@ -102,6 +105,21 @@ class ParamValid {
 };
 
 }  // namespace Fw
+
+namespace Svc {
+
+//! Mirrors the generated Svc::SeqArgs struct (lib/fprime/Svc/Seq/Seq.fpp:2-5):
+//! a size and a fixed argument buffer, default {size = 0, buffer = 0}. The
+//! sequencer ports pass it by const reference; components under test only
+//! forward it, so the host shape carries the fields and nothing else.
+struct SeqArgs {
+    static constexpr FwSizeType SequenceArgumentsMaxSize = 128;
+    FwSizeType size = 0;
+    U8 buffer[SequenceArgumentsMaxSize] = {0};
+    FwSizeType get_size() const { return this->size; }
+};
+
+}  // namespace Svc
 
 namespace Drv {
 

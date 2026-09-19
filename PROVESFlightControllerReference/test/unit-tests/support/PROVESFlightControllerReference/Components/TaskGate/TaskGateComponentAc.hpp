@@ -64,8 +64,8 @@ class TaskGateComponentBase {
 
     // ---- handlers implemented by the component (private overrides there) ----
     virtual void schedIn_handler(FwIndexType portNum, U32 context) = 0;
-    virtual void ENABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, Components::SchedTask task) = 0;
-    virtual void DISABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, Components::SchedTask task) = 0;
+    virtual void ENABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const Components::SchedTask& task) = 0;
+    virtual void DISABLE_TASK_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const Components::SchedTask& task) = 0;
 
     // ---- recorded outgoing effects, public for test inspection ----
     std::string compName;

@@ -15,4 +15,6 @@
 register_fprime_library(
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/DriverBoardProtocol.cpp"
+    DEPENDS
+        Fw_Types
 )

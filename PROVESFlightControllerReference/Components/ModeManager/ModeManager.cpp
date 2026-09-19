@@ -8,6 +8,7 @@
 
 #include <algorithm>
 
+#include "Fw/Time/Time.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.hpp"
 
@@ -21,7 +22,7 @@ constexpr U8 STATE_MAGIC[4] = {'M', 'M', 'S', '1'};
 
 // Highest defined SafeModeReason ordinal (ModeManager.fpp:10-17). A CRC-valid
 // record carrying a larger value is a validation failure, not a state.
-constexpr U8 MAX_SAFE_MODE_REASON = 5;
+constexpr U8 MAX_SAFE_MODE_REASON = 6;
 
 //! Read a little-endian U32 out of the persisted payload.
 U32 decodeU32LE(const U8* in) {
@@ -41,7 +42,9 @@ ModeManager ::ModeManager(const char* const compName)
       m_runCounter(0),
       m_safeModeReason(Components::SafeModeReason::NONE),
       m_safeModeVoltageCounter(0),
-      m_recoveryVoltageCounter(0) {
+      m_recoveryVoltageCounter(0),
+      m_commandLossCounter(0),
+      m_commandLossDebounce(false) {
     // Compile-time verification that internal SystemMode enum matches FPP-generated enum
     static_assert(static_cast<U8>(SystemMode::SAFE_MODE) == static_cast<U8>(Components::SystemMode::SAFE_MODE),
                   "Internal SAFE_MODE value must match FPP enum");
@@ -51,8 +54,7 @@ ModeManager ::ModeManager(const char* const compName)
 
 ModeManager ::~ModeManager() {}
 
-void ModeManager ::init(FwSizeType queueDepth, FwEnumStoreType instance) {
-    ModeManagerComponentBase::init(queueDepth, instance);
+void ModeManager ::restorePersistentState() {
     this->loadState();
 }
 
@@ -63,6 +65,10 @@ void ModeManager ::init(FwSizeType queueDepth, FwEnumStoreType instance) {
 void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
     // Increment run counter (1Hz tick counter)
     this->m_runCounter++;
+    {
+        Os::ScopeLock lock(m_commandLossMutex);
+        this->m_commandLossCounter++;  // keep track of seconds since last packet
+    }
 
     // Get current voltage (used by mode-specific voltage monitoring)
     bool valid = false;
@@ -131,6 +137,9 @@ void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
         this->m_safeModeVoltageCounter = 0;
     }
 
+    // Check for command loss and trigger safe mode if timeout has expired
+    commandLossCheck();
+
     // Update telemetry
     this->tlmWrite_CurrentMode(static_cast<U8>(this->m_mode));
     this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
@@ -163,7 +172,8 @@ void ModeManager ::runSafeModeSequence() {
     Fw::ParamValid is_valid;
     Fw::ParamString safe_mode_sequence = this->paramGet_SAFEMODE_SEQUENCE_FILE(is_valid);
     FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
-    this->runSequence_out(0, safe_mode_sequence);
+    const Svc::SeqArgs no_args;
+    this->runSequence_out(0, safe_mode_sequence, no_args);
 }
 
 void ModeManager ::completeSequence_handler(FwIndexType portNum,
@@ -171,8 +181,6 @@ void ModeManager ::completeSequence_handler(FwIndexType portNum,
                                             U32 cmdSeq,
                                             const Fw::CmdResponse& response) {
     (void)portNum;
-    (void)opCode;
-    (void)cmdSeq;
 
     if (response == Fw::CmdResponse::OK) {
         // log that sequence completed successfully
@@ -180,6 +188,11 @@ void ModeManager ::completeSequence_handler(FwIndexType portNum,
     } else {
         // log that sequence failed
         this->log_WARNING_LO_SafeModeSequenceFailed(response);
+    }
+
+    // Forward completion to other listeners (e.g. StartupManager active-sequence tracking)
+    if (this->isConnected_sequenceDoneNotify_OutputPort(0)) {
+        this->sequenceDoneNotify_out(0, opCode, cmdSeq, response);
     }
 }
 
@@ -198,6 +211,12 @@ void ModeManager ::prepareForReboot_handler(FwIndexType portNum) {
     // previous record survives, so the next boot reads a clear flag and
     // classifies this shutdown as unintended - conservative, and reported.
     (void)this->storeState(1, "shutdown-store");
+}
+
+void ModeManager ::packetRouted_handler(FwIndexType portNum) {
+    Os::ScopeLock lock(m_commandLossMutex);
+    this->m_commandLossCounter = 0;
+    this->m_commandLossDebounce = false;
 }
 
 // ----------------------------------------------------------------------
@@ -406,6 +425,9 @@ void ModeManager ::enterSafeMode(Components::SafeModeReason reason) {
         case Components::SafeModeReason::LORA:
             reasonStr = "LoRa communication fault";
             break;
+        case Components::SafeModeReason::COMMAND_LOSS:
+            reasonStr = "Loss of contact with ground";
+            break;
         default:
             reasonStr = "Unknown";
             break;
@@ -523,6 +545,32 @@ bool ModeManager ::reportLowBattery(F32 voltage) {
         this->faultOut_out(0, Components::FaultType::LOW_BATTERY, Components::FaultSource::MODE_MANAGER,
                            Components::FaultSeverity::CRITICAL, voltage);
     return disposition == Components::FaultDisposition::CLAIMED;
+}
+
+void ModeManager::commandLossCheck() {
+    // Protect against concurrent access to command loss state
+    Os::ScopeLock lock(this->m_commandLossMutex);
+
+    // Get command loss period from parameter
+    Fw::ParamValid paramValid;
+    Fw::TimeIntervalValue commLossPeriod = this->paramGet_COMM_LOSS_TIME(paramValid);
+    FW_ASSERT(paramValid == Fw::ParamValid::VALID || paramValid == Fw::ParamValid::DEFAULT);
+
+    if (this->m_commandLossCounter >= commLossPeriod.get_seconds() && !this->m_commandLossDebounce) {
+        // Debounce so we don't repeatedly re-trigger command loss behavior
+        this->m_commandLossDebounce = true;
+
+        // Telemeter the command loss duration
+        U32 commandLossDuration = this->m_commandLossCounter;
+        this->log_WARNING_HI_CommandLossDetected(commandLossDuration);
+
+        // Trigger safe mode entry due to command loss
+        this->runSafeModeSequence();
+        this->enterSafeMode(Components::SafeModeReason::COMMAND_LOSS);
+
+        // Stop the watchdog to trigger a hardware power cycle as a last resort for recovery
+        this->stopWatchdog_out(0);
+    }
 }
 
 }  // namespace Components
