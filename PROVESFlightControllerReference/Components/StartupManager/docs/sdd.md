@@ -24,6 +24,13 @@ still valid (REQ-SM-008). The boot count is not a PersistedRecord: it is a
 telemetry-only value with a plausibility test, stored in upstream's raw format
 (see [Boot count persistence](#boot-count-persistence)).
 
+Persistence classes under the PersistedRecord consequence rule
+(`Components/PersistedRecord/docs/sdd.md`, "When to use PersistedRecord"): the
+quiescence start is regulatory-relevant with no plausibility test (class 1:
+atomic write plus checksum); the boot count is telemetry-only with a
+plausibility test (class 2: atomic write plus `MAX_PLAUSIBLE_BOOT_COUNT`, no
+checksum).
+
 | File | Magic | Payload |
 |---|---|---|
 | `QUIESCENCE_START_FILE` (`/quiescence_start.bin`) | `"SQS1"` | 11 bytes, mirroring `Fw::Time::SERIALIZED_SIZE`: time base U16 LE, context U8, seconds U32 LE, useconds U32 LE |

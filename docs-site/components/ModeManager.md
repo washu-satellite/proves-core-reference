@@ -162,6 +162,11 @@ atomic — the record is written and flushed to `/mode_state.tmp`, then renamed
 over the target — so a failure at any step leaves the previous record intact
 and still valid (MM0011).
 
+Persistence class: safety-relevant with no plausibility test (a wrong mode
+changes load-switch and safe-mode behaviour at boot), so the PersistedRecord
+consequence rule (`Components/PersistedRecord/docs/sdd.md`, "When to use
+PersistedRecord") requires atomic write plus checksum.
+
 Record-type magic: `"MMS1"`. The 7-byte payload is packed as explicit
 little-endian bytes, not as a struct image, so the on-disk format does not
 depend on compiler padding or target endianness:

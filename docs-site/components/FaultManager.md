@@ -103,10 +103,12 @@ today.
 
 ### Telemetry packet
 
-The 13 channels form a new `packet Faults id 9 group 5`. That is the last free packet id and brings
-the packet set to 22, which equals `MAX_PACKETIZER_PACKETS`
-(`PROVESFlightControllerReference/project/config/TlmPacketizerCfg.hpp:19`). Any further packet in
-this deployment needs that constant raised first.
+The 13 channels form a new `packet Faults id 9 group 5`. After the 2026-09-19 upstream sync the
+packet set holds 23 packets of `MAX_PACKETIZER_PACKETS` = 24 and names 244 of
+`MAX_PACKETIZER_CHANNELS` = 256 distinct channels (packets and omit block together;
+`PROVESFlightControllerReference/project/config/TlmPacketizerCfg.hpp:19,21`). One packet id (24) and
+12 channels are left before either constant must be raised; `scripts/check_packet_set.py` in
+`verify.sh` guards both.
 
 ## Port Descriptions
 
@@ -190,7 +192,7 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 |FaultManager-1|With the shipped parameter defaults, or any INVALID/UNINIT parameter read, FaultManager shall answer every fault report OBSERVED and shall never call forceSafeMode or stopWatchdog|Unit Test|Unit|Over every report pattern (each fault type, repeated past its debounce, in every source/severity combination) with defaults, with paramValidity INVALID and with UNINIT: zero forceSafeMode calls, zero stopWatchdog calls, and every faultIn return is OBSERVED|||
 |FaultManager-2|FaultManager shall count every fault report and publish the detected, confirmed, active-mask and per-type counts on telemetry|Unit Test|Unit|After N reports of a given type: FaultsDetected == N, the type's FaultCount* channel == N, ActiveFaults carries the type's bit once confirmed, FaultsConfirmed counts confirmation edges, and each channel is written only when its value changed|||
 |FaultManager-3|A sampled fault shall be confirmed only after DEBOUNCE_LOW_BATTERY consecutive reporting ticks, and a tick with no report shall re-arm the debounce|Unit Test|Unit|With debounce 10: no confirmation at the 9th consecutive report, exactly one confirmation edge at the 10th, no second edge while it stays reported; a tick with no report resets the count so 9 further reports do not confirm|||
-|FaultManager-4|When granted authority for a fault type, FaultManager shall perform exactly the recovery action that the reporting component performs today|Unit Test|Unit|Authority on with bit 0x10: one forceSafeMode(LOW_BATTERY) after the LOW_BATTERY debounce. Bit 0x20: stopWatchdog then forceSafeMode(EXTERNAL_REQUEST) in that order, once. WATCHDOG_STOPPED and the four thermal types: zero action calls at any mask|||
+|FaultManager-4|When granted authority for a fault type, FaultManager shall perform exactly the recovery action that the reporting component performs today|Unit Test|Unit|Authority on with bit 0x10: one forceSafeMode(LOW_BATTERY) after the LOW_BATTERY debounce. Bit 0x20: stopWatchdog then forceSafeMode(COMMAND_LOSS) in that order, once. WATCHDOG_STOPPED and the four thermal types: zero action calls at any mask|||
 |FaultManager-5|faultIn shall return CLAIMED only when AUTHORITY_ENABLED is true, the fault type's bit is set in AUTHORITY_MASK, and the type has a non-NONE action|Unit Test|Unit|Truth table over enabled x mask-bit-set x action-is-NONE for all eight fault types: CLAIMED in exactly the enabled-and-bit-set-and-action-not-NONE cells, OBSERVED in every other cell|||
 |FaultManager-6|Each producer shall emit exactly one fault report per trigger beside its existing behaviour, and shall behave identically when faultOut is unconnected or the disposition is OBSERVED|Unit Test|Unit|ThermalManager, ModeManager and Watchdog each: with faultOut connected and OBSERVED, exactly one report per trigger with the matching type, source and value AND the pre-existing events, counters and port calls unchanged; with faultOut unconnected, zero reports and the same pre-existing behaviour|||
 |FaultManager-7|CLEAR_FAULTS shall clear every recorded fault and counter and GET_FAULT_STATUS shall report the current summary, both returning OK|Unit Test|Unit|After CLEAR_FAULTS: FaultsDetected, FaultsConfirmed and ActiveFaults are 0, one FaultsCleared event, response OK. GET_FAULT_STATUS emits one FaultStatusReport carrying the current active mask, totals and effective authority, response OK|||

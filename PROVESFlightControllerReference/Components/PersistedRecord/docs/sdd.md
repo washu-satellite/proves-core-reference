@@ -15,8 +15,9 @@ behavior. All of them now go through this component:
 | File | Owner | State |
 |---|---|---|
 | `/mode_state.bin` | ModeManager | **Migrated (MM0011, MM0012).** Was a raw `PersistentState` struct write with a range check on mode only, and a corrupt state booted NORMAL; now a PersistedRecord (magic `"MMS1"`) whose failed validation boots SAFE/SYSTEM_FAULT, as the CDR requires |
-| `/sequence_number.bin` | Authenticate | **Migrated (AUTH013).** Was a bare big-endian U32 at `//sequence_number.txt` with no validation, so a corrupt file silently shifted the anti-replay baseline; now a PersistedRecord (magic `"ASN1"`) that warns and falls back to baseline 0 |
-| `/boot_count.bin`, `/quiescence_start.bin` | StartupManager | **Migrated (REQ-SM-008).** Were unvalidated big-endian serializations; now PersistedRecords (magic `"SBC1"` / `"SQS1"`) that warn once and apply a defined default |
+| `/sequence_number.bin` | TcSecurityDeframer (was Authenticate before the 2026-09-19 upstream sync) | **Migrated (AUTH013).** Was a bare big-endian U32 at `//sequence_number.txt` with no validation, so a corrupt file silently shifted the anti-replay baseline; now a PersistedRecord (magic `"ASN1"`) that warns and falls back to baseline 0 |
+| `/quiescence_start.bin` | StartupManager | **Migrated (REQ-SM-008).** Was an unvalidated big-endian serialization; now a PersistedRecord (magic `"SQS1"`) that warns once and applies a defined default |
+| `/boot_count.bin` | StartupManager | **Not a PersistedRecord (since the upstream sync).** Telemetry-only value with a plausibility test (`MAX_PLAUSIBLE_BOOT_COUNT`); upstream's raw `FwSizeType` file with temp+rename and a per-tick retry. The `"SBC1"` record used between Cycle A and the sync is gone; see the rule below |
 | `/tlm_tx_state.bin` | TelemetryGate | **Migrated (TelemetryGate-9).** Was `TxStateCodec` (magic + XOR byte), the pattern this component generalizes |
 
 ## Interface
@@ -141,10 +142,50 @@ load-time temporary fallback are what make the old or the new record the likely
 survivor. PersistedRecord-5 covers exactly this window and is board-level: it is
 verified by the hardware filesystem-resilience test, not by any host unit test.
 
+## When to use PersistedRecord (consequence rule)
+
+This section is normative for every stored value in the flight software. The
+class of a value is decided by the consequence of reading it wrong, not by how
+it is stored today:
+
+1. **Safety- or regulatory-relevant, no plausibility test.** A stored value
+   whose wrong reading changes safety or regulatory behaviour and that has no
+   plausibility test to catch a wrong value gets an atomic write (temp, flush,
+   rename) **plus** the PersistedRecord checksum. Today: the quiescence start
+   time (StartupManager `"SQS1"`; a wrong time delays or skips the regulatory
+   quiescence period), the mode state (ModeManager `"MMS1"`; a wrong mode boots
+   with the wrong load-switch and safe-mode behaviour), the transmit state
+   (TelemetryGate; a wrong value transmits when transmission is inhibited), and
+   the uplink sequence number (TcSecurityDeframer `"ASN1"`; a wrong baseline
+   opens or closes the anti-replay window).
+2. **Telemetry-only, with a plausibility test.** A value whose wrong reading
+   changes only what is reported, and for which a plausibility test exists,
+   gets an atomic write plus that believability check and no checksum. Today:
+   the boot count (upstream's `StartupManager` code: `MAX_PLAUSIBLE_BOOT_COUNT`
+   rejects any count above 1,000,000 with one `BootCountCorrupted`; temp+rename
+   and per-tick retry). This is upstream's pattern and is kept as theirs.
+3. **Bulk records.** Streams of many records (the DataRecorder design,
+   `docs-site/dev-loop/design/stored-data/`) get a CRC per record and drop the
+   bad record; the stream continues. The whole file is never checksummed as one
+   unit.
+4. **RAM-only values.** Nothing. A parameter that is never saved, a counter, or
+   a cached copy has no persistence path and gets no protection here.
+
+Detection never repairs: a failed check falls back to a safe default (first-boot
+behaviour, baseline 0, SAFE_MODE/SYSTEM_FAULT, quiescence restarted) and emits
+one event, so the ground sees the cause. The fallback is written back only
+where the consumer's documented behaviour says so.
+
+Out of scope of this rule: protection of RAM copies against single-event upsets
+(bit flips after the value has been read). That is a separate future item
+(`cycle-f-plan/06-followups.md` §2), not something a PersistedRecord provides.
+
 ## Consumers
 
-ModeManager (MM0011–MM0012), Authenticate (AUTH013), StartupManager
-(REQ-SM-008), TelemetryGate (TelemetryGate-9).
+TelemetryGate (TelemetryGate-9, transmit state), ModeManager (MM0011–MM0012,
+mode state), StartupManager (REQ-SM-008, quiescence start only — the boot count
+is class 2 above), TcSecurityDeframer (AUTH013, uplink sequence number; both
+deframer instances share the one record path).
 
 ## Requirements
 
@@ -166,3 +207,4 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 |Aug 2026| Requirements-first draft; no implementation yet |
 |Sep 2026|Implemented codec and atomic file store; TelemetryGate migrated (TelemetryGate-9)|
 |Sep 2026|ModeManager, Authenticate and StartupManager migrated (MM0011, MM0012, AUTH013, REQ-SM-008); every persisted flight-state file now uses this component|
+|2026-09-19 (Cycle F, upstream sync)|Added the normative "When to use PersistedRecord (consequence rule)" section. Consumers after the sync: TelemetryGate, ModeManager, StartupManager (quiescence start only), TcSecurityDeframer (replaces Authenticate; F2 30080ec2). The boot count is upstream's plausibility-checked raw file, not a PersistedRecord|

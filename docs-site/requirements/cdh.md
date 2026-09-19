@@ -172,7 +172,7 @@ Traced L1 requirements: CDH-15, CDH-16, CDH-28.
 |FD-L2-06|System shall initiate safe mode upon critical fault detection.|Integration Test|Board|Same as MS-L2-04: EnteringSafeMode within 2 s of critical-fault detection and GET_CURRENT_MODE = SAFE_MODE|CDR: Partial|FaultManager landed in shadow mode (Cycle D): critical faults from all four producers are routed to one component and confirmed, but it holds no authority yet (AUTHORITY_ENABLED false), so safe-mode entry is still per pathway; enable COMMAND_LOSS and LOW_BATTERY authority on the flatsat to close this|
 |FD-L2-07|System shall detect unstable control behavior in ADCS.|Integration Test|Flatsat|Rate divergence over 3 consecutive control samples while torquing is flagged by a warning within [TBD by Mission Ops: s] [not implemented]|CDR: Partial|No comprehensive system-level health component; status only exposed via telemetry|
 |FD-L2-08|System shall attempt recovery from transient faults.|Analysis, Integration Test|Board|A single failed LoRa send is retried by loraRetry and delivered; one failed I2C sensor read does not stop the next 1 Hz cycle (next channel update within 2 s)|CDR: Partial|Transient fault handling limited|
-|FD-L2-09|System shall provide fault status to telemetry system.|Integration Test|Board|modeManager.CurrentMode, SafeModeEntryCount, CurrentSafeModeReason and authenticate RejectedPacketsCount are received at least once per 45 s (level 5)|CDR: Partial||
+|FD-L2-09|System shall provide fault status to telemetry system.|Integration Test|Board|modeManager.CurrentMode, SafeModeEntryCount, CurrentSafeModeReason and provesRouter.RejectedPackets are received at least once per 45 s (level 5)|CDR: Partial||
 
 ## CDH ADCS Enablement (ADCS-L2)
 

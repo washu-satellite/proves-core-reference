@@ -36,18 +36,18 @@ events  ──comSplitterEvents[2]───────────────�
 A9 batches five 44-byte burst records into one 220-byte ring slot (A8's slots are `FW_COM_BUFFER_MAX_SIZE` = 233 B), so
 A9 needs no ring of its own — only a 220-byte staging buffer. That removes the 26 KB "RAM-only ring" from A9 entirely.
 
-## Budgets — measured after Cycle E (2026-09-19, feat/driver-board @ d71fc8fd)
+## Budgets — measured after the upstream sync, Cycle F (2026-09-19, feat/upstream-sync @ f26d9e1d)
 
-| Resource | Cycle D baseline | After E (measured) | Note |
+| Resource | After E (d71fc8fd) | After F3 (measured) | Note |
 |---|---|---|---|
-| RAM | 342976 B, 64.41 % | **363528 B, 68.27 %** | +17.9 KB was E1's packetizer/dispatch tables (~200 B per hash bucket), +2.7 KB the four E5 instances |
-| FLASH | 715104 B, 68.49 % | **735532 B, 70.44 %** of the 1 MB slot | handler + codec + topology autocode |
-| Opcodes | 361 | 377 of 512 | |
-| Packets | 22 | 23 of 24 | |
-| Hash buckets | 215 of 202 (boot assert) | **242 of 256** | A8 adds ≥ 14 channels → must raise to ≥ 288 (~6 KB RAM more); A9 adds more |
-| Parameters | 98 | 103, all RAM-only | persistence gate open |
+| RAM | 363528 B, 68.27 % | **331376 B, 62.23 %** | −32152 B: upstream #467 cut the mbedTLS static heap 32K → 8K and F´ 4.3.0 replaced the packetizer hash table with a `RedBlackTreeMap` + entry table at 256 channels / 24 packets |
+| FLASH | 735532 B, 70.44 % | **725984 B, 69.53 %** of the 1 MB slot | −9548 B; upstream pristine is 674924 B, so the fork carries +51060 B |
+| Opcodes | 377 of 512 | **387 of 512** | |
+| Packets | 23 of 24 | **23 of 24** | id 24 is the last free |
+| Channels (`MAX_PACKETIZER_CHANNELS`, packets **and** omit) | 242 of 256 hash buckets | **244 of 256** | A8 adds ≥ 14 channels and A9 a `BurstStatus` packet: **A8's constants row must raise `MAX_PACKETIZER_CHANNELS`** (about 130 B RAM per channel at 24 packets: 4 + 24 × 4 + 8 B entry plus a tree node); `check_packet_set.py` warns at 90 % |
+| Parameters | 103, all RAM-only | **106, all RAM-only** | persistence gate open; a 4.1.x `/prmDb.dat` fails the 4.3.0 CRC header once (none saved today) |
 
-**Consequence for A8:** the original plan below assumed a 64.4 % RAM baseline. From 68.3 %, A8's two 32-slot rings (+15 KB) plus the bucket raise (+6 KB) land at ~72 %, over the 70 % guard. A8 Phase 0 must choose: 16-slot rings (+7.5 KB, ~70.9 %) plus the guard moved to 72 % with a stated reason, or keep 32 slots and move the guard to 75 %. The guard is a loop convention, not a hardware limit; the hardware limit is 520 KB minus thread-stack headroom, and the largest stacks are already allocated. Decide in A8-0, record in the ledger.
+**Consequence for A8:** the RAM guard question is moot at 62.2 %: A8's two 32-slot rings (+15 KB) plus a 32-channel raise (about +4 KB) land near 66 %, under the 70 % guard, so A8 keeps its planned ring sizes and the guard stays at 70 %. The open items are (1) the channel limit — `MAX_PACKETIZER_CHANNELS` 256 → at least 288 in A8's constants row, since `TLMPACKETIZER_HASH_BUCKETS` no longer exists; and (2) the A8 design's stale references in `design/stored-data/04-plan.md` and `02-design.md`, to fix in A8 Phase 0: 1 Hz slot 20 → 21 (slot 20 is `faultManager.run`, `topology.fpp:330`; slot 19, freed by the sync from `authenticationRouter.run`, is also open), the dictionary check must read the 4.3.0 keys `telemetryPacketSets[0].members` / `omitted` (not `packets`), and the `Os::Directory` fake must target the rewritten Zephyr API (`lib/fprime-zephyr/fprime-zephyr/Os/Directory.hpp` is new at fprime-zephyr b14101dd: `ZephyrDirectory` with `open/isOpen/rewind/read/close` over `fs_dir_t`; `Directory.cpp` changed 85 lines against the pre-sync 31399714).
 
 ## Budgets as originally planned (baseline 64.4 % RAM, 68.5 % FLASH, 357 opcodes, 22 packets) — superseded by the table above
 

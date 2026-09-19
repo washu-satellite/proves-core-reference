@@ -34,6 +34,22 @@ Landed as: E1 e08685af, E2 16904e63, E3 bc43f8a5, E4 0f356f21, E5 387374b8, E6 5
 
 Model repo after E5: `model(payload): DriverBoardHandler landed at <hash>; packetExists true; integratedIntoFlightSoftware true`.
 
+## Cycle F — upstream sync (branch `feat/upstream-sync` over `feat/driver-board`) — **DONE 2026-09-19**
+
+Plan `cycle-f-plan/`, review `cycle-f-review.md`, analysis `upstream-sync-analysis.md`. Merge target `proves-origin/main` a477893b (F´ 4.3.0, Zephyr 4.4.1, TcSecurityDeframer/ProvesRouter). Every row gated with `VERIFY_ENV=host scripts/verify.sh` PASS, unverified (none); F1-F3 target-built from the clean-path copy. Not merged; not flashed.
+
+| # | Commit | Contents | Gate | Revert consequence |
+|---|---|---|---|---|
+| F0 | f878774c `build(tooling): check_packet_set accepts MAX_PACKETIZER_CHANNELS; build copy on upstream a477893b` | build copy and venvs moved to the 4.3.0 pins, Zephyr 4.4.1, SDK 1.0.1; `scripts/check_packet_set.py` accepts `MAX_PACKETIZER_CHANNELS`; `lib/fprime` stray edits discarded | copy builds pristine upstream (FLASH 674924 B, RAM 301920 B) | environment only; a reverted tree does not build in the copy without re-running the old `west update` |
+| F1 | 59e87a89 merge of a477893b | Authenticate/AuthenticationRouter removed, TcSecurityDeframer/ProvesRouter in; ModeManager `MMS1` record kept with `restorePersistentState()`, `MAX_SAFE_MODE_REASON` 6; StartupManager boot count = upstream's raw file, quiescence `SQS1` kept; packet set in group syntax (23 packets, 244 channels; limits 256 / 24); `const&` command args; `DEPENDS Fw_Types`; MM0013, REQ-SM-009..012; `mode_manager_test.py` merged | host PASS (28 binaries); target FLASH 726812 B (69.61 %), RAM 331376 B (62.23 %); dictionary 387 / 106 / 244 / 695 / 23 | `git revert -m 1` restores the pre-sync tree; the copy stays at 4.3.0 (see F0) |
+| F2 | 30080ec2 `feat(TcSecurityDeframer): sequence number on PersistedRecord (AUTH013, CH-L2-05)` | `SequenceNumberStore.{hpp,cpp}` (`ASN1`, `/sequence_number.bin`), `SequenceNumberRecordInvalid` id 15, host test (9 cases), `tc_security_deframer_test.py` (deferred) | host PASS; target FLASH 725880 B, RAM unchanged; events 697 | standalone: the deframer falls back to upstream's raw `FileHelper` file |
+| F3 | f26d9e1d `feat(ModeManager,FaultManager): command-loss fault report from ModeManager (FD-L2-01/05/09 producer 2)` | `commandLossCheck()` reports `COMMAND_LOSS` on `faultOut` (OBSERVED shipped); `reasonFor(COMMAND_LOSS)`; `test_ModeManager_CommandLoss.cpp`; `fault_manager_test.py` producer 2 retargeted | host PASS (30 binaries); target FLASH 725984 B (69.53 %), RAM 331376 B (62.23 %); dictionary unchanged | standalone: FaultManager producer 2 falls silent again |
+| F5 | this commit `docs(dev-loop): Cycle F done — ledger supersessions, traps for F´ 4.3.0, persistence rule, requirement text, budgets` | ledger supersessions and "Upstream sync" section; CLAUDE.md traps and map; PersistedRecord consequence rule; FaultManager-4 / FD-L2-09 criteria via `req.py`; budgets in `cycle-sequencing-E-A8-A9.md`; this block; followups | host PASS, RTM without warnings | standalone |
+
+Measured after F3 (f26d9e1d): FLASH 725984 B (69.53 %), RAM 331376 B (62.23 %); vs pre-sync d4fda377 (735532 / 363528) −9548 B FLASH, −32152 B RAM; vs upstream pristine a477893b (674924 / 301920) +51060 B FLASH, +29456 B RAM. Dictionary 387 commands, 106 parameters, 244 channels, 697 events, 23 packets; packet set 23 of 24 packets, 244 of 256 channels. F4 was folded: the packet-set rewrite and the two limits are in F1, the checker retarget in F0 (`cycle-f-plan/03-rows.md` "F4 — folded").
+
+Model repo after F5: `model(all): upstream sync landed at 59e87a89` after the re-read list in `cycle-f-plan/01-scope.md` §4 (outside the coder scope).
+
 ## A8 — DataRecorder (branch `feat/data-recorder`), after E is merged
 
 | # | Commit | Contents | Gate | Revert consequence |
