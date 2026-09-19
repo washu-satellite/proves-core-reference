@@ -68,7 +68,7 @@ enum class Result : uint8_t {
 //!        reflection, xorout 0. Matches Svc::Ccsds::Utils::CRC16::compute
 //!        (lib/fprime/Svc/Ccsds/Utils/CRC16.hpp:43-49, which wraps the
 //!        table-driven update_crc_ccitt in Utils/Hash/libcrc/lib_crc.c:132-144).
-//!        Computed bitwise here: no lookup table, no static objects.
+//!        Forwards to Crc16::ccitt (Components/Crc16/Crc16.hpp): bitwise, no table, no static objects.
 //! \param data buffer to checksum (null is treated as empty)
 //! \param len  number of bytes to checksum
 //! \return the CRC-16 value; 0xFFFF for an empty buffer

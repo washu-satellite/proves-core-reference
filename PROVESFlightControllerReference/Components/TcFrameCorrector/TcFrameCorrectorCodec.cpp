@@ -6,6 +6,8 @@
 
 #include "PROVESFlightControllerReference/Components/TcFrameCorrector/TcFrameCorrectorCodec.hpp"
 
+#include "PROVESFlightControllerReference/Components/Crc16/Crc16.hpp"
+
 namespace Components {
 namespace TcFrameCorrection {
 
@@ -59,17 +61,7 @@ bool postCheck(const uint8_t* frame, uint32_t len, uint32_t dataLen, uint16_t ex
 }  // namespace
 
 uint16_t crc16Ccitt(const uint8_t* data, uint32_t len) {
-    uint16_t crc = CRC16_SEED;
-    if (data == nullptr) {
-        return crc;
-    }
-    for (uint32_t i = 0; i < len; i++) {
-        crc = static_cast<uint16_t>(crc ^ (static_cast<uint16_t>(data[i]) << 8));
-        for (uint32_t bit = 0; bit < 8; bit++) {
-            crc = stepSyndrome(crc);
-        }
-    }
-    return crc;
+    return Crc16::ccitt(data, len);
 }
 
 Result correctSingleBit(uint8_t* frame, uint32_t len, uint16_t expectedToken, uint16_t& bitIndexOut) {
