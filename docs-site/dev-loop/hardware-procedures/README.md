@@ -9,7 +9,7 @@ Input: `scratchpad/deferred-rows.md` (106 rows). 87 rows are placed in 14 groups
 | T2 Desk-PSU | HP-10, HP-11, HP-12 | 19 | T1 + scriptable bench PSU on the ina219Sys rail (CI Korad layout), coils/burnwire dummy loads | ~1.5 h |
 | T3 Bench-RF | HP-13, HP-14 | 7 | T1 + passthrough board as RF observer/second GDS (`integration-radio` layout) | 10 min + 96 h soak |
 | T4 Field-RF | none | 0 | no deferred row needs link margin or PER vs RSSI | - |
-| T5 Flatsat | none | 0 | payload not interfaced (CDH-17/20), ADCS divergence not implemented (CDH-28, FD-L2-07); MS-L2-05 real-load evidence would be added here | - |
+| T5 Flatsat | HP-15 | 4 | T1 + the STM32 driver board on J18 pins 9/10 and the payload rail, coils or dummy loads (Cycle E); part A of HP-15 (loopback jumper) is T1. Still unplaceable: algorithm upload (CDH-17/20, no STM32 reflash path), ADCS divergence (CDH-28, FD-L2-07); MS-L2-05 real-load evidence would be added here | ~20 min (part C destructive: 1 warm + 5 cold resets) |
 | T6 Environmental | none | 0 | all Environmental rows carry [TBD by Mission Ops] values or are not implemented | - |
 
 ## Full mapping
@@ -40,7 +40,7 @@ Input: `scratchpad/deferred-rows.md` (106 rows). 87 rows are placed in 14 groups
 | CDH-24 | Mission Ops | Demonstration | Environmental | - |
 | CDH-25 | Mission Ops | Analysis | Environmental | - |
 | CDH-26 | Mission Ops | Demonstration | Environmental | - |
-| CDH-27 | HP-14 | Demonstration | Board | manual (96 h CSV) |
+| CDH-27 | HP-14 ; HP-15 | Demonstration | Board | manual (96 h CSV) ; driver_board_test.py::test_03_hk_channels_update (flatsat; the packet exists, cadence is ops) |
 | CDH-28 | Mission Ops | Integration Test | Flatsat | - |
 | CDH-29 | Mission Ops | Demonstration | Environmental | - |
 | CDH-30 | Mission Ops | Demonstration | Environmental | - |
@@ -60,7 +60,7 @@ Input: `scratchpad/deferred-rows.md` (106 rows). 87 rows are placed in 14 groups
 | CH-L2-14 | HP-13 | Integration Test | Board | manual |
 | CH-L2-15 | HP-05 | Integration Test | Board | telemetry_gate_test.py::test_03_disable_takes_effect_within_one_period |
 | CH-L2-16 | HP-05 | Integration Test | Board | telemetry_gate_test.py::test_04_gated_ticks_count_and_state_after_reenable |
-| TM-L2-01 | HP-02 | Integration Test | Board | telemetry_sources_test.py::test_01_every_registered_source_updates |
+| TM-L2-01 | HP-02 ; HP-15 (payload clause) | Integration Test | Board | telemetry_sources_test.py::test_01_every_registered_source_updates ; driver_board_test.py::test_03_hk_channels_update (flatsat) |
 | TM-L2-02 | HP-04 | Integration Test | Board | collection_interval_test.py::test_01 ; ::test_03 |
 | TM-L2-03 | HP-02 | Integration Test | Board | telemetry_sources_test.py::test_02_timestamps_present_and_monotonic |
 | TM-L2-05 | HP-02 | Integration Test | Board | telemetry_sources_test.py::test_03_thermal_channels |
@@ -100,13 +100,14 @@ Input: `scratchpad/deferred-rows.md` (106 rows). 87 rows are placed in 14 groups
 | ADCS-L2-01 | HP-11 | Demonstration | Board | manual |
 | ADCS-L2-03 | Mission Ops | Analysis | Environmental | - |
 | ADCS-L2-04 | Mission Ops | Integration Test | Board | - (not implemented) |
-| ADCS-L2-06 | HP-02 | Integration Test | Board | telemetry_sources_test.py::test_01_every_registered_source_updates |
+| ADCS-L2-06 | HP-02 ; HP-15 | Integration Test | Board | telemetry_sources_test.py::test_01_every_registered_source_updates ; driver_board_test.py::test_03_hk_channels_update (flatsat) |
 | AD0002 | HP-11 | Integration Test | Board | antenna_deployer_test.py::test_deploy_without_distance_sensor |
 | AD0003 | HP-11 | Integration Test | Board | antenna_deployer_test.py::test_multiple_deploy_attempts |
 | AD0005 | HP-11 | Integration Test | Board | antenna_deployer_test.py (both) |
 | BW-002 | HP-11 | Integration Test | Board | burnwire_test.py::test_01_start_and_stop_burnwire |
 | BW-003 | HP-11 | Integration Test | Board | burnwire_test.py::test_01_start_and_stop_burnwire |
 | DRV-008 | HP-11 | Integration Test | Board | drv2605_test.py::test_01_magnetorquer_power_draw |
+| DriverBoardHandler-10 | HP-15 | Integration Test | Flatsat | driver_board_test.py::test_09_end_to_end (flatsat); steps B1-B10 |
 | ImuManager-1 | HP-04 | Integration Test | Board | manual |
 | MM0001 | HP-06 | Integration Test | Board | safe_mode_test.py::test_safe_03_exit_clears_reason |
 | MM0002 | HP-06 | Integration Test | Board | safe_mode_test.py::test_safe_02_ground_command_sets_reason |

@@ -223,6 +223,7 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 |DriverBoardHandler-7|Housekeeping frames update telemetry|Unit Test|Unit|An HK frame with current {1500, -200, 0} mA, temp {251, 300}, duty {50, -50, 0}, state, flags → CoilCurrent0 = 1.5 F32, CoilTemperature0 = 25.1, PwmDuty1 = -50, DriverState, FaultFlags written once each|||
 |DriverBoardHandler-8|Parameter validation falls back to default|Unit Test|Unit|PULSE_DURATION_MS 0 or 6000, PULSE_DUTY_PCT 101, LINK_TIMEOUT_MS 50, HK_INTERVAL_S 0 or 61, or INVALID → default value in effect, one ParameterRejected event each (throttle 5)|||
 |DriverBoardHandler-9|Every received buffer is returned to the driver|Unit Test|Unit|For N `uartRecv` calls, N `uartRecvReturn` calls with the same buffer objects, regardless of content|||
+|DriverBoardHandler-10|End-to-end with the STM32 answering the spec|Integration Test|Flatsat|PING → PongReceived(version) within 2 s; ARM → Armed; PULSE 500 ms → PulseStarted then HK shows non-zero CoilCurrent on the masked channels within 2 s; DISARM → Disarmed; power the board off → LinkLost within LINK_TIMEOUT_MS + 1 s|||
 
 ## Change Log
 | Date | Description |
