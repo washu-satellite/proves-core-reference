@@ -21,9 +21,9 @@ Why not `PayloadCom`: it emits `"<MOISES>\n"` on every received buffer (`Compone
 
 ## 3.2 Component `Components.DriverBoardHandler` (passive)
 
-Passive and synchronous: `uartRecv` and `run` both execute on rate-group threads (50 Hz and 1 Hz), so the parser state and the link state are protected by making both ports `guarded` (one mutex per component, F' generated). Commands are `sync` and take the same guard implicitly through the generated dispatch. No queue, no thread, no heap.
+Passive and synchronous: `uartRecv` runs on the 50 Hz thread, `run` on the 1 Hz thread, commands on the command-dispatcher thread. **Locking rule (review amendment 2, normative):** `uartRecv` is `guarded`; `run`, `uartReady` and every command are `sync` (a `sync command` takes NO guard in F' — only `guarded command` does) and protect handler state with explicit `this->lock()` / `this->unLock()` around state mutation only. **No output port is ever invoked while the lock is held**: frames to send are built into a stack-local buffer under the lock, and `uartSend_out` is called after `unLock()`. Reason: `ZephyrUartDriver.schedIn` and `$send` are both `guarded`; the 50 Hz thread (priority 1) enters driver-lock → handler-lock via recv, and a 1 Hz `run` holding handler-lock → driver-lock via `$send` is an ABBA deadlock the first time a board answers. The host stub asserts zero output-port calls while locked (FaultManager `actionWhileLocked` pattern). No queue, no thread, no heap.
 
-Members: `DriverBoardProtocol::Parser m_parser` (≤ 64 B), `DriverBoardLink m_link` (pure state machine, 3.5), `RunInterval m_hkInterval` (Cycle B helper), cached effective parameters, a 40-byte static TX frame buffer, counters.
+Members: `DriverBoardProtocol::Parser m_parser` (≤ 64 B), `DriverBoardLink m_link` (pure state machine, 3.5), `RunInterval m_hkInterval` (Cycle B helper), cached effective parameters, counters. TX frames are stack-local (≤ 40 B), never a shared member.
 
 ## 3.3 Interface (`DriverBoardHandler.fpp`)
 
@@ -133,7 +133,7 @@ Inputs per 1 Hz tick: `nowMs`, `lastValidFrameMs`, `mode`. Outputs: which host f
 
 ## 3.7 Buffer ownership
 
-`uartRecv` parses every byte of the received buffer into `m_parser`, then **always** returns the buffer via `uartRecvReturn` before returning (DriverBoardHandler-9). The driver deallocates to the buffer manager. TX uses the component's own static 40-byte array; `$send` is synchronous and the driver copies byte-by-byte with `uart_poll_out` (`.cpp:111`), so the array is free on return. One frame per tick per direction at most in this cycle, so no TX queue.
+`uartRecv` parses every byte of the received buffer into `m_parser`, then **always** returns the buffer via `uartRecvReturn` before returning (DriverBoardHandler-9). The driver deallocates to the buffer manager. TX uses a stack-local 40-byte array in the calling handler, built under the lock and sent after unlock; `$send` is synchronous and the driver copies byte-by-byte with `uart_poll_out` (`.cpp:111`), so the array is free on return. One frame per tick per direction at most in this cycle, so no TX queue.
 
 ## 3.8 Codec `Components/DriverBoardProtocol/` (F'-free)
 
@@ -148,4 +148,4 @@ Little-endian on the wire (both cores are little-endian; the code still packs by
 
 ## 3.9 `Components/Crc16/Crc16.hpp` — the second-use extraction
 
-`TcFrameCorrectorCodec.cpp` implements CRC-16/CCITT-FALSE bitwise with no table (`TcFrameCorrectorCodec.hpp:67-75`). Move that function to a header-only `Crc16::ccitt(const uint8_t*, size_t)` (same signature, same constants), include it from `TcFrameCorrectorCodec.cpp`, delete the local copy. `test_TcFrameCorrector_Codec.cpp` must pass **unmodified**; add `test_Crc16.cpp` with the CCITT-FALSE check value 0x29B1 for "123456789". The STM32 firmware will carry its own C copy of the same 10 lines; the spec names the polynomial so both match.
+`TcFrameCorrectorCodec.cpp` implements CRC-16/CCITT-FALSE bitwise with no table (`TcFrameCorrectorCodec.hpp:67-75`). Move that function to a header-only `Crc16::ccitt(const uint8_t*, uint32_t len)` (keep the existing `uint32_t` length type), include it from `TcFrameCorrectorCodec.cpp`, delete only the CRC body; `stepSyndrome` and the corrector's constants stay in `TcFrameCorrectorCodec.cpp` because `correctSingleBit` uses them. `test_TcFrameCorrector_Codec.cpp` must pass **unmodified**; add `test_Crc16.cpp` with the CCITT-FALSE check value 0x29B1 for "123456789". The STM32 firmware will carry its own C copy of the same 10 lines; the spec names the polynomial so both match.

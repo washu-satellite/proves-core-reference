@@ -18,14 +18,14 @@ Criteria from `fprime-venv/bin/python3 scripts/req.py show <ID>` at cab7439. Uni
 | ID | Description | Pass criterion |
 |---|---|---|
 | DriverBoardProtocol-1 | Encode produces `SYNC TYPE SEQ LEN PAYLOAD CRC` with CRC-16/CCITT-FALSE over TYPE..PAYLOAD | Round-trip of every message type is byte-identical; CRC equals `Crc16::ccitt` of the covered bytes |
-| DriverBoardProtocol-2 | Parser accepts one valid frame per SYNC..CRC sequence | Feeding a valid frame byte-wise yields exactly one `frameReady` with the same type, seq, payload |
+| DriverBoardProtocol-2 | Parser accepts one valid frame per SYNC..CRC sequence | Feeding a valid frame byte-wise makes `feed()` return true exactly once, on the last CRC byte, and `frame()` then holds the same type, seq, len and payload |
 | DriverBoardProtocol-3 | Parser rejects and resynchronises | A corrupt CRC, a LEN > 32, or a truncated frame yields no frame and one counted rejection; the next valid frame after arbitrary garbage is still delivered |
 | DriverBoardProtocol-4 | Fixed memory | Parser holds at most one 39-byte frame; no heap; `sizeof(Parser) <= 64` |
 | DriverBoardProtocol-5 | Wire units are integers | HK and SAMPLE payloads carry mA, 0.1 °C, percent and ms as integers; host-side conversion to F32 is exact for the ranges in 02 |
-| DriverBoardProtocol-6 | Sequence continuity is observable | `expectedSeq` mismatch is counted, not fatal |
-| DriverBoardHandler-1 | Boots DISARMED with LINK_DOWN and sends a HEARTBEAT on every 1 Hz tick | After construction and 3 ticks: 3 HEARTBEAT frames on `uartSend`, state DISARMED, no events |
+| DriverBoardProtocol-6 | Sequence continuity is observable | Two accepted frames with seq 5 then 7 leave `stats().accepted == 2` and `stats().seqGaps == 1`; seq 7 then 8 leaves `seqGaps` unchanged |
+| DriverBoardHandler-1 | Boots DISARMED with LINK_DOWN; first frame after `uartReady` is DISARM; then exactly one host frame per 1 Hz tick (HK_REQUEST when `RunInterval::due(HK_INTERVAL_S)`, else HEARTBEAT) | After `uartReady` and 3 ticks with default HK_INTERVAL_S = 1: frames on `uartSend` are DISARM, HK_REQUEST, HK_REQUEST, HK_REQUEST; with HK_INTERVAL_S = 3: DISARM, HK_REQUEST, HEARTBEAT, HEARTBEAT; state DISARMED, no events |
 | DriverBoardHandler-2 | Link comes up on the first valid board frame and drops after `LINK_TIMEOUT_MS` of silence | PONG at tick 1 → LinkUp event, LinkState UP; no frames for ceil(timeout/1000)+1 ticks → LinkLost once, LinkState DOWN; a second silent tick emits nothing more |
-| DriverBoardHandler-3 | ARM requires LINK_UP and mode != SAFE_MODE, and completes only on board ACK | ARM with link down → CommandRefused(LINK_DOWN), response EXECUTION_ERROR; with link up and `getMode` = SAFE_MODE → CommandRefused(SAFE_MODE); with link up in NORMAL → ARM frame sent, and on ACK(ARM, OK) → Armed event, DriverState ARMED |
+| DriverBoardHandler-3 | ARM requires LINK_UP and mode != SAFE_MODE, and completes only on board ACK | ARM with link down → CommandRefused(LINK_DOWN), response EXECUTION_ERROR; with link up and `getMode` = SAFE_MODE → CommandRefused(SAFE_MODE); with link up in NORMAL → ARM frame sent and command response OK (the response means "sent", not "armed"); on ACK(ARM, OK) → Armed event, DriverState ARMED; on ACK(ARM, status != 0) → CommandRefused(BOARD_REFUSED), state stays DISARMED |
 | DriverBoardHandler-4 | PULSE uses the current parameters and requires ARMED | PULSE while DISARMED → CommandRefused(NOT_ARMED); while ARMED → one PULSE frame whose fields equal PULSE_DURATION_MS / PULSE_DUTY_PCT / PULSE_CHANNEL_MASK, PulseStarted event |
 | DriverBoardHandler-5 | Link loss disarms | ARMED then silence past timeout → LinkLost, Disarmed(LINK_LOST), DriverState DISARMED, and the next PULSE is refused |
 | DriverBoardHandler-6 | SAFE_MODE disarms | ARMED, `getMode` returns SAFE_MODE on the next tick → DISARM frame sent, Disarmed(SAFE_MODE) |
@@ -33,5 +33,7 @@ Criteria from `fprime-venv/bin/python3 scripts/req.py show <ID>` at cab7439. Uni
 | DriverBoardHandler-8 | Parameter validation falls back to default | PULSE_DURATION_MS 0 or 6000, PULSE_DUTY_PCT 101, LINK_TIMEOUT_MS 50, HK_INTERVAL_S 0 or 61, or INVALID → default value in effect, one ParameterRejected event each (throttle 5) |
 | DriverBoardHandler-9 | Every received buffer is returned to the driver | For N `uartRecv` calls, N `uartRecvReturn` calls with the same buffer objects, regardless of content |
 | DriverBoardHandler-10 (Board, Flatsat, deferred) | End-to-end with the STM32 answering the spec | PING → PongReceived(version) within 2 s; ARM → Armed; PULSE 500 ms → PulseStarted then HK shows non-zero CoilCurrent on the masked channels within 2 s; DISARM → Disarmed; power the board off → LinkLost within LINK_TIMEOUT_MS + 1 s |
+
+Claim placement (review amendment 7): DriverBoardHandler-2, -5 and -6 are claimed by `test_DriverBoardHandler_Component.cpp` (their observables are events and frames), not by the pure link test; the link test claims nothing and exists for coverage of transitions.
 
 Rows deliberately **not** created: anything about burst/stream (A9), attitude (A2), algorithm upload (CDH-17/20).

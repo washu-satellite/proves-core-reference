@@ -34,6 +34,7 @@ code it describes changes and the fact no longer holds.
 - Events and file downlink bypass TelemetryGate (only the TlmChan tick is gated). `topology.fpp:146-148,177-179,284`.
 
 ## Telemetry (2026-09-05)
+- **Latent boot assert (found 2026-09-18, Cycle E review):** `TLMPACKETIZER_HASH_BUCKETS = 202` (`project/config/TlmPacketizerCfg.hpp:27`) but `ReferenceDeploymentPackets.fppi` names 214 distinct channels at cab7439 (201 before Cycle D's 13 `faultManager` channels). `Svc::TlmPacketizer::findBucket` (`lib/fprime/Svc/TlmPacketizer/TlmPacketizer.cpp`) asserts `free < BUCKETS` while populating both the packet lists and the ignore list; asserts are compiled in (`FpConfig.h:111`). The Cycle D image has not been flashed; it would assert in `setPacketList` at boot. Fixed by Cycle E row E1 (buckets → 256) with `scripts/check_packet_set.py` in `verify.sh` as the regression guard. The three hash constants are literals, not derived from `MAX_PACKETIZER_PACKETS`.
 - Telemetry is `Svc.TlmPacketizer` at default packet level 1: only the Beacon packet downlinks until `CdhCore.tlmSend.SET_LEVEL` is raised. Every telemetry test must raise and restore the level.
 - `WatchdogTransitions` and `CurrBuffs` are omitted channels in `ReferenceDeploymentPackets.fppi`.
 - `telemetryDelay` (Utilities.RateDelay) divides the 1 Hz tick by 29 → TlmChan runs ~every 30 s. `instances.fpp` ~218; `test/int/telemetry_gate_test.py:37-44`.

@@ -6,7 +6,7 @@ Host gate (`VERIFY_ENV=host scripts/verify.sh` from `$R`, clean `build-gtest`):
 - RTM: DriverBoardProtocol-1..6 and DriverBoardHandler-1..9 Pass (Unit); DriverBoardHandler-10, TM-L2-01, CDH-27, ADCS-L2-06 deferred (board/flatsat), never "unverified".
 
 Target compile (mandatory: new `.fpp`, new ports): rsync to `~/scalar-build/proves-core-reference`, `fprime-util generate` then `fprime-util build`. Expect and record:
-- Dictionary (`build-artifacts/.../ReferenceDeploymentTopologyDictionary.json`): commands 357 → 373; parameters 93 → 98 (Cycle B's four + this five over the 91 in the last built dictionary — reconcile against HEAD's actual count first); channels +21; events +12; `telemetryPacketSets` shows `PayloadHousekeeping` id 23 with 21 members.
+- Dictionary (`build-artifacts/.../ReferenceDeploymentTopologyDictionary.json`), expected after E5 from the Cycle D baseline (361 / 98 / 215 / 676 / 22): commands **377**, parameters **103**, channels **237**, events **688**, packets **23**; `telemetryPacketSets` shows `PayloadHousekeeping` id 23 with **22** members.
 - Memory-region lines: FLASH and RAM percentages against the last recorded 65.7 % / 64.1 %; RAM must stay under 70 % with the PrmDb raise; if not, PrmDb 64 and re-record.
 - `fpp-to-dict` passes (all channels in a packet).
 - `git diff --stat lib/` empty.
