@@ -162,6 +162,16 @@ class ModeManager : public ModeManagerComponentBase {
     //!         which case this component must not enter safe mode itself
     bool reportLowBattery(F32 voltage);
 
+    //! Report one command-loss detection to the FaultManager, if connected.
+    //! Called from commandLossCheck() under m_commandLossMutex; the guarded
+    //! faultIn handler calls no output port, so the lock order is safe
+    //! (Components/ModeManager/docs/sdd.md "Fault reporting").
+    //! \param elapsedSeconds Seconds since the last routed packet
+    //! \return true only if the FaultManager CLAIMED the recovery action, in
+    //!         which case this component must not enter safe mode or stop the
+    //!         watchdog itself
+    bool reportCommandLoss(U32 elapsedSeconds);
+
     //! Check for command loss and enter safe mode if timeout has expired
     void commandLossCheck();
 

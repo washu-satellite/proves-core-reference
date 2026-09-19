@@ -288,8 +288,9 @@ void FaultManager ::executeAction(const FaultLogic::Decision& decision) {
             }
             break;
         case FaultLogic::SAFE_MODE_AND_REBOOT:
-            // Same two ports, same order and same reason as
-            // AuthenticationRouter::CallSafeMode does today.
+            // Same two ports and reason as ModeManager::commandLossCheck uses
+            // today; the order (stopWatchdog first) is the one the retired
+            // AuthenticationRouter used and the FaultManager-4 criterion pins.
             if (this->isConnected_stopWatchdog_OutputPort(0)) {
                 this->stopWatchdog_out(0);
             }
@@ -307,9 +308,12 @@ Components::SafeModeReason FaultManager ::reasonFor(FaultLogic::Type type) {
     if (type == FaultLogic::LOW_BATTERY) {
         return Components::SafeModeReason::LOW_BATTERY;
     }
-    // Command loss already enters safe mode as EXTERNAL_REQUEST
-    // (AuthenticationRouter::CallSafeMode), and so does every other type that
-    // may gain an action later.
+    if (type == FaultLogic::COMMAND_LOSS) {
+        // ModeManager::commandLossCheck persists COMMAND_LOSS (upstream 1af2a0c5);
+        // a CLAIMED command loss must leave the same reason behind (Cycle F, F3).
+        return Components::SafeModeReason::COMMAND_LOSS;
+    }
+    // Every other type that may gain an action later enters as EXTERNAL_REQUEST.
     return Components::SafeModeReason::EXTERNAL_REQUEST;
 }
 

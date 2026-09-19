@@ -13,8 +13,9 @@
 // quote, never from the logic under test:
 //   * the LOW_BATTERY debounce of 10 is ModeManager's SafeModeDebounceSeconds
 //     default (ModeManager.fpp "param SafeModeDebounceSeconds U32 default 10");
-//   * the COMMAND_LOSS action "stop the watchdog, then force safe mode with
-//     EXTERNAL_REQUEST" is what AuthenticationRouter::CallSafeMode does today;
+//   * the COMMAND_LOSS action "stop the watchdog, then force safe mode" is
+//     what ModeManager::commandLossCheck does today (the AuthenticationRouter
+//     that first owned it was retired at the 2026-09 upstream sync);
 //   * WATCHDOG_STOPPED has no action because the hardware reset is already
 //     under way when Watchdog::stop_handler runs;
 //   * the four thermal types have no action because ThermalManager's whole

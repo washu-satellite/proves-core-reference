@@ -52,7 +52,7 @@ is a transfer of the same action, not a new one.
 | `BATT_TEMP_HIGH` | 0x04 | ThermalManager | no | `DEBOUNCE_THERMAL` (1) | none |
 | `BATT_TEMP_LOW` | 0x08 | ThermalManager | no | `DEBOUNCE_THERMAL` (1) | none |
 | `LOW_BATTERY` | 0x10 | ModeManager | yes | `DEBOUNCE_LOW_BATTERY` (10) | `SAFE_MODE`, reason `LOW_BATTERY` |
-| `COMMAND_LOSS` | 0x20 | AuthenticationRouter | no | 1 | `SAFE_MODE_AND_REBOOT`: `stopWatchdog`, then `forceSafeMode(EXTERNAL_REQUEST)` |
+| `COMMAND_LOSS` | 0x20 | ModeManager (since F3; the AuthenticationRouter that first owned it was retired by upstream 1af2a0c5) | no | 1 | `SAFE_MODE_AND_REBOOT`: `stopWatchdog`, then `forceSafeMode(COMMAND_LOSS)` |
 | `WATCHDOG_STOPPED` | 0x40 | Watchdog | no | 1 | none (the hardware reset is already under way) |
 | `ADCS_UNSTABLE` | 0x80 | (reserved) | no | 1 | none (FD-L2-07 hook; threshold TBD by Mission Ops) |
 
@@ -64,7 +64,8 @@ until `CLEAR_FAULTS`.
 ### Threading contract
 
 The component is **passive with a guarded intake**. `faultIn` is called from several threads (the
-1 Hz rate group for ThermalManager, ModeManager and AuthenticationRouter; the command dispatcher
+1 Hz rate group for ThermalManager and ModeManager, the latter under its `m_commandLossMutex` for
+the command-loss report — safe, because this handler calls no output port; the command dispatcher
 for `STOP_WATCHDOG`; the event manager for the FATAL path into `watchdog.stop`), while the periodic
 work is an O(9) table scan. A thread and an async queue would cost a 4 KB stack and an overflow
 mode for no benefit; the generated guarded-port mutex gives the thread safety instead. Upgrading to
@@ -95,7 +96,8 @@ order is no longer constrained. Splitting the types out removes the cycle.
 ### Rate group placement
 
 `faultManager.run` is `rateGroup1Hz.RateGroupMemberOut[20]`, after `modeManager` (16),
-`thermalManager` (18) and `authenticationRouter` (19). Rate group members run in index order, so a
+`taskGate.schedIn[THERMAL]` (18, which runs `thermalManager`; slot 19 belonged to the retired
+`authenticationRouter`). Rate group members run in index order, so a
 fault reported at tick *t* is decided at tick *t* — the same second in which the producer acts
 today.
 
@@ -110,7 +112,7 @@ this deployment needs that constant raised first.
 
 | Port | Kind | Type | Description |
 |---|---|---|---|
-| `faultIn` | guarded input, 4 slots | `Components.FaultReport` | Fault intake. Slot 0 thermalManager, 1 modeManager, 2 ComCcsdsLora.authenticationRouter, 3 watchdog |
+| `faultIn` | guarded input, 4 slots | `Components.FaultReport` | Fault intake. Slot 0 thermalManager, 1 modeManager (`LOW_BATTERY` and, since F3, `COMMAND_LOSS`), 2 unconnected (retired: the command-loss router was removed by upstream 1af2a0c5), 3 watchdog |
 | `run` | sync input | `Svc.Sched` | 1 Hz tick; drains confirmations and writes telemetry |
 | `forceSafeMode` | output | `Components.ForceSafeModeWithReason` | Safe mode entry. Unreachable in shadow mode |
 | `stopWatchdog` | output | `Fw.Signal` | Stops petting the watchdog (reboot in ~26 s). Unreachable in shadow mode |
@@ -199,3 +201,4 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 | Date | Description |
 |---| --- |
 |Sep 2026| Initial version: shadow-mode fault detection, four producer hooks, Faults packet id 9 |
+|2026-09 (F3)| Producer 2 re-sourced: `COMMAND_LOSS` now arrives from `ModeManager::commandLossCheck` on slot 1 (the AuthenticationRouter and slot 2 are retired, upstream 1af2a0c5); `reasonFor(COMMAND_LOSS)` maps to `SafeModeReason::COMMAND_LOSS` so a CLAIMED command loss persists the same reason as upstream's path |

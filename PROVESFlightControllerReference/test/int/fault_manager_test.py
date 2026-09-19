@@ -190,29 +190,31 @@ def test_watchdog_stop_reports_then_reboots(
 
 
 @pytest.mark.skip(
-    reason="producer 2 re-sourced in F3; reboots and persists SAFE_MODE; run manually on flatsat"
+    reason="destructive: reboots and persists SAFE_MODE; run manually on flatsat"
 )
+@pytest.mark.verifies("FD-L2-01", "FD-L2-05", "FD-L2-09")
 def test_command_loss_enters_safe_mode(fprime_test_api: IntegrationTestAPI, start_gds):
-    """Command loss enters safe mode and the FaultManager observes it.
+    """Command loss enters safe mode and the FaultManager observes it (producer 2).
 
     Documented, not run in the automated campaign: forcing command loss means
-    shortening COMM_LOSS_TIME on the LoRa AuthenticationRouter and then not
-    commanding for that window, which stops the watchdog, reboots the board and
-    leaves persisted SAFE_MODE behind for every later test. Run it by hand on
-    the flatsat, with a manual EXIT_SAFE_MODE afterwards.
+    shortening COMM_LOSS_TIME on modeManager (the timer moved there from the
+    retired AuthenticationRouter at the 2026-09 upstream sync) and then not
+    commanding for that window, which enters safe mode, stops the watchdog,
+    reboots the board and leaves persisted SAFE_MODE behind for every later
+    test. Run it by hand on the flatsat, with a manual EXIT_SAFE_MODE afterwards.
 
-    No ``verifies`` marker: a skipped test proves nothing, and FD-L2-06 /
-    MS-L2-04 must not appear satisfied on the strength of a test that never
-    ran. The steps are:
-      1. SET_LEVEL 5 and record ShadowActionsSuppressed.
-      2. PRM_SET COMM_LOSS_TIME to a short window on
-         ComCcsdsLora.authenticationRouter.
+    The ``verifies`` marker records which FD-L2 rows this procedure is the
+    producer-2 evidence for; a skipped test is reported as deferred by
+    scripts/generate_rtm.py, never as passing. The steps are:
+      1. SET_LEVEL 5 and record ShadowActionsSuppressed and FaultCountCommandLoss.
+      2. PRM_SET COMM_LOSS_TIME to a short window on modeManager.
       3. Stay silent for that window.
-      4. Expect modeManager.EnteringSafeMode within 2 s of
-         authenticationRouter.CommandLossFound, and
-         faultManager.FaultConfirmed(COMMAND_LOSS) in the same second, with
-         ShadowActionsSuppressed advanced by exactly 1 (the manager would have
-         acted, but has no authority).
+      4. Expect modeManager.CommandLossDetected and
+         faultManager.FaultConfirmed(COMMAND_LOSS) in the same second, then
+         modeManager.EnteringSafeMode within 2 s with
+         GET_SAFE_MODE_REASON = COMMAND_LOSS, FaultCountCommandLoss advanced by
+         exactly 1 and ShadowActionsSuppressed advanced by exactly 1 (the
+         manager would have acted, but has no authority).
       5. After the reboot, EXIT_SAFE_MODE and restore COMM_LOSS_TIME.
     """
-    pytest.skip("destructive; documented for manual execution")
+    pytest.skip("destructive: reboots and persists SAFE_MODE; run manually on flatsat")

@@ -11,9 +11,10 @@
 // Oracle (TP-3): expected values are the parameter defaults declared in
 // FaultManager.fpp (AUTHORITY_ENABLED false, AUTHORITY_MASK 0,
 // DEBOUNCE_LOW_BATTERY 10, DEBOUNCE_THERMAL 1) and the producer behaviour the
-// action map reproduces (AuthenticationRouter::CallSafeMode stops the watchdog
-// and then forces safe mode with EXTERNAL_REQUEST; ModeManager enters safe
-// mode with reason LOW_BATTERY). None is read back from the code under test.
+// action map reproduces (ModeManager::commandLossCheck enters safe mode with
+// reason COMMAND_LOSS and stops the watchdog, since the 2026-09 upstream sync
+// retired the AuthenticationRouter; ModeManager enters safe mode with reason
+// LOW_BATTERY). None is read back from the code under test.
 // ======================================================================
 
 #include <gtest/gtest.h>
@@ -256,15 +257,19 @@ TEST_F(FaultManagerComponentTest, CommandLossAuthorityStopsWatchdogThenForcesSaf
     fm.authorityMask = BIT_COMMAND_LOSS;
     applyParameters();
 
-    EXPECT_EQ(report(FaultType::COMMAND_LOSS, FaultSource::AUTH_ROUTER), Disposition::CLAIMED);
+    EXPECT_EQ(report(FaultType::COMMAND_LOSS, FaultSource::MODE_MANAGER), Disposition::CLAIMED);
     tick();
 
-    // Same two ports, same order, same reason as AuthenticationRouter today.
+    // Same two ports as ModeManager::commandLossCheck, in the order the
+    // FaultManager-4 criterion pins (stopWatchdog first), and the reason
+    // upstream's own path persists: COMMAND_LOSS (Cycle F row F3), so a CLAIMED
+    // command loss leaves the same CurrentSafeModeReason behind as an OBSERVED one.
     ASSERT_EQ(fm.actionOrder.size(), 2u);
     EXPECT_EQ(fm.actionOrder[0], "stopWatchdog");
     EXPECT_EQ(fm.actionOrder[1], "forceSafeMode");
     ASSERT_EQ(fm.forceSafeModeCalls.size(), 1u);
-    EXPECT_EQ(fm.forceSafeModeCalls[0], Components::SafeModeReason::EXTERNAL_REQUEST);
+    EXPECT_EQ(fm.forceSafeModeCalls[0], Components::SafeModeReason::COMMAND_LOSS)
+        << "reasonFor(COMMAND_LOSS) must map to SafeModeReason::COMMAND_LOSS";
     EXPECT_EQ(fm.stopWatchdogCalls, 1u);
     ASSERT_EQ(fm.eventsFaultActionTaken.size(), 1u);
     EXPECT_EQ(fm.eventsFaultActionTaken[0].action, FaultAction::SAFE_MODE_AND_REBOOT);

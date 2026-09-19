@@ -547,6 +547,16 @@ bool ModeManager ::reportLowBattery(F32 voltage) {
     return disposition == Components::FaultDisposition::CLAIMED;
 }
 
+bool ModeManager ::reportCommandLoss(U32 elapsedSeconds) {
+    if (!this->isConnected_faultOut_OutputPort(0)) {
+        return false;
+    }
+    const Components::FaultDisposition disposition =
+        this->faultOut_out(0, Components::FaultType::COMMAND_LOSS, Components::FaultSource::MODE_MANAGER,
+                           Components::FaultSeverity::CRITICAL, static_cast<F32>(elapsedSeconds));
+    return disposition == Components::FaultDisposition::CLAIMED;
+}
+
 void ModeManager::commandLossCheck() {
     // Protect against concurrent access to command loss state
     Os::ScopeLock lock(this->m_commandLossMutex);
@@ -564,12 +574,19 @@ void ModeManager::commandLossCheck() {
         U32 commandLossDuration = this->m_commandLossCounter;
         this->log_WARNING_HI_CommandLossDetected(commandLossDuration);
 
-        // Trigger safe mode entry due to command loss
-        this->runSafeModeSequence();
-        this->enterSafeMode(Components::SafeModeReason::COMMAND_LOSS);
+        // Report once per loss episode (the debounce flag above guards this as
+        // it guards the rest). Observation only while the FaultManager is in
+        // shadow mode: a CLAIMED disposition means it owns the recovery action.
+        const bool claimed = this->reportCommandLoss(commandLossDuration);
 
-        // Stop the watchdog to trigger a hardware power cycle as a last resort for recovery
-        this->stopWatchdog_out(0);
+        if (!claimed) {
+            // Trigger safe mode entry due to command loss
+            this->runSafeModeSequence();
+            this->enterSafeMode(Components::SafeModeReason::COMMAND_LOSS);
+
+            // Stop the watchdog to trigger a hardware power cycle as a last resort for recovery
+            this->stopWatchdog_out(0);
+        }
     }
 }
 

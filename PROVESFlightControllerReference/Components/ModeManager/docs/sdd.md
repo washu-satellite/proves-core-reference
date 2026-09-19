@@ -97,6 +97,18 @@ An unconnected `faultOut` is treated as `OBSERVED`, so the component behaves ide
 deployment that does not instantiate a FaultManager. See
 `Components/FaultManager/docs/sdd.md`.
 
+Command loss is reported on the same port (F3). When `commandLossCheck()` finds the window expired
+it sets the debounce flag, logs `CommandLossDetected`, and reports `COMMAND_LOSS` /
+`MODE_MANAGER` / `CRITICAL` with the elapsed seconds as the value, exactly once per loss episode
+(the debounce flag guards the report as it guards the rest). `OBSERVED` (the shipped configuration,
+and an unconnected port) leaves upstream's action untouched: the safe mode sequence,
+`enterSafeMode(COMMAND_LOSS)` and one `stopWatchdog`. `CLAIMED` skips all three and leaves them to
+the FaultManager's `forceSafeMode` (which maps `COMMAND_LOSS` to the same reason) and `stopWatchdog`
+outputs, so no path stops the watchdog twice. The report is made while `m_commandLossMutex` is held;
+that is safe because `faultManager.faultIn` is guarded but its handler calls no output port,
+`FaultManager::run_handler` releases its lock before acting, and `forceSafeMode` is an async input
+here.
+
 ## Commands
 
 | Name | Description |
@@ -287,3 +299,4 @@ sequenceDiagram
 | 2026-09 | Persisted state moved from a raw `PersistentState` struct write to a PersistedRecord with magic `"MMS1"`, CRC-32 and atomic replace via `/mode_state.tmp`. A state that fails validation now boots SAFE/SYSTEM_FAULT with one `StatePersistenceFailure`; a missing file is a silent NORMAL first boot (MM0011, MM0012, issue #1). |
 | 2026-09-05 | Added `faultOut`: every low-voltage sample is reported to the FaultManager. A `CLAIMED` disposition hands the safe mode entry to that component; `OBSERVED` (the shipped configuration, and the behaviour when the port is unconnected) leaves the existing debounce and entry untouched. |
 | 2026-09 sync | Command-loss timer moved here from the retired AuthenticationRouter (upstream 1af2a0c5): `packetRouted` resets it, `stopWatchdog` fires after `COMM_LOSS_TIME`; `MAX_SAFE_MODE_REASON` raised 5 to 6 for `COMMAND_LOSS`; state restore now runs from the topology's `restorePersistentState()` call instead of an `init()` override. |
+| 2026-09 (F3) | `commandLossCheck()` reports `COMMAND_LOSS` on `faultOut` once per loss episode, before acting; `OBSERVED` (shipped) keeps upstream's action, `CLAIMED` hands safe mode entry and the watchdog stop to the FaultManager (FD-L2-01/05/09 producer 2). |
