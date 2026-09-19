@@ -1,5 +1,7 @@
 Manager for Payload Communiction
 
+Scope: this component is camera-specific — it acknowledges every received buffer with the Nicla `<MOISES>` token (`PayloadCom.cpp` `sendAck`) — and is not a generic payload transport; a payload that speaks its own framed protocol wires its handler directly to a `ZephyrUartDriver` instead (see `Components/DriverBoardHandler` for the direct-driver pattern).
+
 ## Usage Examples
 See CameraManager Component for how to use this!
 

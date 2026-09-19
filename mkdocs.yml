@@ -81,6 +81,8 @@ nav:
           - Com CCSDS S-Band: components/ComCcsdsSband.md
           - Com CCSDS LoRa: components/ComCcsdsLora.md
           - Payload Com: components/PayloadCom.md
+          - Driver Board Handler: components/DriverBoardHandler.md
+          - Driver Board Protocol: components/DriverBoardProtocol.md
           - Com Delay: components/ComDelay.md
           - Telemetry Gate: components/TelemetryGate.md
           - TC Frame Corrector: components/TcFrameCorrector.md

@@ -93,6 +93,8 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/ComCcsdsSband/docs/sdd.md docs-site/components/ComCcsdsSband.md
 	@cp PROVESFlightControllerReference/ComCcsdsLora/docs/sdd.md docs-site/components/ComCcsdsLora.md
 	@cp PROVESFlightControllerReference/Components/PayloadCom/docs/sdd.md docs-site/components/PayloadCom.md
+	@cp PROVESFlightControllerReference/Components/DriverBoardHandler/docs/sdd.md docs-site/components/DriverBoardHandler.md
+	@cp PROVESFlightControllerReference/Components/DriverBoardProtocol/docs/sdd.md docs-site/components/DriverBoardProtocol.md
 	@cp PROVESFlightControllerReference/Components/ComDelay/docs/sdd.md docs-site/components/ComDelay.md
 	@cp PROVESFlightControllerReference/Components/TcFrameCorrector/docs/sdd.md docs-site/components/TcFrameCorrector.md
 	@# Copy Core Components

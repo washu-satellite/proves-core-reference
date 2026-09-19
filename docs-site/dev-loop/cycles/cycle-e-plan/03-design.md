@@ -33,12 +33,14 @@ guarded input port uartRecv: Drv.ByteStreamData        @ from driverBoardUart.$r
 output port uartRecvReturn: Fw.BufferSend               @ every received buffer goes back, always
 output port uartSend: Drv.ByteStreamSend                @ synchronous; caller retains the buffer
 sync input port uartReady: Drv.ByteStreamReady          @ driver ready; sets m_link.driverReady
-guarded input port run: Svc.Sched                       @ 1 Hz: heartbeat/HK request, supervision, mode poll, telemetry
+sync input port run: Svc.Sched                          @ 1 Hz: heartbeat/HK request, supervision, mode poll, telemetry (sync, not guarded: review amendment 2; the handler brackets its state work with lock()/unLock() and calls uartSend only after unLock)
 output port getMode: Components.GetSystemMode           @ -> modeManager.getMode
 output port sampleOut: Components.PayloadSample         @ one call per SAMPLE frame; unconnected this cycle (A9 hook)
 ```
 `Components.PayloadSample` is a new port type declared in `DriverBoardHandler.fpp`: `port PayloadSample(boardTimeMs: U32, currentMa: I16[3] as three args, dutyPct: I8[3] as three args)`. The handler invokes it from `uartRecv_handler` for every parsed SAMPLE frame **only if the port is connected** (`isConnected_sampleOut_OutputPort()`), so this cycle's build drops samples at zero cost and counts them in `SamplesReceived` (U32, added to the packet: +4 B → 52 B values, 67 B wire, 73 B in frame). The A9 burst-capture component connects to it; it is passive and runs on the same 50 Hz thread, appending to its RAM ring; the recorder (A8, active) drains that ring on its own thread. Keeping the port on the handler rather than parsing SAMPLE frames in A9 keeps one owner for the wire protocol.
 plus time, cmd reg/recv/resp, event, text event, telemetry, param get/set.
+
+As built (E4): `uartRecvReturn_out` is called from inside the guarded `uartRecv_handler`, by design. The call runs on the 50 Hz thread that already holds the driver's own mutex (`ZephyrUartDriver.schedIn` is guarded and calls `$recv` from inside it), so returning the buffer re-enters that mutex recursively, exactly as `Svc.FrameAccumulator` does on the uplink; it is not the handler → driver ordering that amendment 2 forbids, because the driver's lock is taken first on both sides.
 
 Parameters (defaults = the team's 2026-09-17 decisions; validation = fallback-to-default in `parameterUpdated`, Cycle B pattern, `ComDelay.cpp:22-35`)
 | Param | Type | Range | Default | Effect |
@@ -65,7 +67,7 @@ Telemetry (types chosen for packet size; enums are `: U8`)
 | CoilCurrent0, 1, 2 | F32 A | HK currentMa / 1000 |
 | CoilTemperature0, 1 | F32 °C | HK tempDeciC / 10 |
 | PwmDuty0, 1, 2 | I8 % | HK |
-| DriverState | enum U8 {DISARMED, ARMED, PULSING, FAULT, UNKNOWN} | HK state, or UNKNOWN when LINK_DOWN |
+| DriverState | enum U8 {DISARMED, ARMED, PULSING, FAULT, UNKNOWN} | local transitions (ARM acknowledged, DISARM, ABORT, link loss, safe mode, board fault) write DISARMED/ARMED; an HK frame writes the state the board reports; UNKNOWN only for an HK state byte outside the protocol table, never for LINK_DOWN (as built, E4 deviation 4) |
 | FaultFlags | U8 | HK / FAULT |
 | LinkState | enum U8 {DOWN, UP} | supervision |
 | BoardUptime | U32 ms | HK |

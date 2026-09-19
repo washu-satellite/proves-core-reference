@@ -12,11 +12,11 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**303** requirements &middot; **122** linked to automated tests &middot; **68** verified by passing unit tests in this build &middot; **54** deferred to hardware (environment: host, no board in this environment)
+**304** requirements &middot; **124** linked to automated tests &middot; **68** verified by passing unit tests in this build &middot; **56** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
-*31 requirements &middot; 9 automated &middot; 0 passing*
+*31 requirements &middot; 10 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -36,17 +36,17 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | CDH-14 | The system shall manage onboard data storage for telemetry and housekeeping data. | Integration Test | Board | fsSpace.FreeSpace and TotalSpace update at least once per 45 s with 0 < FreeSpace <= TotalSpace (level 5); after uplinking a 4 KB file FreeSpace decreases by >= 4 KB within 45 s | *none* | ⬜ No automated test |  |
 | CDH-15 | The system shall detect and flag fault conditions. | Integration Test | Board | Each injected fault produces a WARNING event within 2 s: FACE_TEMP_UPPER_THRESHOLD set to 0 -> TemperatureAboveThreshold; COMM_LOSS_TIME expiry -> CommandLossFound; face0 switch OFF then GetTemperature -> DeviceNotReady | `thermal_threshold_test.py` :: test_01_face_temperature_above_threshold_is_flagged | ⏸ Integration (deferred: no board in host env) |  |
 | CDH-16 | The system shall log fault events for later retrieval. | Integration Test | Board | A WARNING_HI event raised before a COLD_RESET is retrievable after reboot from an on-board log via fileDownlink within 60 s [no on-board event log exists today] | *none* | ⬜ No automated test |  |
-| CDH-17 | The spacecraft shall support on-orbit upload, activation, and execution of reconfigurable controls-payload algorithms. | Demonstration | Flatsat | A payload algorithm image uplinked via FileUplink (FileReceived) is activated by command and the payload reports the new algorithm id in telemetry within 60 s [payload not interfaced] | *none* | ⬜ No automated test |  |
+| CDH-17 | The spacecraft shall support on-orbit upload, activation, and execution of reconfigurable controls-payload algorithms. | Demonstration | Flatsat | A payload algorithm image uplinked via FileUplink (FileReceived) is activated by command and the payload reports the new algorithm id in telemetry within 60 s [payload not interfaced] | *none* | ⬜ No automated test | link exists (Cycle E); STM32 reflash path absent |
 | CDH-18 | Spacecraft design should track current and voltage measurements for independent solar panels, battery, power distribution buses, and individual components. | Integration Test | Board | ina219Sys and ina219Sol Voltage and Current channels each update at least once per 45 s (level 5); per-panel, battery, bus and per-component channels [only 2 INA219 fitted: TBD by Mission Ops: sensor list] | *none* | ⬜ No automated test |  |
 | CDH-19 | The system shall be capable of taking input from a received command. | Integration Test | Board | CMD_NO_OP_STRING with argument Hello World! is acked OpCodeCompleted within 10 s and NoOpStringReceived echoes the argument, over the active uplink (UART job and radio job) | `command_path_test.py` :: test_01_no_op_string_round_trip | ⏸ Integration (deferred: no board in host env) |  |
-| CDH-20 | The system may be capable of uploading new algorithms to reconfigure the controls payload. | Demonstration | Flatsat | [may] Same as CDH-17 plus: an image with a bad signature/CRC is rejected and the previous algorithm stays active [not implemented] | *none* | ⬜ No automated test |  |
+| CDH-20 | The system may be capable of uploading new algorithms to reconfigure the controls payload. | Demonstration | Flatsat | [may] Same as CDH-17 plus: an image with a bad signature/CRC is rejected and the previous algorithm stays active [not implemented] | *none* | ⬜ No automated test | link exists (Cycle E); STM32 reflash path absent |
 | CDH-21 | The system shall be capable of detumbling. | Integration Test | Environmental | In a Helmholtz cage from an initial rate >= 8 deg/s, angular rate falls below 5 deg/s (DEADBAND thresholds) within [TBD by Mission Ops: minutes] with detumbleManager in AUTO | *none* | ⬜ No automated test |  |
 | CDH-22 | The system shall be capable of stabilising orientation. | Analysis | Environmental | After detumble the angular rate stays below 5 deg/s for [TBD by Mission Ops: duration]; B-dot damps rate only, no orientation hold exists (Analysis) | *none* | ⬜ No automated test |  |
 | CDH-23 | After detumble, the spacecraft may maintain coarse attitude stability with a steady-state pointing error (of #). | Analysis | Environmental | [may] Simulated or measured steady-state pointing error <= [TBD by Mission Ops: degrees] over [TBD by Mission Ops: duration] after detumble | *none* | ⬜ No automated test |  |
 | CDH-24 | The system may be capable of pointing in a specified direction. | Demonstration | Environmental | [may] Commanded pointing direction reached within [TBD by Mission Ops: degrees] [not implemented] | *none* | ⬜ No automated test |  |
 | CDH-25 | The system may be capable of measuring the settle time. | Analysis | Environmental | [may] Settle time from slew command to error below threshold is telemetered with 1 s resolution [not implemented] | *none* | ⬜ No automated test |  |
 | CDH-26 | The system may be capable of accurately reaching the specified point. | Demonstration | Environmental | [may] Final pointing error <= [TBD by Mission Ops: degrees] on 3 consecutive commanded targets [not implemented] | *none* | ⬜ No automated test |  |
-| CDH-27 | The system may downlink controls algorithm telemetry at least every 2 days. | Demonstration | Board | [may] detumbleManager Mode and coil telemetry received at least once in every 48 h window of a run >= 96 h (at P = 30 s this is >= 5760 receipts per window) | *none* | ⬜ No automated test |  |
+| CDH-27 | The system may downlink controls algorithm telemetry at least every 2 days. | Demonstration | Board | [may] detumbleManager Mode and coil telemetry received at least once in every 48 h window of a run >= 96 h (at P = 30 s this is >= 5760 receipts per window) | `driver_board_test.py` :: test_03_hk_channels_update | ⏸ Integration (deferred: no board in host env) |  |
 | CDH-28 | The system shall be capable of detecting or recovering from unstable control behaviour on-board. | Integration Test | Flatsat | With injected rate divergence (rate rising over 3 consecutive 50 Hz samples while torquing) detumbleManager stops torquing and emits a warning within [TBD by Mission Ops: s] [not implemented] | *none* | ⬜ No automated test |  |
 | CDH-29 | The system may be capable of holding the specified control input. | Demonstration | Environmental | [may] Commanded coil current held within [TBD by Mission Ops: percent] for [TBD by Mission Ops: duration] [not implemented] | *none* | ⬜ No automated test |  |
 | CDH-30 | The system may be capable of pointing in a direction specified by input from a received command. | Demonstration | Environmental | [may] Pointing direction from a ground command reached per CDH-24 [not implemented] | *none* | ⬜ No automated test |  |
@@ -85,7 +85,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
-| TM-L2-01 | System shall collect telemetry from all registered subsystem sources. | Integration Test | Board | Within 70 s at level 5 at least one update from each source: imuManager (3 channels), tmp112 x9, pico, ina219Sys/Sol, powerMonitor, fsSpace, startupManager, modeManager, lora, rateGroups x3; payload [not integrated] | `telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | Payload data not yet received into the telemetry pipeline |
+| TM-L2-01 | System shall collect telemetry from all registered subsystem sources. | Integration Test | Board | Within 70 s at level 5 at least one update from each source: imuManager (3 channels), tmp112 x9, pico, ina219Sys/Sol, powerMonitor, fsSpace, startupManager, modeManager, lora, rateGroups x3; payload [not integrated] | `driver_board_test.py` :: test_03_hk_channels_update<br>`telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | payload source registered by DriverBoardHandler (Cycle E, 387374b8); board evidence deferred to HP-15 |
 | TM-L2-02 | System shall support configurable telemetry collection intervals. | Integration Test | Board | After a source's COLLECTION_INTERVAL_S is set to N s (1..60), that source's channel updates are spaced N +/-1 s over 5 consecutive updates (telemetryDelay.DIVIDER 0, packet level 3) | `collection_interval_test.py` :: test_01_interval_spaces_channel_updates<br>`collection_interval_test.py` :: test_03_default_interval_updates_every_second | ⏸ Integration (deferred: no board in host env) | Subsystem sampling loops are tied to fixed frequencies; not configurable at runtime |
 | TM-L2-03 | System shall timestamp all collected telemetry. | Integration Test | Board | Every telemetry item received over 70 s carries a non-zero FSW time and per-channel timestamps are non-decreasing | `telemetry_sources_test.py` :: test_02_timestamps_present_and_monotonic | ⏸ Integration (deferred: no board in host env) |  |
 | TM-L2-04 | System shall package telemetry into structured data records. | Inspection | Unit | Every channel is packed by Svc.TlmPacketizer into the packets of ReferenceDeploymentPackets.fppi (id + time + values) and the GDS decodes all packets against the dictionary with zero decode errors | *none* | 📋 CDR: Met |  |
@@ -173,7 +173,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | ADCS-L2-03 | System may maintain coarse attitude stability. | Analysis | Environmental | [may] Coarse attitude held within [TBD by Mission Ops: degrees] after detumble [not implemented] | *none* | 📋 CDR: Not met | "May" requirement; no control logic beyond B-dot detumble implemented |
 | ADCS-L2-04 | System may collect and store attitude telemetry. | Integration Test | Board | [may] An attitude estimate channel is written each cycle and stored on board [not implemented; imu channels only] | *none* | 📋 CDR: Not met | "May" requirement; not implemented |
 | ADCS-L2-05 | System may schedule ADCS control loops. | Inspection | Unit | [may] detumbleManager runs in the 50 Hz group (topology.fpp:252); further control loops [not implemented] | *none* | 📋 CDR: Not met | "May" requirement; not implemented, requires nonlinear control logic |
-| ADCS-L2-06 | System may support downlink of control telemetry. | Integration Test | Board | [may] detumbleManager.Mode and coil parameter channels are received at least once per 45 s at level 6 | `telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | "May" requirement; not implemented |
+| ADCS-L2-06 | System may support downlink of control telemetry. | Integration Test | Board | [may] detumbleManager.Mode and coil parameter channels are received at least once per 45 s at level 6 | `driver_board_test.py` :: test_03_hk_channels_update<br>`telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | "May" requirement; not implemented |
 
 ## ADCS
 
@@ -272,7 +272,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## DriverBoardHandler
 
-*9 requirements &middot; 9 automated &middot; 9 passing*
+*10 requirements &middot; 10 automated &middot; 9 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -285,6 +285,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | DriverBoardHandler-7 | Housekeeping frames update telemetry | Unit Test | Unit | An HK frame with current {1500, -200, 0} mA, temp {251, 300}, duty {50, -50, 0}, state, flags → CoilCurrent0 = 1.5 F32, CoilTemperature0 = 25.1, PwmDuty1 = -50, DriverState, FaultFlags written once each | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.HousekeepingFramesUpdateTelemetry | ✅ Unit (passing) |  |
 | DriverBoardHandler-8 | Parameter validation falls back to default | Unit Test | Unit | PULSE_DURATION_MS 0 or 6000, PULSE_DUTY_PCT 101, LINK_TIMEOUT_MS 50, HK_INTERVAL_S 0 or 61, or INVALID → default value in effect, one ParameterRejected event each (throttle 5) | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.ParameterValidationFallsBackToDefault | ✅ Unit (passing) |  |
 | DriverBoardHandler-9 | Every received buffer is returned to the driver | Unit Test | Unit | For N `uartRecv` calls, N `uartRecvReturn` calls with the same buffer objects, regardless of content | `test_DriverBoardHandler_Component` :: DriverBoardHandlerComponent.EveryReceivedBufferIsReturned | ✅ Unit (passing) |  |
+| DriverBoardHandler-10 | End-to-end with the STM32 answering the spec | Integration Test | Flatsat | PING → PongReceived(version) within 2 s; ARM → Armed; PULSE 500 ms → PulseStarted then HK shows non-zero CoilCurrent on the masked channels within 2 s; DISARM → Disarmed; power the board off → LinkLost within LINK_TIMEOUT_MS + 1 s | `driver_board_test.py` :: test_09_end_to_end | ⏸ Integration (deferred: no board in host env) |  |
 
 ## DriverBoardProtocol
 
