@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**288** requirements &middot; **107** linked to automated tests &middot; **53** verified by passing unit tests in this build &middot; **54** deferred to hardware (environment: host, no board in this environment)
+**294** requirements &middot; **113** linked to automated tests &middot; **59** verified by passing unit tests in this build &middot; **54** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -269,6 +269,19 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | Cooldown Timing | After TORQUING, the component shall remain in COOLDOWN for at least `COOLDOWN_DURATION` before SENSING. | Instrument time via `timeCaller` and observe state changes. |  |  | *none* | ⬜ No automated test |  |
 | Parameter Telemetry | Coil configuration parameters shall be telemetered for all coils after configuration. | Call `configure()` and verify coil telemetry channels. |  |  | *none* | ⬜ No automated test |  |
 | Error Reporting | The component shall emit warning events when angular velocity or magnetic field retrieval fails. | Force non-success return codes and observe events. |  |  | *none* | ⬜ No automated test |  |
+
+## DriverBoardProtocol
+
+*6 requirements &middot; 6 automated &middot; 6 passing*
+
+| Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
+|---|---|---|---|---|---|---|---|
+| DriverBoardProtocol-1 | Encode produces `SYNC TYPE SEQ LEN PAYLOAD CRC` with CRC-16/CCITT-FALSE over TYPE..PAYLOAD | Unit Test | Unit | Round-trip of every message type is byte-identical; CRC equals `Crc16::ccitt` of the covered bytes | `test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.EncodeProducesSpecLayoutWithCrcOverTypeToPayload<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.EveryMessageTypeRoundTripsByteIdentical | ✅ Unit (passing) |  |
+| DriverBoardProtocol-2 | Parser accepts one valid frame per SYNC..CRC sequence | Unit Test | Unit | Feeding a valid frame byte-wise makes `feed()` return true exactly once, on the last CRC byte, and `frame()` then holds the same type, seq, len and payload | `test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.FeedIsTrueExactlyOnceOnTheLastCrcByte<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.BackToBackFramesAreEachDeliveredOnTheirLastByte<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.MaximumAndEmptyPayloadsParse | ✅ Unit (passing) |  |
+| DriverBoardProtocol-3 | Parser rejects and resynchronises | Unit Test | Unit | A corrupt CRC, a LEN > 32, or a truncated frame yields no frame and one counted rejection; the next valid frame after arbitrary garbage is still delivered | `test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.EverySingleByteCorruptionIsRejectedOnceAndTheNextFrameDelivered<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.EveryTruncationIsRejectedOnceAndTheNextFrameDelivered<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.CorruptCrcIsOneRejection<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.Len33IsRejectedAtTheLengthByte<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.ArbitraryGarbageThenFrameIsDelivered<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.FalseSyncInsidePayloadIsNotAFrameBoundary | ✅ Unit (passing) |  |
+| DriverBoardProtocol-4 | Fixed memory | Unit Test | Unit | Parser holds at most one 39-byte frame; no heap; `sizeof(Parser) <= 64` | `test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.ParserFitsIn64BytesAndNeverAllocates | ✅ Unit (passing) |  |
+| DriverBoardProtocol-5 | Wire units are integers | Unit Test | Unit | HK and SAMPLE payloads carry mA, 0.1 °C, percent and ms as integers; host-side conversion to F32 is exact for the ranges in 02 | `test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.HkAndSampleCarryIntegerUnitsAtSpecOffsets<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.HostConversionIsExactOverTheWholeWireRange | ✅ Unit (passing) |  |
+| DriverBoardProtocol-6 | Sequence continuity is observable | Unit Test | Unit | Two accepted frames with seq 5 then 7 leave `stats().accepted == 2` and `stats().seqGaps == 1`; seq 7 then 8 leaves `seqGaps` unchanged | `test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.SeqGapIsCountedAndContinuityIsNot<br>`test_DriverBoardProtocol_Codec` :: DriverBoardProtocolCodec.SeqWrapsWithoutAGapAndRejectedFramesDoNotAdvanceIt | ✅ Unit (passing) |  |
 
 ## Drv2605Manager
 

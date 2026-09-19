@@ -162,6 +162,15 @@ target_include_directories(tc_frame_corrector_component PUBLIC
 )
 target_link_libraries(tc_frame_corrector_component PUBLIC tc_frame_corrector_codec)
 
+# DriverBoardProtocol codec (pure logic, no F Prime / Os includes; Crc16 is
+# header-only and resolves through the project-root include path)
+add_library(driver_board_protocol STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/DriverBoardProtocol/DriverBoardProtocol.cpp
+)
+target_include_directories(driver_board_protocol PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
 # FaultManager fault table (pure logic, no F Prime / Os includes)
 add_library(fault_manager_table STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/FaultManager/FaultTable.cpp
@@ -227,6 +236,7 @@ foreach(test_src ${TEST_SOURCES})
         startup_manager_component
         tc_frame_corrector_codec
         tc_frame_corrector_component
+        driver_board_protocol
         task_gate_component
         fault_manager_table
         fault_manager_component
