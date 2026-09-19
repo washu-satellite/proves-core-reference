@@ -97,6 +97,18 @@ target_include_directories(persisted_record_file PUBLIC
 )
 target_link_libraries(persisted_record_file PUBLIC persisted_record_codec)
 
+# TcSecurityDeframer SequenceNumberStore (real SequenceNumberStore.cpp, an
+# F Prime-free helper over PersistedRecordFile; the component .cpp itself needs
+# psa/crypto.h and Fw::Buffer and is not built on the host)
+add_library(tc_security_deframer_sequence_store STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/TcSecurityDeframer/SequenceNumberStore.cpp
+)
+target_include_directories(tc_security_deframer_sequence_store PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(tc_security_deframer_sequence_store PUBLIC persisted_record_file)
+
 # TelemetryGate component (real TelemetryGate.cpp built against the host stubs
 # in support/: a recording ComponentAc base and an in-memory Os::File)
 add_library(telemetry_gate_component STATIC
@@ -286,6 +298,7 @@ foreach(test_src ${TEST_SOURCES})
         security_deframer_parser
         security_deframer_validator
         security_deframer_authenticator
+        tc_security_deframer_sequence_store
         rtc_manager_rtc_helper
         proves_router_bypasser
         persisted_record_codec

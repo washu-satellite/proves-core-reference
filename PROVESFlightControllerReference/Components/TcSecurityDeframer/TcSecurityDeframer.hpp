@@ -6,7 +6,6 @@
 #ifndef Components_TcSecurityDeframer
 #define Components_TcSecurityDeframer
 
-#include <FprimeExtras/Utilities/FileHelper/FileHelper.hpp>
 #include <Fw/Types/String.hpp>
 #include <Os/File.hpp>
 #include <Os/Mutex.hpp>

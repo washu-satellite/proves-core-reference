@@ -108,12 +108,20 @@ The MAC is HMAC-SHA-256 truncated to 16 bytes, computed over the Security Header
 
 At startup, `configure()` loads the persisted sequence number and telemeters it so the first downlinked value is correct before any command is accepted (issue #427).
 
+### Persistence
+
+The sequence number has a security consequence (it is the anti-replay baseline) and no plausibility test, so it is stored as a `PersistedRecord` (`Components/PersistedRecord`: magic + version + length + CRC-32, written to `<path>.tmp`, flushed, then renamed over the target) rather than a raw file, like the ModeManager state and the StartupManager quiescence file. The record type is `SequenceNumberStore` (`SequenceNumberStore.{hpp,cpp}`, F Prime-free so it is host-testable): magic `"ASN1"`, a 4-byte little-endian payload, at the `SEQ_NUM_FILE_PATH` parameter (default `/sequence_number.bin`).
+
+`readSequenceNumber` (called from `configure()`) maps the three load outcomes to one branch each: a valid record yields its value; a missing record is a first boot, baseline 0, no event, nothing written; a record that is present but corrupt, truncated or unreadable yields baseline 0 and exactly one `SequenceNumberRecordInvalid(status)` and is then rewritten as a valid baseline record so the next boot does not warn again. `writeSequenceNumber` (every accepted frame, `SET_SEQ_NUM`, and the baseline write-back) reports a failed store with the same event carrying the failing step's `PersistedRecord::Status`; the previous record is left intact on disk, and `SET_SEQ_NUM` answers `EXECUTION_ERROR`. The window check, HMAC verification and rejection events are unchanged by the persistence layer.
+
+Both deframer instances (`ComCcsdsLora`, `ComCcsdsUart`) share one path and therefore one `<path>.tmp` staging file, as the two Authenticate instances did before them. A write raced between the instances fails the CRC on the next load and restarts at 0 with one warning rather than reading garbage; the ground resyncs through `SEQ_NUM_WINDOW` either way. The raw file the FileHelper image wrote at `//sequence_number.txt` is left unread: the first boot of this image is a clean first boot at 0.
+
 ## Parameters
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | SEQ_NUM_WINDOW | U32 | 50000 | Maximum allowed forward sequence-number distance before rejecting a packet as out-of-window. |
-| SEQ_NUM_FILE_PATH | string | "//sequence_number.txt" | File path used to persist and restore the sequence number across restarts. |
+| SEQ_NUM_FILE_PATH | string | "/sequence_number.bin" | File path of the `PersistedRecord` (magic "ASN1") used to persist and restore the sequence number across restarts; the atomic-replace staging file is "<path>.tmp". |
 
 ## Port Descriptions
 
@@ -146,6 +154,7 @@ Routed/bypassed/rejected packet counts are telemetered by ProvesRouter, which ow
 | AuthenticationFailed | Warning High (throttle 2) | auth_status: PacketAuthenticatorStatus, rc: I32 | Logged when MAC verification fails. Format: "Authentication failed: Status={}, PSA Return Code={}" |
 | ParsingFailed | Warning High (throttle 2) | parse_status: PacketParserStatus | Logged when frame parsing fails. Format: "Parsing failed: {}" |
 | SpiInvalid | Warning High (throttle 2) | packet_spi: U32 | Logged when SPI validation fails. Format: "SPI invalid: Received={}" |
+| SequenceNumberRecordInvalid | Warning Low (throttle 2) | status: I32 | Logged once when the persisted record is present but corrupt, truncated or unreadable (baseline 0 used and written back), and on a failed store (previous record intact). status is the `PersistedRecord::Status` code. Format: "Sequence number record invalid or not stored, PersistedRecord status: {}" |
 
 ## Commands
 
@@ -186,18 +195,19 @@ The default authentication key header (AuthDefaultKey.h) is generated at build t
 
 ## Requirements
 
-| Name | Description | Validation |
-|---|---|---|
-| AUTH001 | The component shall parse incoming frames to extract the SPI, sequence number, and MAC fields. | Unit Test |
-| AUTH003 | The component shall validate that the SPI value corresponds to a configured Security Association. | Unit Test |
-| AUTH004 | The component shall validate the received sequence number against the stored sequence number. | Unit Test |
-| AUTH004-A | The component shall not authenticate packets with sequence numbers that are outside the acceptable window and shall log an event. | Unit Test, Inspection |
-| AUTH004-B | The component shall set the stored sequence number to the sequence number transmitted in the packet only when a packet is fully validated and authenticated. | Inspection |
-| AUTH004-C | The component shall allow the sequence number window to be configurable via a parameter. | Inspection |
-| AUTH005 | The component shall compute the MAC over the entire frame minus the last 16-byte security trailer. | Unit Test |
-| AUTH005-A | The component shall not mark packets as authenticated where the computed MAC does not match the security trailer MAC. | Unit Test |
-| AUTH006 | For any parseable frame, the component shall remove the Security Header and Security Trailer and forward the remaining packet data with the verification result recorded in the frame context. | Inspection, Integration Test |
-| AUTH007 | The component shall provide a command and telemetry channel to report the current sequence number to enable ground station synchronization. | Inspection, Integration Test |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|AUTH001|The component shall parse incoming frames to extract the SPI, sequence number, and MAC fields.|Unit Test|||||
+|AUTH003|The component shall validate that the SPI value corresponds to a configured Security Association.|Unit Test|||||
+|AUTH004|The component shall validate the received sequence number against the stored sequence number.|Unit Test|||||
+|AUTH004-A|The component shall not authenticate packets with sequence numbers that are outside the acceptable window and shall log an event.|Unit Test, Inspection|||||
+|AUTH004-B|The component shall set the stored sequence number to the sequence number transmitted in the packet only when a packet is fully validated and authenticated.|Inspection|||||
+|AUTH004-C|The component shall allow the sequence number window to be configurable via a parameter.|Inspection|||||
+|AUTH005|The component shall compute the MAC over the entire frame minus the last 16-byte security trailer.|Unit Test|||||
+|AUTH005-A|The component shall not mark packets as authenticated where the computed MAC does not match the security trailer MAC.|Unit Test|||||
+|AUTH006|For any parseable frame, the component shall remove the Security Header and Security Trailer and forward the remaining packet data with the verification result recorded in the frame context.|Inspection, Integration Test|||||
+|AUTH007|The component shall provide a command and telemetry channel to report the current sequence number to enable ground station synchronization.|Inspection, Integration Test|||||
+|AUTH013|The anti-replay sequence number shall be persisted as a PersistedRecord (magic ASN1, version, CRC) at SEQ_NUM_FILE_PATH, updated atomically; a corrupt or truncated record shall be detected, emit one warning event, and fall back to the first-boot baseline (sequence number 0) rather than adopting a corrupted value|Unit Test|Unit|Sequence number survives a reboot: a stored value is read back after component restart (a valid record round-trips through load); a missing record is baseline 0 with no event; for every single-byte corruption and every truncation of the record, load yields baseline 0 and exactly one SequenceNumberRecordInvalid, after which the baseline is rewritten as a valid record; a store that fails at any step leaves the previous record intact|||
 
 Opcode-based bypass policy (formerly AUTH002) is owned by ProvesRouter; see its SDD.
 
@@ -207,3 +217,4 @@ Opcode-based bypass policy (formerly AUTH002) is owned by ProvesRouter; see its 
 | --- | --- |
 | 2025-11-26 | Initial design. |
 | 2026-07-17 | Renamed to TcSecurityDeframer, refactor to discrete responsibilities: Authenticator, Parser, Validator. Pass-through interface between TcDeframer and SpacePacketDeframer; verification result carried in frame context; policy enforcement moved to ProvesRouter. |
+| 2026-09-19 | Sequence number persisted as a PersistedRecord (`SequenceNumberStore`, magic "ASN1") at `SEQ_NUM_FILE_PATH`, default `/sequence_number.bin`; new event `SequenceNumberRecordInvalid`; requirement AUTH013 (Cycle F, F2). |

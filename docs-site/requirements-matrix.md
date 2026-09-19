@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**307** requirements &middot; **125** linked to automated tests &middot; **70** verified by passing unit tests in this build &middot; **55** deferred to hardware (environment: host, no board in this environment)
+**308** requirements &middot; **127** linked to automated tests &middot; **71** verified by passing unit tests in this build &middot; **56** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -54,7 +54,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## CDH Command Handling (CH-L2)
 
-*20 requirements &middot; 12 automated &middot; 2 passing*
+*20 requirements &middot; 13 automated &middot; 2 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -62,7 +62,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | CH-L2-02 | System shall identify and extract complete CCSDS telecommand packets from incoming streams. | Integration Test | Board | 10 consecutive commands each acked within 10 s with zero tcDeframer InvalidFrameLength/InvalidCrc/InvalidSpacecraftId and zero spacePacketDeframer InvalidLength events | `command_path_test.py` :: test_02_ten_commands_no_deframer_errors | ⏸ Integration (deferred: no board in host env) |  |
 | CH-L2-03 | System shall reassemble fragmented command frames prior to processing. | Integration Test | Board | A CMD_NO_OP_STRING with a 40-char argument (frame larger than one 10 Hz UART read chunk) is acked and echoed intact; zero frameAccumulator FrameDetectionSizeError events | `command_path_test.py` :: test_02_ten_commands_no_deframer_errors | ⏸ Integration (deferred: no board in host env) |  |
 | CH-L2-04 | System shall validate command packet structure (header fields, length, opcode format). | Inspection | Unit | TcDeframer rejects bad SCID, length > available, bad VCID and bad CRC with the matching event and no forward (TcDeframer.cpp:60-101); SpacePacketDeframer rejects bad length (InvalidLength) | *none* | 📋 CDR: Met |  |
-| CH-L2-05 | System shall verify command integrity using CRC and/or authentication mechanisms. | Integration Test | Board | A non-bypass command framed with a stale sequence number is rejected: SequenceNumberOutOfWindow within 5 s and no OpCodeDispatched; the next correctly numbered command is accepted | *none* | 📋 CDR: Met | test retired with Authenticate; re-targeted in F2 |
+| CH-L2-05 | System shall verify command integrity using CRC and/or authentication mechanisms. | Integration Test | Board | A non-bypass command framed with a stale sequence number is rejected: ComCcsds*.tcSecurityDeframer.SequenceNumberInvalid within 5 s and no OpCodeDispatched; the next correctly numbered command is accepted; the last accepted sequence number survives WARM_RESET: after the reboot the deframer's GET_SEQ_NUM (SequenceNumberGet) and CurrentSequenceNumber report the reset frame's number, ahead of the pre-reset readback, not 0 | `tc_security_deframer_test.py` :: test_01_sequence_number_survives_warm_reset | ⏸ Integration (deferred: no board in host env) | re-targeted in F2 to the TcSecurityDeframer observables (test/int/tc_security_deframer_test.py); board run deferred |
 | CH-L2-06 | System shall discard malformed, incomplete, or invalid command packets. | Integration Test | Board | For the rejected packet of CH-L2-05: RejectedPacketsCount increases by 1 (level 5) and no OpCodeDispatched/OpCodeCompleted for that opcode within 5 s | *none* | 📋 CDR: Met |  |
 | CH-L2-07 | System shall deserialize command arguments into internal representations. | Integration Test | Board | CMD_NO_OP_STRING argument is echoed byte-exact in NoOpStringReceived; modeManager.GET_CURRENT_MODE returns CurrentModeReading with a valid SystemMode value | `command_path_test.py` :: test_01_no_op_string_round_trip | ⏸ Integration (deferred: no board in host env) |  |
 | CH-L2-08 | System shall forward validated commands to the command dispatcher. | Integration Test | Board | Every accepted command produces cmdDisp.OpCodeDispatched then OpCodeCompleted within 10 s | `command_path_test.py` :: test_01_no_op_string_round_trip | ⏸ Integration (deferred: no board in host env) |  |
@@ -541,7 +541,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## TcSecurityDeframer
 
-*10 requirements &middot; 0 automated &middot; 0 passing*
+*11 requirements &middot; 1 automated &middot; 1 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -555,6 +555,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | AUTH005-A | The component shall not mark packets as authenticated where the computed MAC does not match the security trailer MAC. | Unit Test |  |  | *none* | ⬜ No automated test |  |
 | AUTH006 | For any parseable frame, the component shall remove the Security Header and Security Trailer and forward the remaining packet data with the verification result recorded in the frame context. | Inspection, Integration Test |  |  | *none* | ⬜ No automated test |  |
 | AUTH007 | The component shall provide a command and telemetry channel to report the current sequence number to enable ground station synchronization. | Inspection, Integration Test |  |  | *none* | ⬜ No automated test |  |
+| AUTH013 | The anti-replay sequence number shall be persisted as a PersistedRecord (magic ASN1, version, CRC) at SEQ_NUM_FILE_PATH, updated atomically; a corrupt or truncated record shall be detected, emit one warning event, and fall back to the first-boot baseline (sequence number 0) rather than adopting a corrupted value | Unit Test | Unit | Sequence number survives a reboot: a stored value is read back after component restart (a valid record round-trips through load); a missing record is baseline 0 with no event; for every single-byte corruption and every truncation of the record, load yields baseline 0 and exactly one SequenceNumberRecordInvalid, after which the baseline is rewritten as a valid record; a store that fails at any step leaves the previous record intact | `test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.ValidFileRoundTripsStoredValue<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.PathIsTakenFromTheCallerAndStagedAtPathDotTmp<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.NoFileIsFirstBootBaselineZeroAndWritesNothing<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.EverySingleByteCorruptionIsCorruptExactlyOnceThenBaselineIsRewritten<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.EveryTruncationLengthIsCorruptWithBaselineZero<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.WrongMagicAndWrongVersionAreCorrupt<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.ShortPayloadInCrcValidRecordIsCorrupt<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.StoreFailureAtEveryStepKeepsPreviousRecord<br>`test_TcSecurityDeframer_SequenceNumberStore` :: SequenceNumberStoreTest.LegacyFileAtOldPathIsIgnored | ✅ Unit (passing) |  |
 
 ## TelemetryGate
 

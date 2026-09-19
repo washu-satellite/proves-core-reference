@@ -60,13 +60,16 @@ module Components {
         @ SpiInvalid indicates that a received packet had an invalid SPI value
         event SpiInvalid(packet_spi: U32) severity warning high id 4 format "SPI invalid: Received={}" throttle 2
 
+        @ SequenceNumberRecordInvalid indicates that the persisted sequence-number record at SEQ_NUM_FILE_PATH was present but corrupt, truncated or unreadable (the baseline 0 is used and written back), or that a store failed (the previous record is intact). status is the PersistedRecord::Status code
+        event SequenceNumberRecordInvalid(status: I32) severity warning low id 15 format "Sequence number record invalid or not stored, PersistedRecord status: {}" throttle 2
+
         ### Parameters ###
 
         @ Parameter for the sequence numbers window size, used to prevent replay attacks. The window allows no reuse of previous sequence numbers but allows for new sequence numbers to be accepted within the window size
         param SEQ_NUM_WINDOW : U32 default 50000
 
-        @ Parameter for the file path where the current sequence number is stored
-        param SEQ_NUM_FILE_PATH : string default "//sequence_number.txt"
+        @ Parameter for the file path where the current sequence number is stored as a PersistedRecord (magic "ASN1"); the atomic-replace staging file is "<path>.tmp"
+        param SEQ_NUM_FILE_PATH : string default "/sequence_number.bin"
 
         ### Ports ###
 
