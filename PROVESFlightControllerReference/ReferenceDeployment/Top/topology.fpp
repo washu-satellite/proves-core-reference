@@ -90,6 +90,9 @@ module ReferenceDeployment {
     instance fileUplinkCollector
     instance modeManager
     instance faultManager
+    instance driverBoardUart
+    instance driverBoardBufferManager
+    instance driverBoardHandler
     instance adcs
 
     # Face Board Instances
@@ -258,6 +261,7 @@ module ReferenceDeployment {
       # Ultra high rate (50Hz) rate group
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup50Hz] -> rateGroup50Hz.CycleIn
       rateGroup50Hz.RateGroupMemberOut[0] -> detumbleManager.run
+      rateGroup50Hz.RateGroupMemberOut[1] -> driverBoardUart.schedIn
 
       # High rate (10Hz) rate group
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup10Hz] -> rateGroup10Hz.CycleIn
@@ -266,6 +270,7 @@ module ReferenceDeployment {
       rateGroup10Hz.RateGroupMemberOut[2] -> ComCcsdsLora.aggregator.timeout
       #rateGroup10Hz.RateGroupMemberOut[3] -> ComCcsdsSband.aggregator.timeout
       rateGroup10Hz.RateGroupMemberOut[4] -> peripheralUartDriver.schedIn
+      rateGroup10Hz.RateGroupMemberOut[5] -> driverBoardBufferManager.schedIn
       rateGroup10Hz.RateGroupMemberOut[6] -> FileHandling.fileManager.schedIn
       rateGroup10Hz.RateGroupMemberOut[7] -> cmdSeq.schedIn
       rateGroup10Hz.RateGroupMemberOut[8] -> payloadSeq.schedIn
@@ -291,6 +296,7 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[10] -> taskGate.schedIn[Components.SchedTask.FS_SPACE]
       taskGate.schedOut[Components.SchedTask.FS_SPACE] -> fsSpace.run
       rateGroup1Hz.RateGroupMemberOut[11] -> payloadBufferManager.schedIn
+      rateGroup1Hz.RateGroupMemberOut[12] -> driverBoardHandler.run
       rateGroup1Hz.RateGroupMemberOut[13] -> FileHandling.fileDownlink.Run
       rateGroup1Hz.RateGroupMemberOut[14] -> startupManager.run
       rateGroup1Hz.RateGroupMemberOut[15] -> taskGate.schedIn[Components.SchedTask.POWER_MONITOR]
@@ -520,6 +526,28 @@ module ReferenceDeployment {
       # AUTHORITY_MASK is 0, which are the shipped parameter defaults.
       faultManager.forceSafeMode -> modeManager.forceSafeMode
       faultManager.stopWatchdog -> watchdog.stop
+    }
+
+    connections DriverBoard {
+      # Payload (driver board) link on uart1. Same direct-wiring shape as
+      # comDriver <-> ComCcsdsUart.comStub; the handler consumes the
+      # ByteStreamDriver interface itself. sampleOut is left unconnected
+      # (A9 hook).
+
+      # UART driver allocates/deallocates from its own BufferManager (4 x 128 B)
+      driverBoardUart.allocate   -> driverBoardBufferManager.bufferGetCallee
+      driverBoardUart.deallocate -> driverBoardBufferManager.bufferSendIn
+
+      # Driver -> handler (receive) and buffer return path
+      driverBoardUart.$recv -> driverBoardHandler.uartRecv
+      driverBoardHandler.uartRecvReturn -> driverBoardUart.recvReturnIn
+
+      # Handler -> driver (send) and driver-ready signal
+      driverBoardHandler.uartSend -> driverBoardUart.$send
+      driverBoardUart.ready -> driverBoardHandler.uartReady
+
+      # Mode poll on each 1 Hz tick (no ModeManager change)
+      driverBoardHandler.getMode -> modeManager.getMode
     }
 
     connections FatalHandler {

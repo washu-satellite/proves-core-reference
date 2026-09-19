@@ -108,6 +108,31 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.detumbleManager.DetumbleStrategy
   }
 
+  packet PayloadHousekeeping id 23 group 3 {
+    ReferenceDeployment.driverBoardHandler.LinkState
+    ReferenceDeployment.driverBoardHandler.DriverState
+    ReferenceDeployment.driverBoardHandler.FaultFlags
+    ReferenceDeployment.driverBoardHandler.CoilCurrent0
+    ReferenceDeployment.driverBoardHandler.CoilCurrent1
+    ReferenceDeployment.driverBoardHandler.CoilCurrent2
+    ReferenceDeployment.driverBoardHandler.CoilTemperature0
+    ReferenceDeployment.driverBoardHandler.CoilTemperature1
+    ReferenceDeployment.driverBoardHandler.PwmDuty0
+    ReferenceDeployment.driverBoardHandler.PwmDuty1
+    ReferenceDeployment.driverBoardHandler.PwmDuty2
+    ReferenceDeployment.driverBoardHandler.BoardUptime
+    ReferenceDeployment.driverBoardHandler.FirmwareVersion
+    ReferenceDeployment.driverBoardHandler.PulsesCommanded
+    ReferenceDeployment.driverBoardHandler.FramesReceived
+    ReferenceDeployment.driverBoardHandler.FramesRejected
+    ReferenceDeployment.driverBoardHandler.LinkTimeouts
+    ReferenceDeployment.driverBoardHandler.SamplesReceived
+    ReferenceDeployment.driverBoardHandler.PulseDurationMs
+    ReferenceDeployment.driverBoardHandler.PulseDutyPct
+    ReferenceDeployment.driverBoardHandler.LinkTimeoutMs
+    ReferenceDeployment.driverBoardHandler.HkIntervalS
+  }
+
   ### Payload Meta Data Packets ###
 
   packet CameraDebug id 14 group 4 {
@@ -342,6 +367,13 @@ telemetry packets ReferenceDeploymentPackets {
 
   payloadBufferManager.TotalBuffs
   payloadBufferManager.CurrBuffs
+
+  # Driver-board link pool (4 x 128 B): pool stats are not useful in normal ops
+  ReferenceDeployment.driverBoardBufferManager.TotalBuffs
+  ReferenceDeployment.driverBoardBufferManager.CurrBuffs
+  ReferenceDeployment.driverBoardBufferManager.HiBuffs
+  ReferenceDeployment.driverBoardBufferManager.NoBuffs
+  ReferenceDeployment.driverBoardBufferManager.EmptyBuffs
 
   CdhCore.version.FrameworkVersion
   CdhCore.version.ProjectVersion

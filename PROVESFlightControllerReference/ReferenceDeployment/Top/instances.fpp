@@ -250,4 +250,31 @@ module ReferenceDeployment {
 
   instance faultManager: Components.FaultManager base id 0x1007C000
 
+  # Payload (driver board) link on uart1: driver, its own buffer pool, handler
+  instance driverBoardUart: Zephyr.ZephyrUartDriver base id 0x1007D000
+
+  instance driverBoardBufferManager: Svc.BufferManager base id 0x1007E000 \
+  {
+    phase Fpp.ToCpp.Phases.configObjects """
+    Svc::BufferManager::BufferBins bins;
+    """
+    phase Fpp.ToCpp.Phases.configComponents """
+    memset(&ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins, 0, sizeof(ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins));
+    // UART RX buffers for the driver-board link (128 B, 4 buffers); separate from the camera pool
+    ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins.bins[0].bufferSize = 128;
+    ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins.bins[0].numBuffers = 4;
+    ReferenceDeployment::driverBoardBufferManager.setup(
+        2,  // manager ID
+        0,  // store ID
+        ComCcsds::Allocation::memAllocator,  // Reuse existing allocator from ComCcsds subtopology
+        ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins
+    );
+    """
+    phase Fpp.ToCpp.Phases.tearDownComponents """
+    ReferenceDeployment::driverBoardBufferManager.cleanup();
+    """
+  }
+
+  instance driverBoardHandler: Components.DriverBoardHandler base id 0x1007F000
+
 }
