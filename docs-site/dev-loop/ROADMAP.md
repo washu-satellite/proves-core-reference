@@ -3,8 +3,8 @@
 Written 2026-09-19 after Cycle F. This is the one document that says what comes next and why; the cycle plans under
 `cycles/` say how. When this file and an older "suggested order" disagree, this file wins.
 
-State: branch `feat/upstream-sync` @ 135d5af1 = Cycle E (payload link) + Cycle F (synced with upstream PROVES a477893b,
-F' 4.3.0, Zephyr 4.4.1). PR #10 open, lint + unit-test green on CI. Image: FLASH 69.5 %, RAM 62.2 %, 23/24 packets,
+State: branch `feat/upstream-sync` @ 6a1589b2 = Cycles E–H (payload link; synced with upstream PROVES through #516,
+F' 4.3.0, Zephyr 4.4.2; A10; capacity audit). PR #10 open, lint + unit-test green on CI. Image: FLASH 69.5 %, RAM 62.2 %, 23/24 packets,
 244/256 channels, 30 host binaries. **Nothing built since 2026-09-05 has run on a board.**
 
 ## Standing rules
@@ -17,8 +17,8 @@ F' 4.3.0, Zephyr 4.4.1). PR #10 open, lint + unit-test green on CI. Image: FLASH
    milestone below is a gate for A8's activation row and everything after it.
 4. **Results before methods.** Plans state observable results; tests are written by a separate agent from the normative sections alone, before any implementation exists (skill Stage 3b), and their hashes are pinned in the review so the coder cannot reshape them; coders may change methods.
    Per-row commits, gate before each, one coder in the tree at a time, revert on regression.
-5. **Capacity constants are checked in the gate**, never assumed (`scripts/check_packet_set.py` today; the audit script
-   below extends it). A firmware build succeeding says nothing about boot.
+5. **Capacity constants are checked in the gate**, never assumed (`scripts/check_capacity.py`, ten lines, since Cycle H).
+   A firmware build succeeding says nothing about boot.
 6. **Persistence follows the consequence rule** in `Components/PersistedRecord/docs/sdd.md`.
 7. **Parameter vs file vs constant follows `design/parameter-policy.md`.** A plan that re-bins a value says so in its normative section.
 
@@ -27,7 +27,7 @@ F' 4.3.0, Zephyr 4.4.1). PR #10 open, lint + unit-test green on CI. Image: FLASH
 | # | Item | Blocked on | Size | Done when |
 |---|---|---|---|---|
 | 1 | **DONE 2026-09-19 (7658b28e)** — A10 — parameters re-read at boot in ThermalManager, ADCS, PowerMonitor, ImuManager, FaultManager, ComDelay, and upstream's RtcManager and DetumbleManager (same defect; offer the fix upstream) (F' `loadParameters()` never calls `parameterUpdated()`) | nothing | 1 row, ≤ 1 day | host test per component: a database value present at boot is the effective value on tick 1 and appears in the effective-value channel |
-| 2 | **Capacity audit** — also make `scripts/verify.sh` clear `build-gtest` before the host build (today it builds incrementally and can link a stale object after a `cp`-restored source; Cycle G finding). One gate script covering `MAX_PACKETIZER_PACKETS/CHANNELS`, `CMD_DISPATCHER_DISPATCH_TABLE_SIZE`, `PRMDB_NUM_DB_ENTRIES`, `ActiveRateGroupOutputPorts` per group, `FaultInPorts`, `FaultType` mask width, TaskGate slots, against the built dictionary and topology | nothing | 1 row, ≤ 1 day | script fails on a synthetic overflow of each constant; wired into `verify.sh` |
+| 2 | **DONE 2026-09-19 (6a1589b2)** — Capacity audit: `scripts/check_capacity.py` (ten lines, FAIL/WARN/INFO/SKIP, exit 0/1/2) in `verify.sh`; host build always from an empty directory; `scripts/tests` (44 cases, AUDIT-1..9) in the gate; tests written before the code (26041de4). Headroom today: packets 1, channels 12, dispatch 125, fault types 0, rate groups 23/14/7 | nothing | — | done: synthetic overflow of each boot-assert constant fails; PrmDb is INFO by design |
 | 3 | **Bench milestone** — flash the synced image; **first-program the STM32** (v8 routes no SWD/BOOT0: bodge BOOT0 high via the R19 pad through reset, then program over J3 with a USB-serial adapter; C-32); boot (expect one `BootCountCorrupted`, count → 1); HP-15 loopback smoke on J18 9↔10; the persistence check (warm reset read-back; cold reset 100 ms after `PRM_SAVE_FILE`); record memory/dictionary from a live board; tag `f-bench-ok` | a V5e on a cable, an afternoon | — | HP-15 §A and §C pass; results in the ledger |
 | 4 | **A8 — DataRecorder** (design in `design/stored-data/`): fix slot 20 → 21, dictionary key `members`, `Os::Directory` at fprime-zephyr b14101dd; raise `MAX_PACKETIZER_CHANNELS` (≈ +14 channels → 288); codec + ring rows first, activation row after milestone 3 | items 1-3 | 1 cycle, ~7 rows | segments written, downlinked, decoded on the bench; event before reset retrievable after |
 | 5 | **A9 — BurstCapture**: consumes `driverBoardHandler.sampleOut`, batches into A8's third stream, STREAM_START/STOP on the handler, loopback inject for testing without the STM32 | A8; parameter defaults (see owed decisions) | 1 cycle, ~7 rows | a commanded burst lands as a segment file and decodes |

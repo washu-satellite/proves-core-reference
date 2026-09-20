@@ -82,4 +82,14 @@ b6222a4cff61886c1871d4c96e0c6b95c49a85a814f4235dd5bd42c8e27ba781  scripts/tests/
 Commit order for this cycle: tests and rows first (the gate stays green because `verify.sh` does not yet run
 `scripts/tests`), then the implementation row. Git then shows the tests predating the code.
 
-## Gate — filled in at Stage 5
+## Gate — Stage 5, 2026-09-19, run by the reviewer from `rm -rf build-gtest`
+`result: PASS`, `unverified: (none)`; 30 host binaries PASSED; `44 passed in 36.68s`; matrix 322 / 140 / 84; wall 1:15.6
+(today's gate ~45 s → +30 s, inside the +90 s bound). Test hashes reproduced exactly; `git diff --stat 6b22f72d -- lib/
+PROVESFlightControllerReference/` empty; matrix diff = header + AUDIT group + nine rows. Implementation commit 6a1589b2
+(coder: Opus 5), tests commit 26041de4 (author: Fable 5.1) — the tests predate the code in history.
+
+Correction to the reference table above: the planner counted commented-out S-band connections (`topology.fpp:289,297,
+298,304,307`). Live connections are 50 Hz 2 (max index 1), 10 Hz **11** (max 13), 1 Hz **18** (max 20); free 23 / 14 / 7.
+Coder deviations accepted: `mkdir -p "$BUILD"` at the top; missing `--script-junit` silent; skipped script case → `None`
+(no result), not `False`. Finding carried to the ledger: `generate_rtm.py` drops a marker separated from its `def` by a
+multi-line decorator (one AUDIT-3 test unlinked; row still linked by six others).
