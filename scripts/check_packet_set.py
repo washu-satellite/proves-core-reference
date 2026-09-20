@@ -29,11 +29,17 @@ Exit status 1 with a message when either limit is exceeded, else 0. A warning
 
 Usage: ``fprime-venv/bin/python3 scripts/check_packet_set.py`` from the repo root.
 ``--packets`` and ``--config`` point it at other copies of the two files.
+
+``check(packets, config)`` does the same work without printing anything, for
+callers that need the counts: ``scripts/check_capacity.py`` builds the two
+packetizer lines of the capacity audit from it, so the packet-set parsing and
+the packetizer limits are read in exactly one place.
 """
 
 import argparse
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -147,7 +153,46 @@ def display(path: Path) -> str:
         return str(path)
 
 
+@dataclass(frozen=True)
+class PacketSetResult:
+    """The packet set and the packetizer limits it has to fit into."""
+
+    packets: list[tuple[str, int, int]]
+    packet_channels: set[str]
+    omit_channels: set[str]
+    max_packets: int
+    limit_name: str
+    limit: int
+
+    @property
+    def channels(self) -> set[str]:
+        """Every distinct channel the packetizer allocates a slot for."""
+        return self.packet_channels | self.omit_channels
+
+
+def check(packets: Path, config: Path) -> PacketSetResult:
+    """Parse the packet set and the packetizer config without printing anything.
+
+    Raises ``ValueError`` when a limit is missing from the config header and
+    ``OSError`` when either file cannot be read; the caller decides how to
+    report that.
+    """
+    declared, packet_channels, omit_channels = parse_packet_set(packets.read_text())
+    cfg = config.read_text()
+    max_packets = parse_limit(cfg, "MAX_PACKETIZER_PACKETS", config)
+    limit_name, limit = find_channel_limit(cfg, config)
+    return PacketSetResult(
+        packets=declared,
+        packet_channels=packet_channels,
+        omit_channels=omit_channels,
+        max_packets=max_packets,
+        limit_name=limit_name,
+        limit=limit,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
+    """Print the packet-set report and return the process exit status."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--packets", type=Path, default=PACKETS_FPPI, help="packet-set .fppi file"
@@ -157,11 +202,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    packets, packet_channels, omit_channels = parse_packet_set(args.packets.read_text())
-    channels = packet_channels | omit_channels
-    cfg = args.config.read_text()
-    max_packets = parse_limit(cfg, "MAX_PACKETIZER_PACKETS", args.config)
-    limit_name, limit = find_channel_limit(cfg, args.config)
+    result = check(args.packets, args.config)
+    packets = result.packets
+    packet_channels = result.packet_channels
+    omit_channels = result.omit_channels
+    channels = result.channels
+    max_packets = result.max_packets
+    limit_name = result.limit_name
+    limit = result.limit
 
     print(f"packet set:  {display(args.packets)}")
     print(f"config:      {display(args.config)}")
