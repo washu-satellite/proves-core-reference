@@ -93,3 +93,6 @@ Correction to the reference table above: the planner counted commented-out S-ban
 Coder deviations accepted: `mkdir -p "$BUILD"` at the top; missing `--script-junit` silent; skipped script case → `None`
 (no result), not `False`. Finding carried to the ledger: `generate_rtm.py` drops a marker separated from its `def` by a
 multi-line decorator (one AUDIT-3 test unlinked; row still linked by six others).
+
+CI on PR #10 at 9a4b2166 (run 35488066212): `lint` pass 40 s, `unit-test` pass 3 m 26 s. CI runs `make test-unit` only, so
+`scripts/tests` is not yet CI evidence (follow-up: add it to `test-unit` and `ci.yaml`).
