@@ -20,6 +20,7 @@ F' 4.3.0, Zephyr 4.4.1). PR #10 open, lint + unit-test green on CI. Image: FLASH
 5. **Capacity constants are checked in the gate**, never assumed (`scripts/check_packet_set.py` today; the audit script
    below extends it). A firmware build succeeding says nothing about boot.
 6. **Persistence follows the consequence rule** in `Components/PersistedRecord/docs/sdd.md`.
+7. **Parameter vs file vs constant follows `design/parameter-policy.md`.** A plan that re-bins a value says so in its normative section.
 
 ## Ordered queue
 
@@ -51,7 +52,7 @@ the next driver-board revision).
 | HMAC key: restore the pre-sync key from elsewhere, or accept reflash of old-image boards | bench | Jesse | new key stands |
 | Merge PR #10 to `main` now (rule 2) | before A10's PR | Jesse | — |
 | Who owns A1 | A9's end-to-end test | Jesse | unassigned |
-| Coil geometry: keep 27 DetumbleManager params, or replace with 5 per-coil dipole scales from the Q15 identification | A9 or later | controls | keep for now |
+| Coil geometry: **decided 2026-09-19 — compile-time constants** (hardware values; frees ~29 of DetumbleManager's 34 parameters). Row for a later cycle; policy in `design/parameter-policy.md` | A9 or later | Jesse | — |
 
 ## Environment items (one-time)
 
