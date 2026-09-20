@@ -4,7 +4,7 @@ Written 2026-09-19 after Cycle F. This is the one document that says what comes 
 `cycles/` say how. When this file and an older "suggested order" disagree, this file wins.
 
 State: branch `feat/upstream-sync` @ 6a1589b2 = Cycles E–H (payload link; synced with upstream PROVES through #516,
-F' 4.3.0, Zephyr 4.4.2; A10; capacity audit). PR #10 open, lint + unit-test green on CI. Image: FLASH 69.5 %, RAM 62.2 %, 23/24 packets,
+F' 4.3.0, Zephyr 4.4.2; A10; capacity audit), **merged to `main` as 42ea3d9c on 2026-09-19** (PR #10, lint + unit-test green). Image: FLASH 69.5 %, RAM 62.2 %, 23/24 packets,
 244/256 channels, 30 host binaries. **Nothing built since 2026-09-05 has run on a board.**
 
 ## Standing rules
@@ -50,7 +50,7 @@ the next driver-board revision).
 | Magnetometer hard-iron offset: parameter (3 floats) or calibration file | A9 or IMU row | Jesse | parameter |
 | Transmit power: stay compile-time (measure once) or ask upstream for a driver parameter | link budget C-29 | Jesse / comms | compile-time |
 | HMAC key: restore the pre-sync key from elsewhere, or accept reflash of old-image boards | bench | Jesse | new key stands |
-| Merge PR #10 to `main` now (rule 2) | before A10's PR | Jesse | — |
+| ~~Merge PR #10 to `main`~~ — done 2026-09-19 (42ea3d9c); next cycles branch from `main` | — | — | — |
 | Who owns A1 | A9's end-to-end test | Jesse | unassigned |
 | Coil geometry: **decided 2026-09-19 — compile-time constants** (hardware values; frees ~29 of DetumbleManager's 34 parameters). Row for a later cycle; policy in `design/parameter-policy.md` | A9 or later | Jesse | — |
 
