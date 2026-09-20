@@ -48,13 +48,14 @@ Rules of thumb: a parameter without a consumer is dead code a test cannot claim;
 | full | radio transmit power | lora (library; compile-time today) | decision owed (C-29) |
 | full | magnetometer hard-iron offset (3 floats) | ImuManager | planned; parameter vs calibration file owed |
 | extended | control-loop rate, controller enable | DriverBoardHandler / STM32 | planned |
-| extended | per-mode TaskGate mask and load-switch mask | ModeManager (mode layer) | planned |
-| extended | fault-policy overlay per mode | FaultManager | planned |
+| extended | *(none — activities carry no parameters)* the activity axis is data in sequence files: `activity_<x>_enter/exit.seq` per activity; decided 2026-09-19, brief in `design/activity-axis.md` | ActivityManager (new, separate from ModeManager) | staged for a separate implementer |
+| extended | fault action PAYLOAD_ABORT (= force activity NONE); FaultManager reads the activity through a get port | FaultManager | later row, after the activity axis |
 
 ## Files, not parameters
 
-LQR gain schedule (Q17), soft-iron matrix, mode entry / exit sequences (`sequences/*.seq`), TLE + epoch (Q16),
-STM32 firmware image (roadmap 5b).
+LQR gain schedule (Q17), soft-iron matrix, **activity entry / exit sequences** (`sequences/activity_*.seq`: rail, ping,
+B-dot stand-down, ARM and their reverse — the whole CONOPS switching lives here), TLE + epoch (Q16), STM32 firmware
+image (roadmap 5b). `SystemMode` stays SAFE_MODE / NORMAL only; no CONOPS mode is ever added to it.
 
 ## Maintenance
 
