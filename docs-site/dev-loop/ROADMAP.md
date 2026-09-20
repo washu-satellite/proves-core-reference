@@ -15,7 +15,7 @@ F' 4.3.0, Zephyr 4.4.1). PR #10 open, lint + unit-test green on CI. Image: FLASH
    real baseline instead of a July snapshot.
 3. **A code cycle does not activate hardware-facing wiring until the previous image has booted on a board.** The bench
    milestone below is a gate for A8's activation row and everything after it.
-4. **Results before methods.** Plans state observable results; tests derive from them; coders may change methods.
+4. **Results before methods.** Plans state observable results; tests are written by a separate agent from the normative sections alone, before any implementation exists (skill Stage 3b), and their hashes are pinned in the review so the coder cannot reshape them; coders may change methods.
    Per-row commits, gate before each, one coder in the tree at a time, revert on regression.
 5. **Capacity constants are checked in the gate**, never assumed (`scripts/check_packet_set.py` today; the audit script
    below extends it). A firmware build succeeding says nothing about boot.
