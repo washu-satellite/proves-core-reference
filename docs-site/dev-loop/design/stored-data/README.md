@@ -1,5 +1,10 @@
 # Stored data design: saving data that is not immediately downlinked (index)
 
+> Status 2026-09-20: design still authoritative for A8; written at cab7439, so the commit table below and `01-current-state.md`
+> predate the upstream sync. Known stale references A8's first row must fix (ROADMAP item 4): 1 Hz slot 20 → 21, dictionary key
+> `members`, `Os::Directory` at fprime-zephyr b14101dd, `MAX_PACKETIZER_CHANNELS` must be raised. Budgets after the sync:
+> `../../cycles/cycle-sequencing-E-A8-A9.md`.
+
 Branch `feat/persisted-record` @ cab7439, written 2026-09-06. Paths are relative to the repo root; `P` = `PROVESFlightControllerReference`.
 Read `CLAUDE.md` first. This is a design, not a cycle plan: it decides *how* the flight software keeps data on board until a
 ground pass can take it, and maps that decision onto the CDR Storage Management rows (DH-L2-01..14, CDH-8/12/14/16/27).

@@ -1,5 +1,8 @@
 # Commit plan for E → A8 → A9: one module per commit, each independently revertible
 
+> Status 2026-09-20: rules 1–7 are live (now also in `.claude/skills/cdh-cycle/SKILL.md` Stage 5). The E and F sections below are
+> history; their landed hashes are in `README.md`. The A8/A9 sections are the plan still to run. Budgets: `cycle-sequencing-E-A8-A9.md`.
+
 Rules that make rollback clean:
 1. **Every commit builds and passes the host gate on its own** (`VERIFY_ENV=host scripts/verify.sh`); commits that touch `.fpp`,
    topology or `project/config` also pass the target compile and the dictionary check before they land.

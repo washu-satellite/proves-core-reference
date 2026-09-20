@@ -1,5 +1,7 @@
 # Sequencing Cycle E, A8 (DataRecorder) and A9 (BurstCapture) so they do not conflict
 
+> Status 2026-09-20: E is done (see `README.md`); this file stays the **ownership map and slot/budget table** for A8 and A9. Schedule: `../ROADMAP.md`.
+
 Written 2026-09-18 against `main` @ cab7439, `cycle-e-plan/`, and `../design/stored-data/`. Order: **E → A8 → A9.** Each is one
 `cdh-cycle` run. A9 is a *producer* into A8, so it is small once A8 exists; building A9 first would duplicate A8's file writing
 and cost 26 KB of RAM that A8 then makes redundant.

@@ -24,6 +24,8 @@ Full build/setup detail is in `AGENTS.md` (§Project Structure at ~line 133). Th
 | CI | `.github/workflows/ci.yaml` (lint, unit-test on ubuntu; build + integration on self-hosted hardware), `deploy-docs.yml` |
 | Conventions | `AGENTS.md`, `.clang-format` (4-space, 120 col), `cpplint.cfg` (`#ifndef` guards), `.pre-commit-config.yaml` (runs on commit, includes codespell) |
 
+Decisions (why): `docs-site/dev-loop/decisions/` — append-only records; link to them, never paraphrase. Ownership of every kind of fact: `docs-site/dev-loop/decisions/README.md`.
+
 ## Commands that work at this checkout path
 
 The path contains spaces and an apostrophe; `make` targets fail, and bare `python3` resolves to a broken foreign venv. Use these raw forms from the repo root:
