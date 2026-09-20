@@ -137,6 +137,12 @@ packet set holds 23 packets of `MAX_PACKETIZER_PACKETS` = 24 and names 244 of
 
 An `INVALID` or `UNINIT` read of any of these falls back to the value in the Default column.
 
+Saved values are applied at boot through the F Prime 4.3.0 `parametersLoaded()` hook, before the
+first tick (A10): once `AUTHORITY_ENABLED` / `AUTHORITY_MASK` have been saved with `PRM_SAVE_FILE`
+they survive a reboot, so a reboot no longer returns FDIR to shadow mode (the intended end state of
+the authority-enable procedure), and `FaultAuthorityChanged` is emitted once at boot when the saved
+gate differs from the compiled default. With nothing saved the defaults above hold (FaultManager-1).
+
 ## Telemetry
 
 All 13 channels are `update on change` and belong to the `Faults` packet (id 9, level 5).
@@ -198,9 +204,11 @@ Pass criteria are decided before testing; edit with `scripts/req.py`, not by han
 |FaultManager-7|CLEAR_FAULTS shall clear every recorded fault and counter and GET_FAULT_STATUS shall report the current summary, both returning OK|Unit Test|Unit|After CLEAR_FAULTS: FaultsDetected, FaultsConfirmed and ActiveFaults are 0, one FaultsCleared event, response OK. GET_FAULT_STATUS emits one FaultStatusReport carrying the current active mask, totals and effective authority, response OK|||
 |FaultManager-8|The Faults telemetry packet shall be downlinked at telemetry level 5|Integration Test|Board|With CdhCore.tlmSend at SET_LEVEL 5, FaultsDetected, ActiveFaults and AuthorityState are received within 45 s|||
 |FaultManager-9|FaultManager shall never call an output action port while holding the guarded lock, and every lock shall be balanced by an unlock|Unit Test|Unit|Across every tested report and tick sequence, including the authority-enabled action paths: the recorder never observes a forceSafeMode or stopWatchdog call with lock depth greater than 0, and lock depth returns to 0 with no unlock underflow|||
+|FaultManager-10|AUTHORITY_ENABLED, AUTHORITY_MASK and the debounce parameters saved in PrmDb shall be effective before the first run tick after boot, without any PRM_SET; an unusable saved value falls back to the shadow default|Unit Test|Unit|With AUTHORITY_ENABLED true and AUTHORITY_MASK 0x10 (LOW_BATTERY) VALID in the stub and no parameterUpdated call, after parametersLoaded() exactly one FaultAuthorityChanged(true, 0x10), AuthorityState telemetry after one tick reads 0x10, and a confirmed LOW_BATTERY is actioned (forceSafeMode called once) rather than OBSERVED; with paramValidity INVALID (host-stub case): no event and FaultManager-1 shadow behaviour; a parameterUpdated after boot applies as today with no duplicate event|||
 
 ## Change Log
 | Date | Description |
 |---| --- |
 |Sep 2026| Initial version: shadow-mode fault detection, four producer hooks, Faults packet id 9 |
 |2026-09 (F3)| Producer 2 re-sourced: `COMMAND_LOSS` now arrives from `ModeManager::commandLossCheck` on slot 1 (the AuthenticationRouter and slot 2 are retired, upstream 1af2a0c5); `reasonFor(COMMAND_LOSS)` maps to `SafeModeReason::COMMAND_LOSS` so a CLAIMED command loss persists the same reason as upstream's path |
+|2026-09-19 (A10)| `parametersLoaded()` override applies saved `AUTHORITY_ENABLED` / `AUTHORITY_MASK` / debounces at boot; a reboot no longer returns FDIR to shadow mode once authority has been saved; one `FaultAuthorityChanged` at boot when the saved gate differs from the default (FaultManager-10) |

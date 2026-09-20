@@ -47,6 +47,10 @@ class ThermalManager final : public ThermalManagerComponentBase {
     void parameterUpdated(FwPrmIdType id  //!< The parameter ID
                           ) override;
 
+    //! Apply the parameters loadParameters() has just read from PrmDb, so a
+    //! saved interval is effective before the first tick (F Prime 4.3.0 hook)
+    void parametersLoaded() override;
+
     // ----------------------------------------------------------------------
     // Handler implementations for typed input ports
     // ----------------------------------------------------------------------

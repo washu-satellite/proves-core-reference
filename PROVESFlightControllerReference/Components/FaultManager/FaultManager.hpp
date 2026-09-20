@@ -87,6 +87,12 @@ class FaultManager : public FaultManagerComponentBase {
     //! that is INVALID or UNINIT falls back to the shadow-mode default.
     void parameterUpdated(FwPrmIdType id) override;
 
+    //! Apply the parameters loadParameters() has just read from PrmDb, so a
+    //! saved authority grant and debounce are effective before the first tick
+    //! (F Prime 4.3.0 hook). FaultAuthorityChanged is emitted once at boot
+    //! when the saved gate differs from the shadow default.
+    void parametersLoaded() override;
+
     // ----------------------------------------------------------------------
     // Private helpers
     // ----------------------------------------------------------------------

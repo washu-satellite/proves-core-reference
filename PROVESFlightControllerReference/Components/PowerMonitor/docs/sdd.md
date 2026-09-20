@@ -30,7 +30,9 @@ longer interval widens it rather than freezing `TotalPowerConsumption`.
 
 `COLLECTION_INTERVAL_S` is an ordinary F Prime parameter: `..._PRM_SET` latches
 it into RAM immediately, and it persists across reboot with `PRM_SAVE_FILE` if
-desired. Without a save, a reboot restores the compiled default of 1 s.
+desired; a saved value is applied at boot through the F Prime 4.3.0
+`parametersLoaded()` hook, before the first tick, with no PRM_SET needed
+(A10). Without a save, a reboot restores the compiled default of 1 s.
 
 ## Parameters
 | Name | Type | Description |
@@ -125,9 +127,11 @@ sequenceDiagram
 |PWR-MON-REQ-007|The component shall request power measurements from the solar panel power driver on each run cycle|Integration test|||||
 |PWR-MON-REQ-008|run shall sample the power monitors every COLLECTION_INTERVAL_S seconds (1..60), default 1 s|Unit Test|Unit|Over 12 ticks at interval 3 exactly 4 sample sweeps occur (ticks 1,4,7,10); at the default interval every tick samples|||
 |PWR-MON-REQ-009|Energy accumulation shall remain correct at any configured collection interval, and an invalid interval shall fall back to 1 s|Unit Test|Unit|An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event and CollectionIntervalS telemetry 1; TotalPowerConsumption keeps accumulating at interval 30 s|||
+|PWR-MON-REQ-010|A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective sampling interval from the first run tick after boot, without any PRM_SET|Unit Test|Unit|With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks make exactly 4 system-power requests (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick samples, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event|||
 
 ## Change Log
 | Date | Description |
 |---|---|
+| 2026-09-19 | `parametersLoaded()` override applies a saved COLLECTION_INTERVAL_S at boot; before this the generated `loadParameters()` never reached `parameterUpdated` and a reboot ran on the 1 s default whatever was saved (A10, PWR-MON-REQ-010) |
 | 2026-09-05 | Added COLLECTION_INTERVAL_S (1..60 s, default 1) decimation of the sampling cycle; CollectionIntervalS telemetry; CollectionIntervalRejected event; energy-accumulation window now max(10 s, 2 * interval) instead of a fixed 10 s (PWR-MON-REQ-008/009) |
 | 2025-11-03 | Initial Power Monitor component |

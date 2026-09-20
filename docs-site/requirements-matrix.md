@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**308** requirements &middot; **127** linked to automated tests &middot; **71** verified by passing unit tests in this build &middot; **56** deferred to hardware (environment: host, no board in this environment)
+**313** requirements &middot; **131** linked to automated tests &middot; **75** verified by passing unit tests in this build &middot; **56** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -177,7 +177,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ADCS
 
-*4 requirements &middot; 2 automated &middot; 2 passing*
+*5 requirements &middot; 3 automated &middot; 3 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -185,6 +185,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | Periodic Operation | The component shall operate as a scheduled component responding to scheduler calls | Verify component responds correctly to scheduler input |  |  | *none* | ⬜ No automated test |  |
 | ADCS-1 | run shall perform the light-sensor sweep every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sweeps occur (ticks 1,4,7,10); at the default interval every tick sweeps | `test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.IntervalThreeSweepsFourTimesInTwelveTicks<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.IntervalSixtyIsAccepted<br>`test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN | ✅ Unit (passing) |  |
 | ADCS-2 | An out-of-range or invalid COLLECTION_INTERVAL_S shall fall back to the 1 s default and report the rejection | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event, and CollectionIntervalS telemetry 1 | `test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.UninitParamIsRejectedAndFallsBackToOne<br>`test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange | ✅ Unit (passing) |  |
+| ADCS-3 | A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective light-sensor sweep interval from the first run tick after boot, without any PRM_SET | Unit Test | Unit | With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks perform exactly 4 light-sensor sweeps (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick sweeps, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event | `test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.SavedIntervalIsEffectiveOnTheFirstTickAfterBoot<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection<br>`test_ADCS_CollectionInterval` :: AdcsCollectionIntervalTest.ParameterSetAfterBootStillAppliesOnce | ✅ Unit (passing) |  |
 
 ## AntennaDeployer
 
@@ -363,7 +364,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## FaultManager
 
-*9 requirements &middot; 9 automated &middot; 8 passing*
+*10 requirements &middot; 10 automated &middot; 9 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -376,6 +377,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | FaultManager-7 | CLEAR_FAULTS shall clear every recorded fault and counter and GET_FAULT_STATUS shall report the current summary, both returning OK | Unit Test | Unit | After CLEAR_FAULTS: FaultsDetected, FaultsConfirmed and ActiveFaults are 0, one FaultsCleared event, response OK. GET_FAULT_STATUS emits one FaultStatusReport carrying the current active mask, totals and effective authority, response OK | `test_FaultManager_Component` :: FaultManagerComponentTest.ClearFaultsAndGetFaultStatusReportAndRespondOk<br>`test_FaultManager_FaultTable` :: FaultManagerFaultTable.ClearZeroesEveryCounterConfirmationAndMask | ✅ Unit (passing) |  |
 | FaultManager-8 | The Faults telemetry packet shall be downlinked at telemetry level 5 | Integration Test | Board | With CdhCore.tlmSend at SET_LEVEL 5, FaultsDetected, ActiveFaults and AuthorityState are received within 45 s | `fault_manager_test.py` :: test_faults_telemetry_level5 | ⏸ Integration (deferred: no board in host env) |  |
 | FaultManager-9 | FaultManager shall never call an output action port while holding the guarded lock, and every lock shall be balanced by an unlock | Unit Test | Unit | Across every tested report and tick sequence, including the authority-enabled action paths: the recorder never observes a forceSafeMode or stopWatchdog call with lock depth greater than 0, and lock depth returns to 0 with no unlock underflow | `test_FaultManager_Component` :: FaultManagerComponentTest.NoActionPortIsCalledWhileTheGuardedLockIsHeld | ✅ Unit (passing) |  |
+| FaultManager-10 | AUTHORITY_ENABLED, AUTHORITY_MASK and the debounce parameters saved in PrmDb shall be effective before the first run tick after boot, without any PRM_SET; an unusable saved value falls back to the shadow default | Unit Test | Unit | With AUTHORITY_ENABLED true and AUTHORITY_MASK 0x10 (LOW_BATTERY) VALID in the stub and no parameterUpdated call, after parametersLoaded() exactly one FaultAuthorityChanged(true, 0x10), AuthorityState telemetry after one tick reads 0x10, and a confirmed LOW_BATTERY is actioned (forceSafeMode called once) rather than OBSERVED; with paramValidity INVALID (host-stub case): no event and FaultManager-1 shadow behaviour; a parameterUpdated after boot applies as today with no duplicate event | `test_FaultManager_Component` :: FaultManagerComponentTest.SavedAuthorityIsEffectiveAtBootWithoutPrmSet<br>`test_FaultManager_Component` :: FaultManagerComponentTest.InvalidSavedParametersAtBootStayInShadow<br>`test_FaultManager_Component` :: FaultManagerComponentTest.ParameterSetAfterBootStillAppliesOnce | ✅ Unit (passing) |  |
 
 ## FsFormat
 
@@ -392,7 +394,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ImuManager
 
-*4 requirements &middot; 0 automated &middot; 0 passing*
+*5 requirements &middot; 0 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -400,6 +402,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | Periodic Operation | The component shall operate as a scheduled component responding to scheduler calls | Verify component responds correctly to scheduler input |  |  | *none* | ⬜ No automated test |  |
 | Configuration | The component shall allow configuration of sampling frequencies and axis orientation via parameters | Verify parameters affect sensor configuration and data |  |  | *none* | ⬜ No automated test |  |
 | ImuManager-1 | imuManager run shall fetch IMU data every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Integration Test | Board | With detumble idle, after imuManager.COLLECTION_INTERVAL_S_PRM_SET N (1..60), imuManager.CollectionIntervalS reads N and MagneticField updates are spaced N +/-1 s over 5 consecutive updates | *none* | ⬜ No automated test |  |
+| ImuManager-2 | A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective IMU fetch interval from the first run tick after boot, without any PRM_SET | Integration Test | Board | After imuManager.COLLECTION_INTERVAL_S_PRM_SET N (2..60), imuManager.COLLECTION_INTERVAL_S_PRM_SAVE, FileHandling.prmDb.PRM_SAVE_FILE and a reset, with no PRM_SET after boot, imuManager.CollectionIntervalS reads N and MagneticField updates are spaced N +/-1 s over 5 consecutive updates (HP-07) | *none* | ⬜ No automated test |  |
 
 ## LoadSwitch
 
@@ -469,7 +472,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## PowerMonitor
 
-*9 requirements &middot; 4 automated &middot; 2 passing*
+*10 requirements &middot; 5 automated &middot; 3 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -482,6 +485,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | PWR-MON-REQ-007 | The component shall request power measurements from the solar panel power driver on each run cycle | Integration test |  |  | *none* | ⬜ No automated test |  |
 | PWR-MON-REQ-008 | run shall sample the power monitors every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sample sweeps occur (ticks 1,4,7,10); at the default interval every tick samples | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.IntervalThreeSamplesFourTimesInTwelveTicks<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN | ✅ Unit (passing) |  |
 | PWR-MON-REQ-009 | Energy accumulation shall remain correct at any configured collection interval, and an invalid interval shall fall back to 1 s | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event and CollectionIntervalS telemetry 1; TotalPowerConsumption keeps accumulating at interval 30 s | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultIntervalAccumulatesEverySecond<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultIntervalStillDropsATwelveSecondJump<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.IntervalThirtyKeepsAccumulating<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange | ✅ Unit (passing) |  |
+| PWR-MON-REQ-010 | A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective sampling interval from the first run tick after boot, without any PRM_SET | Unit Test | Unit | With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks make exactly 4 system-power requests (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick samples, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.SavedIntervalIsEffectiveOnTheFirstTickAfterBoot<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.ParameterSetAfterBootStillAppliesOnce | ✅ Unit (passing) |  |
 
 ## ResetManager
 
@@ -575,7 +579,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ThermalManager
 
-*8 requirements &middot; 2 automated &middot; 2 passing*
+*9 requirements &middot; 3 automated &middot; 3 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -587,3 +591,4 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | Periodic Operation | The component shall operate as a scheduled component responding to scheduler calls | Verify component responds correctly to scheduler input |  |  | *none* | ⬜ No automated test |  |
 | ThermalManager-1 | run shall perform the sensor sweep every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sweeps occur (ticks 1,4,7,10); at the default interval every tick sweeps | `test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.IntervalThreeSweepsFourTimesInTwelveTicks<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.IntervalSixtyIsAccepted<br>`collection_interval_test.py` :: test_01_interval_spaces_channel_updates<br>`collection_interval_test.py` :: test_03_default_interval_updates_every_second | ✅ Unit (passing)<br>⏸ Integration (deferred: no board in host env) |  |
 | ThermalManager-2 | An out-of-range or invalid COLLECTION_INTERVAL_S shall fall back to the 1 s default and report the rejection | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event, and CollectionIntervalS telemetry 1 | `test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.UninitParamIsRejectedAndFallsBackToOne<br>`collection_interval_test.py` :: test_02_out_of_range_interval_is_rejected | ✅ Unit (passing)<br>⏸ Integration (deferred: no board in host env) |  |
+| ThermalManager-3 | A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective sweep interval from the first run tick after boot, without any PRM_SET | Unit Test | Unit | With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks sweep exactly 4 times (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick sweeps, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event | `test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.SavedIntervalIsEffectiveOnTheFirstTickAfterBoot<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.ParameterSetAfterBootStillAppliesOnce | ✅ Unit (passing) |  |

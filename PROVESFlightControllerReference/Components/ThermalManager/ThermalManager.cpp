@@ -42,6 +42,13 @@ void ThermalManager::parameterUpdated(FwPrmIdType id) {
     }
 }
 
+void ThermalManager::parametersLoaded() {
+    // The generated loadParameters() fills the parameter database from
+    // /prmDb.dat but never calls parameterUpdated(); apply the saved value so
+    // a reboot does not fall back to the compiled default (A10).
+    this->parameterUpdated(ThermalManager::PARAMID_COLLECTION_INTERVAL_S);
+}
+
 // ----------------------------------------------------------------------
 // Handler implementations for typed input ports
 // ----------------------------------------------------------------------

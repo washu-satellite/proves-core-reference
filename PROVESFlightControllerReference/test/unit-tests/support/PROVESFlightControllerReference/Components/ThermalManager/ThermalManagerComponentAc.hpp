@@ -81,6 +81,11 @@ class ThermalManagerComponentBase {
     //! component overrides it privately, exactly as against real autocode.
     virtual void parameterUpdated(FwPrmIdType id) = 0;
 
+    //! Called by the generated loadParameters() once /prmDb.dat has been read
+    //! (F Prime 4.3.0); does nothing by default. Public here so a test can
+    //! drive the boot path exactly as the framework does.
+    virtual void parametersLoaded() {}
+
     // ---- test-controlled sensor readings ----
     F64 faceTemp[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
     Fw::Success faceTempStatus[5] = {Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS,

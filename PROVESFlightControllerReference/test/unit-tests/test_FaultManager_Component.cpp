@@ -6,7 +6,7 @@
 // support/PROVESFlightControllerReference/Components/FaultManager/; no F Prime
 // or Zephyr code is linked (test/unit-tests/README.md).
 //
-// Requirements verified: FaultManager-1, -2, -4, -5, -7, -9.
+// Requirements verified: FaultManager-1, -2, -4, -5, -7, -9, -10.
 //
 // Oracle (TP-3): expected values are the parameter defaults declared in
 // FaultManager.fpp (AUTHORITY_ENABLED false, AUTHORITY_MASK 0,
@@ -66,9 +66,16 @@ class FaultManagerComponentTest : public ::testing::Test {
     //! One 1 Hz tick, driven through the base reference as autocode does.
     void tick() { this->base().run_handler(0, 0); }
 
-    //! Push the cached parameters into the component, as PrmDb does at boot
-    //! and after every PRM_SET.
+    //! Push the cached parameters into the component, as the generated
+    //! paramSet_* does after every PRM_SET. (Not what happens at boot: the
+    //! generated loadParameters() never calls parameterUpdated; it calls the
+    //! parametersLoaded() hook instead, see bootParameters().)
     void applyParameters() { this->base().parameterUpdated(FaultManagerComponentBase::PARAMID_AUTHORITY_ENABLED); }
+
+    //! Stage the recorder as loadParameters() leaves it after /prmDb.dat is
+    //! read, then call the parametersLoaded() hook exactly as the framework
+    //! does before the first tick. No parameterUpdated call is made.
+    void bootParameters() { this->base().parametersLoaded(); }
 
     //! One report through the guarded port, on the slot the topology assigns.
     Disposition report(FaultType::T type,
@@ -437,6 +444,92 @@ TEST_F(FaultManagerComponentTest, NoActionPortIsCalledWhileTheGuardedLockIsHeld)
     EXPECT_FALSE(fm.lockUnderflow) << "unLock() was called without a matching lock()";
     EXPECT_EQ(fm.lockDepth, 0) << "Every lock must be released";
     EXPECT_GT(fm.lockCalls, 0u);
+}
+
+// ----------------------------------------------------------------------
+// FaultManager-10: saved authority and debounce are applied at boot
+// ----------------------------------------------------------------------
+
+TEST_F(FaultManagerComponentTest, SavedAuthorityIsEffectiveAtBootWithoutPrmSet) {
+    RecordProperty("verifies", "FaultManager-10");
+
+    // The database holds LOW_BATTERY authority and a shorter debounce (as after
+    // PRM_SAVE_FILE and a reboot); the framework calls parametersLoaded() and
+    // nothing else before the first tick.
+    constexpr U8 SAVED_DEBOUNCE = 3;
+    fm.authorityEnabled = true;
+    fm.authorityMask = BIT_LOW_BATTERY;
+    fm.debounceLowBattery = SAVED_DEBOUNCE;
+    bootParameters();
+
+    ASSERT_EQ(fm.eventsFaultAuthorityChanged.size(), 1u)
+        << "A saved grant that differs from the default is announced once";
+    EXPECT_TRUE(fm.eventsFaultAuthorityChanged[0].enabled);
+    EXPECT_EQ(fm.eventsFaultAuthorityChanged[0].mask, BIT_LOW_BATTERY);
+
+    tick();
+    EXPECT_EQ(fm.tlmAuthorityState.back(), BIT_LOW_BATTERY);
+
+    // The saved debounce is in force: the third consecutive sample confirms,
+    // and a confirmed LOW_BATTERY is actioned rather than observed.
+    Disposition last = Disposition::OBSERVED;
+    for (int i = 1; i < SAVED_DEBOUNCE; i++) {
+        last = report(FaultType::LOW_BATTERY, FaultSource::MODE_MANAGER, Components::FaultSeverity::CRITICAL, 6.5f);
+        tick();
+    }
+    EXPECT_TRUE(fm.forceSafeModeCalls.empty()) << "Entry must wait for the saved debounce";
+    last = report(FaultType::LOW_BATTERY, FaultSource::MODE_MANAGER, Components::FaultSeverity::CRITICAL, 6.5f);
+    tick();
+
+    EXPECT_EQ(last, Disposition::CLAIMED);
+    ASSERT_EQ(fm.forceSafeModeCalls.size(), 1u);
+    EXPECT_EQ(fm.forceSafeModeCalls[0], Components::SafeModeReason::LOW_BATTERY);
+    EXPECT_EQ(fm.eventsFaultAuthorityChanged.size(), 1u) << "The boot announcement is not repeated";
+}
+
+TEST_F(FaultManagerComponentTest, InvalidSavedParametersAtBootStayInShadow) {
+    RecordProperty("verifies", "FaultManager-10");
+
+    // Host-stub case (on the target loadParameters() leaves VALID or DEFAULT):
+    // a database that would grant full authority but cannot be trusted.
+    fm.authorityEnabled = true;
+    fm.authorityMask = 0xFF;
+    fm.paramValidity = Fw::ParamValid::INVALID;
+    bootParameters();
+
+    EXPECT_TRUE(fm.eventsFaultAuthorityChanged.empty()) << "Falling back to the shadow default is not a change";
+    tick();
+    EXPECT_EQ(fm.tlmAuthorityState.back(), 0u);
+
+    driveToConfirmation(FaultType::LOW_BATTERY, FaultSource::MODE_MANAGER, 6.5f);
+    EXPECT_EQ(report(FaultType::LOW_BATTERY, FaultSource::MODE_MANAGER, Components::FaultSeverity::CRITICAL, 6.5f),
+              Disposition::OBSERVED);
+    EXPECT_TRUE(fm.forceSafeModeCalls.empty());
+    EXPECT_EQ(fm.stopWatchdogCalls, 0u);
+}
+
+TEST_F(FaultManagerComponentTest, ParameterSetAfterBootStillAppliesOnce) {
+    RecordProperty("verifies", "FaultManager-10");
+
+    // Boot on the compiled defaults: nothing to announce.
+    bootParameters();
+    EXPECT_TRUE(fm.eventsFaultAuthorityChanged.empty());
+
+    // A PRM_SET after boot reaches parameterUpdated exactly as today.
+    fm.authorityEnabled = true;
+    fm.authorityMask = BIT_LOW_BATTERY;
+    applyParameters();
+    ASSERT_EQ(fm.eventsFaultAuthorityChanged.size(), 1u);
+    EXPECT_TRUE(fm.eventsFaultAuthorityChanged[0].enabled);
+    EXPECT_EQ(fm.eventsFaultAuthorityChanged[0].mask, BIT_LOW_BATTERY);
+    tick();
+    EXPECT_EQ(fm.tlmAuthorityState.back(), BIT_LOW_BATTERY);
+
+    // Re-applying the same values, by a second PRM_SET or by a boot refresh
+    // that finds nothing new, is not a change.
+    applyParameters();
+    bootParameters();
+    EXPECT_EQ(fm.eventsFaultAuthorityChanged.size(), 1u);
 }
 
 }  // namespace

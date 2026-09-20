@@ -244,6 +244,13 @@ void FaultManager ::parameterUpdated(FwPrmIdType id) {
     this->refreshParameters();
 }
 
+void FaultManager ::parametersLoaded() {
+    // The generated loadParameters() fills the parameter database from
+    // /prmDb.dat but never calls parameterUpdated(); apply the saved values so
+    // a reboot does not silently return FDIR to shadow mode (A10).
+    this->refreshParameters();
+}
+
 // ----------------------------------------------------------------------
 // Private helpers
 // ----------------------------------------------------------------------

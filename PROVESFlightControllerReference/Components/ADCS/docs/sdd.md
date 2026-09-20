@@ -22,7 +22,9 @@ The ADCS component is designed to be scheduled periodically to trigger collectio
 
 `COLLECTION_INTERVAL_S` is an ordinary F Prime parameter: `..._PRM_SET` latches
 it into RAM immediately, and it persists across reboot with `PRM_SAVE_FILE` if
-desired. Without a save, a reboot restores the compiled default of 1 s.
+desired; a saved value is applied at boot through the F Prime 4.3.0
+`parametersLoaded()` hook, before the first tick, with no PRM_SET needed
+(A10). Without a save, a reboot restores the compiled default of 1 s.
 
 ## Parameters
 | Name | Type | Description |
@@ -99,9 +101,11 @@ sequenceDiagram
 |Periodic Operation|The component shall operate as a scheduled component responding to scheduler calls|Verify component responds correctly to scheduler input|||||
 |ADCS-1|run shall perform the light-sensor sweep every COLLECTION_INTERVAL_S seconds (1..60), default 1 s|Unit Test|Unit|Over 12 ticks at interval 3 exactly 4 sweeps occur (ticks 1,4,7,10); at the default interval every tick sweeps|||
 |ADCS-2|An out-of-range or invalid COLLECTION_INTERVAL_S shall fall back to the 1 s default and report the rejection|Unit Test|Unit|An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event, and CollectionIntervalS telemetry 1|||
+|ADCS-3|A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective light-sensor sweep interval from the first run tick after boot, without any PRM_SET|Unit Test|Unit|With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks perform exactly 4 light-sensor sweeps (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick sweeps, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event|||
 
 ## Change Log
 | Date | Description |
 |---|---|
+| 2026-09-19 | `parametersLoaded()` override applies a saved COLLECTION_INTERVAL_S at boot; before this the generated `loadParameters()` never reached `parameterUpdated` and a reboot ran on the 1 s default whatever was saved (A10, ADCS-3) |
 | 2026-09-05 | Added COLLECTION_INTERVAL_S (1..60 s, default 1) decimation of the light-sensor sweep; CollectionIntervalS telemetry; CollectionIntervalRejected event; the standard command and parameter ports the generated PRM_SET/PRM_SAVE need (ADCS-1/2) |
 | 2025-12-04 | Initial ADCS component SDD |

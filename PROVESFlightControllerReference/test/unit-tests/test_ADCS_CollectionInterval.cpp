@@ -6,12 +6,18 @@
 // support/PROVESFlightControllerReference/Components/ADCS/; no F Prime or
 // Zephyr code is linked (test/unit-tests/README.md).
 //
-// Requirements verified: ADCS-1, ADCS-2.
+// Requirements verified: ADCS-1, ADCS-2, ADCS-3.
 //   ADCS-1 pass criteria: "Over 12 ticks at interval 3 exactly 4 sweeps occur
 //     (ticks 1,4,7,10); at the default interval every tick sweeps".
 //   ADCS-2 pass criteria: "An interval of 0 or >60 or an INVALID param yields
 //     effective 1 s, one CollectionIntervalRejected event, and
 //     CollectionIntervalS telemetry 1".
+//   ADCS-3 pass criteria: "With COLLECTION_INTERVAL_S = 3 VALID in the stub and
+//     no parameterUpdated call, after parametersLoaded() 12 ticks perform
+//     exactly 4 light-sensor sweeps (ticks 1,4,7,10) and the first
+//     CollectionIntervalS write is 3; with paramValidity INVALID every tick
+//     sweeps, one CollectionIntervalRejected, first write 1; a parameterUpdated
+//     after boot applies as today with no duplicate event".
 //
 // Oracle (TP-3): the sweep shape (6 light-sensor reads per sweep) comes from
 // ADCS.fpp numLightSensors = 6; the schedule and the fallback rule come from
@@ -50,6 +56,15 @@ class AdcsCollectionIntervalTest : public ::testing::Test {
         for (int i = 0; i < count; ++i) {
             static_cast<ADCSComponentBase&>(this->adcs).run_handler(0, 0);
         }
+    }
+
+    //! Stage the recorder as the generated loadParameters() leaves it after
+    //! /prmDb.dat is read, then call the parametersLoaded() hook exactly as the
+    //! framework does. No parameterUpdated call is made.
+    void bootWith(U8 saved, Fw::ParamValid validity) {
+        this->adcs.collectionIntervalS = saved;
+        this->adcs.paramValidity = validity;
+        static_cast<ADCSComponentBase&>(this->adcs).parametersLoaded();
     }
 
     ADCS adcs;
@@ -133,6 +148,61 @@ TEST_F(AdcsCollectionIntervalTest, UninitParamIsRejectedAndFallsBackToOne) {
 
     ASSERT_EQ(this->adcs.eventsCollectionIntervalRejected.size(), 1u);
     ASSERT_FALSE(this->adcs.tlmCollectionIntervalS.empty());
+    EXPECT_EQ(this->adcs.tlmCollectionIntervalS.back(), 1);
+}
+
+// ----------------------------------------------------------------------
+// ADCS-3: a saved interval is applied at boot
+// ----------------------------------------------------------------------
+
+TEST_F(AdcsCollectionIntervalTest, SavedIntervalIsEffectiveOnTheFirstTickAfterBoot) {
+    RecordProperty("verifies", "ADCS-3");
+    // The database holds 3 (as after PRM_SAVE_FILE and a reboot); the framework
+    // calls parametersLoaded() and nothing else before the first tick.
+    this->bootWith(3, Fw::ParamValid::VALID);
+
+    ASSERT_FALSE(this->adcs.tlmCollectionIntervalS.empty());
+    EXPECT_EQ(this->adcs.tlmCollectionIntervalS.front(), 3);
+    EXPECT_TRUE(this->adcs.eventsCollectionIntervalRejected.empty());
+
+    this->tick(12);
+
+    EXPECT_EQ(this->adcs.visibleLightReads, 4 * LIGHT_SENSORS);
+}
+
+TEST_F(AdcsCollectionIntervalTest, InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection) {
+    RecordProperty("verifies", "ADCS-3");
+    // Host-stub case: on the target loadParameters() leaves VALID or DEFAULT.
+    this->bootWith(30, Fw::ParamValid::INVALID);
+
+    ASSERT_EQ(this->adcs.eventsCollectionIntervalRejected.size(), 1u);
+    EXPECT_EQ(this->adcs.eventsCollectionIntervalRejected.front(), 30);
+    ASSERT_FALSE(this->adcs.tlmCollectionIntervalS.empty());
+    EXPECT_EQ(this->adcs.tlmCollectionIntervalS.front(), 1);
+
+    this->tick(5);
+    EXPECT_EQ(this->adcs.visibleLightReads, 5 * LIGHT_SENSORS);
+    EXPECT_EQ(this->adcs.eventsCollectionIntervalRejected.size(), 1u);
+}
+
+TEST_F(AdcsCollectionIntervalTest, ParameterSetAfterBootStillAppliesOnce) {
+    RecordProperty("verifies", "ADCS-3");
+    this->bootWith(3, Fw::ParamValid::VALID);
+
+    // A PRM_SET after boot reaches parameterUpdated exactly as today: one
+    // write per application, so boot + set is two writes, not three.
+    this->applyInterval(6, Fw::ParamValid::VALID);
+    ASSERT_EQ(this->adcs.tlmCollectionIntervalS.size(), 2u);
+    EXPECT_EQ(this->adcs.tlmCollectionIntervalS[1], 6);
+    EXPECT_TRUE(this->adcs.eventsCollectionIntervalRejected.empty());
+
+    this->tick(12);
+    // Ticks 1 and 7 run at interval 6.
+    EXPECT_EQ(this->adcs.visibleLightReads, 2 * LIGHT_SENSORS);
+
+    // A rejected set after boot emits its one event; the boot refresh adds none.
+    this->applyInterval(0, Fw::ParamValid::VALID);
+    EXPECT_EQ(this->adcs.eventsCollectionIntervalRejected.size(), 1u);
     EXPECT_EQ(this->adcs.tlmCollectionIntervalS.back(), 1);
 }
 

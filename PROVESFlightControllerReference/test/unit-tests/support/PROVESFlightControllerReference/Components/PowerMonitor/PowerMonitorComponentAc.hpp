@@ -45,6 +45,11 @@ class PowerMonitorComponentBase {
     //! component overrides it privately, exactly as against real autocode.
     virtual void parameterUpdated(FwPrmIdType id) = 0;
 
+    //! Called by the generated loadParameters() once /prmDb.dat has been read
+    //! (F Prime 4.3.0); does nothing by default. Public here so a test can
+    //! drive the boot path exactly as the framework does.
+    virtual void parametersLoaded() {}
+
     virtual void RESET_TOTAL_POWER_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) = 0;
     virtual void RESET_TOTAL_GENERATION_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) = 0;
     virtual void GET_TOTAL_POWER_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) = 0;

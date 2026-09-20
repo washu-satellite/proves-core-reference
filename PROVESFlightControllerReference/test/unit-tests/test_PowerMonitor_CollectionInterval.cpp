@@ -7,7 +7,7 @@
 // support/PROVESFlightControllerReference/Components/PowerMonitor/; no F Prime
 // or Zephyr code is linked (test/unit-tests/README.md).
 //
-// Requirements verified: PWR-MON-REQ-008, PWR-MON-REQ-009.
+// Requirements verified: PWR-MON-REQ-008, PWR-MON-REQ-009, PWR-MON-REQ-010.
 //   PWR-MON-REQ-008 pass criteria: "Over 12 ticks at interval 3 exactly 4
 //     sample sweeps occur (ticks 1,4,7,10); at the default interval every tick
 //     samples".
@@ -15,6 +15,12 @@
 //     yields effective 1 s, one CollectionIntervalRejected event and
 //     CollectionIntervalS telemetry 1; TotalPowerConsumption keeps accumulating
 //     at interval 30 s".
+//   PWR-MON-REQ-010 pass criteria: "With COLLECTION_INTERVAL_S = 3 VALID in the
+//     stub and no parameterUpdated call, after parametersLoaded() 12 ticks make
+//     exactly 4 system-power requests (ticks 1,4,7,10) and the first
+//     CollectionIntervalS write is 3; with paramValidity INVALID every tick
+//     samples, one CollectionIntervalRejected, first write 1; a
+//     parameterUpdated after boot applies as today with no duplicate event".
 //
 // Oracle (TP-3): the energy figures are computed from the unit conversion the
 // requirement implies — mWh = W * (dt_s / 3600) * 1000 — not read out of the
@@ -72,6 +78,15 @@ class PowerMonitorCollectionIntervalTest : public ::testing::Test {
         for (U32 i = 0; i < count; ++i) {
             this->tickAt(T0_S + i);
         }
+    }
+
+    //! Stage the recorder as the generated loadParameters() leaves it after
+    //! /prmDb.dat is read, then call the parametersLoaded() hook exactly as the
+    //! framework does. No parameterUpdated call is made.
+    void bootWith(U8 saved, Fw::ParamValid validity) {
+        this->power.collectionIntervalS = saved;
+        this->power.paramValidity = validity;
+        static_cast<PowerMonitorComponentBase&>(this->power).parametersLoaded();
     }
 
     PowerMonitor power;
@@ -177,6 +192,61 @@ TEST_F(PowerMonitorCollectionIntervalTest, InvalidParamIsRejectedAndFallsBackToO
 
     this->tickSeconds(5);
     EXPECT_EQ(this->power.sysPowerReads, 5u);
+}
+
+// ----------------------------------------------------------------------
+// PWR-MON-REQ-010: a saved interval is applied at boot
+// ----------------------------------------------------------------------
+
+TEST_F(PowerMonitorCollectionIntervalTest, SavedIntervalIsEffectiveOnTheFirstTickAfterBoot) {
+    RecordProperty("verifies", "PWR-MON-REQ-010");
+    // The database holds 3 (as after PRM_SAVE_FILE and a reboot); the framework
+    // calls parametersLoaded() and nothing else before the first tick.
+    this->bootWith(3, Fw::ParamValid::VALID);
+
+    ASSERT_FALSE(this->power.tlmCollectionIntervalS.empty());
+    EXPECT_EQ(this->power.tlmCollectionIntervalS.front(), 3);
+    EXPECT_TRUE(this->power.eventsCollectionIntervalRejected.empty());
+
+    this->tickSeconds(12);
+
+    EXPECT_EQ(this->power.sysPowerReads, 4u);
+}
+
+TEST_F(PowerMonitorCollectionIntervalTest, InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection) {
+    RecordProperty("verifies", "PWR-MON-REQ-010");
+    // Host-stub case: on the target loadParameters() leaves VALID or DEFAULT.
+    this->bootWith(30, Fw::ParamValid::INVALID);
+
+    ASSERT_EQ(this->power.eventsCollectionIntervalRejected.size(), 1u);
+    EXPECT_EQ(this->power.eventsCollectionIntervalRejected.front(), 30);
+    ASSERT_FALSE(this->power.tlmCollectionIntervalS.empty());
+    EXPECT_EQ(this->power.tlmCollectionIntervalS.front(), 1);
+
+    this->tickSeconds(5);
+    EXPECT_EQ(this->power.sysPowerReads, 5u);
+    EXPECT_EQ(this->power.eventsCollectionIntervalRejected.size(), 1u);
+}
+
+TEST_F(PowerMonitorCollectionIntervalTest, ParameterSetAfterBootStillAppliesOnce) {
+    RecordProperty("verifies", "PWR-MON-REQ-010");
+    this->bootWith(3, Fw::ParamValid::VALID);
+
+    // A PRM_SET after boot reaches parameterUpdated exactly as today: one
+    // write per application, so boot + set is two writes, not three.
+    this->applyInterval(6, Fw::ParamValid::VALID);
+    ASSERT_EQ(this->power.tlmCollectionIntervalS.size(), 2u);
+    EXPECT_EQ(this->power.tlmCollectionIntervalS[1], 6);
+    EXPECT_TRUE(this->power.eventsCollectionIntervalRejected.empty());
+
+    this->tickSeconds(12);
+    // Ticks 1 and 7 run at interval 6.
+    EXPECT_EQ(this->power.sysPowerReads, 2u);
+
+    // A rejected set after boot emits its one event; the boot refresh adds none.
+    this->applyInterval(0, Fw::ParamValid::VALID);
+    EXPECT_EQ(this->power.eventsCollectionIntervalRejected.size(), 1u);
+    EXPECT_EQ(this->power.tlmCollectionIntervalS.back(), 1);
 }
 
 }  // namespace
