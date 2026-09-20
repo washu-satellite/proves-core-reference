@@ -52,6 +52,14 @@ void Watchdog ::stop_handler(FwIndexType portNum) {
 
     // Report watchdog stopped
     this->log_ACTIVITY_HI_WatchdogStop();
+
+    // Observation only: the hardware reset is already under way, so the
+    // FaultManager's disposition cannot change anything here.
+    if (this->isConnected_faultOut_OutputPort(0)) {
+        static_cast<void>(this->faultOut_out(0, Components::FaultType::WATCHDOG_STOPPED,
+                                             Components::FaultSource::WATCHDOG, Components::FaultSeverity::CRITICAL,
+                                             static_cast<F32>(this->m_transitions)));
+    }
 }
 
 // ----------------------------------------------------------------------

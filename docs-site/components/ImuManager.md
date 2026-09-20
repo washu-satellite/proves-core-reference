@@ -11,10 +11,26 @@ The IMU Manager component is designed to be scheduled periodically to trigger co
 1. The component is instantiated and initialized during system startup.
 2. The component is configured with pointers to the Zephyr devices for LIS2MDL and LSM6DSO.
 3. The scheduler calls the `run` port at regular intervals.
-4. On each run call, the component:
+4. On each run call the component first checks whether this tick is due: it
+   fetches every `COLLECTION_INTERVAL_S` seconds (default 1, i.e. every tick).
+   Ticks in between return immediately.
+5. On an executing run call, the component:
    - Fetches sensor data from the sensors.
    - Applies axis orientation corrections.
    - Outputs telemetry for acceleration, angular velocity, and magnetic field.
+   - Re-applies the sampling-frequency parameters if they changed.
+   - Emits `CollectionIntervalS` with the interval it is running at.
+
+Caveat: `DetumbleManager` reads the IMU ports directly at 50 Hz while it is
+sensing or actuating, and those port handlers write the same channels. The
+collection interval therefore governs the IMU channel update rate only while
+detumble is idle.
+
+`COLLECTION_INTERVAL_S` is an ordinary F Prime parameter: `..._PRM_SET` latches
+it into RAM immediately, and it persists across reboot with `PRM_SAVE_FILE` if
+desired; a saved value is applied at boot through the F Prime 4.3.0
+`parametersLoaded()` hook, before the first tick, with no PRM_SET needed
+(A10). Without a save, a reboot restores the compiled default of 1 s.
 
 ## Class Diagram
 
@@ -80,6 +96,7 @@ classDiagram
 | GYROSCOPE_SAMPLING_FREQUENCY | Lsm6dsoSamplingFrequency | Sampling frequency for the gyroscope |
 | MAGNETOMETER_SAMPLING_FREQUENCY | Lis2mdlSamplingFrequency | Sampling frequency for the magnetometer |
 | AXIS_ORIENTATION | AxisOrientation | Orientation of the sensor axes (Standard, Rotated 90 CW, Rotated 90 CCW, Rotated 180) |
+| COLLECTION_INTERVAL_S | U8 | IMU fetch interval in seconds, 1..60, default 1. Out-of-range or invalid values fall back to 1 |
 
 ## Telemetry
 
@@ -92,6 +109,7 @@ classDiagram
 | AccelerometerSamplingFrequency | Lsm6dsoSamplingFrequency | Current accelerometer sampling frequency |
 | GyroscopeSamplingFrequency   | Lsm6dsoSamplingFrequency | Current gyroscope sampling frequency |
 | MagnetometerSamplingFrequency | Lis2mdlSamplingFrequency | Current magnetometer sampling frequency |
+| CollectionIntervalS          | U8                      | The fetch interval actually in force, in seconds. Update on change; downlinked in the `Imu` packet (id 7, group 2) |
 
 ## Events
 
@@ -104,14 +122,17 @@ classDiagram
 | MagnetometerSamplingFrequencyNotConfigured  | WARNING_HIGH  | LIS2MDL magnetometer sampling frequency not configured |
 | MagnetometerSamplingFrequencyGetFailed      | WARNING_LOW   | Failed to retrieve LIS2MDL magnetometer sampling frequency |
 | MagnetometerSamplingFrequencyZeroHz         | WARNING_LOW   | LIS2MDL magnetometer sampling frequency is set to 0 Hz |
+| CollectionIntervalRejected                  | WARNING_LOW   | A requested COLLECTION_INTERVAL_S was out of range or the stored value was invalid; the 1 s default stays in force. Throttled at 5 |
 
 ## Requirements
 
-| Name                   | Description                                                                                          | Validation                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Sensor Data Collection | The component shall trigger data collection from both LSM6DSO and LIS2MDL sensors when run is called | Verify telemetry output updates on run call            |
-| Periodic Operation     | The component shall operate as a scheduled component responding to scheduler calls                   | Verify component responds correctly to scheduler input |
-| Configuration          | The component shall allow configuration of sampling frequencies and axis orientation via parameters  | Verify parameters affect sensor configuration and data |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|Sensor Data Collection|The component shall trigger data collection from both LSM6DSO and LIS2MDL sensors when run is called|Verify telemetry output updates on run call|||||
+|Periodic Operation|The component shall operate as a scheduled component responding to scheduler calls|Verify component responds correctly to scheduler input|||||
+|Configuration|The component shall allow configuration of sampling frequencies and axis orientation via parameters|Verify parameters affect sensor configuration and data|||||
+|ImuManager-1|imuManager run shall fetch IMU data every COLLECTION_INTERVAL_S seconds (1..60), default 1 s|Integration Test|Board|With detumble idle, after imuManager.COLLECTION_INTERVAL_S_PRM_SET N (1..60), imuManager.CollectionIntervalS reads N and MagneticField updates are spaced N +/-1 s over 5 consecutive updates|||
+|ImuManager-2|A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective IMU fetch interval from the first run tick after boot, without any PRM_SET|Integration Test|Board|After imuManager.COLLECTION_INTERVAL_S_PRM_SET N (2..60), imuManager.COLLECTION_INTERVAL_S_PRM_SAVE, FileHandling.prmDb.PRM_SAVE_FILE and a reset, with no PRM_SET after boot, imuManager.CollectionIntervalS reads N and MagneticField updates are spaced N +/-1 s over 5 consecutive updates (HP-07)|||
 
 ## Change Log
 
@@ -120,3 +141,5 @@ classDiagram
 | 2025-9-9  | Initial IMU Manager component                                         |
 | 2025-9-18 | Extracted Zephyr calls to discrete LIS2MDL Manager and LSM6DSO Driver |
 | 2025-12-12| Added configuration parameters for sampling rates and axis orientation; moved responsibilities from LIS2MDL Manager and LIS2MDL Manager components into the IMU Manager |
+| 2026-09-05| Added COLLECTION_INTERVAL_S (1..60 s, default 1) decimation of the periodic fetch; CollectionIntervalS telemetry; CollectionIntervalRejected event (ImuManager-1) |
+| 2026-09-19| `parametersLoaded()` override applies a saved COLLECTION_INTERVAL_S at boot; before this the generated `loadParameters()` never reached `parameterUpdated` and a reboot ran on the 1 s default whatever was saved (A10, ImuManager-2) |

@@ -37,6 +37,17 @@ Port Data Type | Name | Direction | Kind | Usage
 [`Fw::Signal`]| start | Input | Synchronous | Receive start signal to start watchdog
 [`Fw::Signal`]| stop | Input | Synchronous | Receive stop signal to stop watchdog
 [`Drv::GpioWrite`]| gpioSet | Output | n/a | Control GPIO state through driver
+[`Fw::Signal`]| prepareForReboot | Output | n/a | Notify ModeManager of an intentional reboot
+[`Components::FaultReport`]| faultOut | Output | n/a | Report that petting has stopped to the FaultManager
+
+##### Fault reporting
+
+At the end of `stop_handler`, the stop is reported to `faultManager.faultIn` as
+`WATCHDOG_STOPPED`, carrying the transition count as its value. The report is purely
+observational: the FaultManager's disposition is ignored and its policy for this type is "no
+action", because by the time this fires the hardware reset (about 26 s later) is already under way
+and there is nothing left to decide. An unconnected `faultOut` is never called. See
+`Components/FaultManager/docs/sdd.md`.
 
 #### 3.1.3 Commands
 
@@ -57,3 +68,9 @@ WatchdogStop | Emits once the watchdog has stopped.
 Name | Type | Description
 ---- | ---- | -----
 WatchdogTransitions | U32 | Number of times the GPIO has oscillated from on/off during watchdog petting
+
+## 4. Change Log
+
+| Date | Description |
+|---|---|
+| 2026-09-05 | Added `faultOut`: stopping the watchdog is reported to the FaultManager. Observation only; the reboot remains the hardware watchdog's (FaultManager-6). |

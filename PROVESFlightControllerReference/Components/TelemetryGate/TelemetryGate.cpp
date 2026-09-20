@@ -6,7 +6,7 @@
 #include "PROVESFlightControllerReference/Components/TelemetryGate/TelemetryGate.hpp"
 
 #include "Os/File.hpp"
-#include "PROVESFlightControllerReference/Components/TelemetryGate/TxStateCodec.hpp"
+#include "PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.hpp"
 
 namespace Components {
 
@@ -14,6 +14,23 @@ namespace {
 // Flash path for the persisted telemetry-transmission state. Single leading
 // slash matches the project convention (e.g. "/prmDb.dat", "/quiescence_start.bin").
 constexpr const char* STATE_FILE_PATH = "/tlm_tx_state.bin";
+// Staging file for the atomic replace: written and flushed in full, then
+// renamed over STATE_FILE_PATH, so the target never holds a partial record.
+constexpr const char* STATE_TEMP_PATH = "/tlm_tx_state.tmp";
+
+// Record-type magic: "TGS2" (Telemetry Gate State, PersistedRecord format).
+// Distinct from the retired bespoke "TGS1" blob, so a legacy file left by an
+// older image fails the length check and is reported as corrupt rather than
+// misread.
+constexpr U8 TX_STATE_MAGIC[4] = {'T', 'G', 'S', '2'};
+
+// Payload byte values. These MUST match the ordinals of the FPP
+// TelemetryTxState enum (ENABLED = 0, DISABLED = 1).
+constexpr U8 TX_STATE_ENABLED = 0;
+constexpr U8 TX_STATE_DISABLED = 1;
+
+// The persisted payload is a single state byte.
+constexpr uint16_t TX_STATE_PAYLOAD_SIZE = 1;
 }  // namespace
 
 // ----------------------------------------------------------------------
@@ -56,7 +73,7 @@ void TelemetryGate ::runIn_handler(FwIndexType portNum, U32 context) {
 
 void TelemetryGate ::SET_TRANSMIT_STATE_cmdHandler(FwOpcodeType opCode,
                                                    U32 cmdSeq,
-                                                   Components::TelemetryTxState txState) {
+                                                   const Components::TelemetryTxState& txState) {
     // Latch the new state in RAM immediately so the very next scheduler tick
     // honors it (command is sync, so this takes effect within one cycle). Mark
     // as loaded so a not-yet-performed lazy load cannot overwrite it.
@@ -82,59 +99,40 @@ void TelemetryGate ::SET_TRANSMIT_STATE_cmdHandler(FwOpcodeType opCode,
 // ----------------------------------------------------------------------
 
 void TelemetryGate ::loadState() {
-    Os::File file;
-    U8 buffer[TX_STATE_ENCODED_SIZE];
+    U8 payload = TX_STATE_ENABLED;
+    uint16_t payloadLen = 0;
 
-    Os::File::Status status = file.open(STATE_FILE_PATH, Os::File::OPEN_READ);
-    if (status != Os::File::OP_OK) {
+    const PersistedRecord::Status status = PersistedRecord::load(STATE_FILE_PATH, STATE_TEMP_PATH, TX_STATE_MAGIC,
+                                                                 &payload, TX_STATE_PAYLOAD_SIZE, payloadLen);
+
+    if (status == PersistedRecord::Status::MISSING || status == PersistedRecord::Status::OPEN_ERROR) {
         // Missing file: fail-operational default ENABLED. Not treated as corrupt.
+        // An unopenable path that stat reports as absent lands here too, which
+        // is how a first boot presents on Zephyr (open collapses to OTHER_ERROR).
         this->m_state = TelemetryTxState::ENABLED;
-        (void)file.close();
         return;
     }
 
-    FwSizeType size = sizeof(buffer);
-    status = file.read(buffer, size, Os::File::WaitType::WAIT);
-    (void)file.close();
-
-    // Truncated or unreadable content is corruption.
-    if (status != Os::File::OP_OK || size != static_cast<FwSizeType>(TX_STATE_ENCODED_SIZE)) {
+    // Anything else -- bad magic, bad length, bad CRC, unknown version,
+    // truncation, a read failure, or a valid record carrying a state byte that
+    // is not a defined ordinal -- is corruption.
+    if (status != PersistedRecord::Status::OK || payloadLen != TX_STATE_PAYLOAD_SIZE ||
+        (payload != TX_STATE_ENABLED && payload != TX_STATE_DISABLED)) {
         this->log_WARNING_HI_StateFileCorrupt();
         this->m_state = TelemetryTxState::ENABLED;
         return;
     }
 
-    U8 decoded = TX_STATE_ENABLED;
-    TxStateDecodeStatus decodeStatus = decodeTxState(buffer, static_cast<uint32_t>(size), &decoded);
-    if (decodeStatus != TxStateDecodeStatus::OK) {
-        this->log_WARNING_HI_StateFileCorrupt();
-        this->m_state = TelemetryTxState::ENABLED;
-        return;
-    }
-
-    this->m_state = (decoded == TX_STATE_DISABLED) ? TelemetryTxState::DISABLED : TelemetryTxState::ENABLED;
+    this->m_state = (payload == TX_STATE_DISABLED) ? TelemetryTxState::DISABLED : TelemetryTxState::ENABLED;
 }
 
 bool TelemetryGate ::persistState(Components::TelemetryTxState state) {
-    U8 buffer[TX_STATE_ENCODED_SIZE];
     const U8 stateByte = (state == TelemetryTxState::DISABLED) ? TX_STATE_DISABLED : TX_STATE_ENABLED;
 
-    if (encodeTxState(stateByte, buffer, sizeof(buffer)) != TX_STATE_ENCODED_SIZE) {
-        return false;
-    }
-
-    Os::File file;
-    Os::File::Status status = file.open(STATE_FILE_PATH, Os::File::OPEN_CREATE, Os::File::OVERWRITE);
-    if (status != Os::File::OP_OK) {
-        (void)file.close();
-        return false;
-    }
-
-    FwSizeType size = sizeof(buffer);
-    status = file.write(buffer, size, Os::File::WaitType::WAIT);
-    (void)file.close();
-
-    return status == Os::File::OP_OK && size == static_cast<FwSizeType>(TX_STATE_ENCODED_SIZE);
+    // Atomic replace: a failure at any step leaves the previously persisted
+    // record intact, and is reported to the caller as a write failure.
+    return PersistedRecord::store(STATE_FILE_PATH, STATE_TEMP_PATH, TX_STATE_MAGIC, &stateByte,
+                                  TX_STATE_PAYLOAD_SIZE) == PersistedRecord::Status::OK;
 }
 
 }  // namespace Components

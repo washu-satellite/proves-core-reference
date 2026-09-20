@@ -4,6 +4,7 @@ imu_manager_test.py:
 Integration tests for the IMU Manager component.
 """
 
+import pytest
 from common import proves_send_and_assert_command
 from fprime_gds.common.data_types.event_data import EventData
 from fprime_gds.common.testing_fw.api import IntegrationTestAPI
@@ -55,8 +56,17 @@ def test_02_get_angular_velocity(fprime_test_api: IntegrationTestAPI, start_gds)
     )
 
 
+@pytest.mark.verifies("CDH-6", "TM-L2-06")
 def test_03_get_magnetic_field(fprime_test_api: IntegrationTestAPI, start_gds):
-    """Test that we can get MagneticField via command and event"""
+    """Test that we can get MagneticField via command and event.
+
+    Clause claimed here (for both CDH-6 and TM-L2-06): the *on-demand* clause —
+    GET_MAGNETIC_FIELD returns MagneticFieldData within 3 s with at least one
+    non-zero axis. The other clause of both requirements (the MagneticField
+    *channel* updating at least once per 45 s at tlmSend level 5) is a periodic
+    downlink observable this test never looks at; it is covered by the
+    telemetry-sources test.
+    """
     fprime_test_api.clear_histories()
 
     proves_send_and_assert_command(

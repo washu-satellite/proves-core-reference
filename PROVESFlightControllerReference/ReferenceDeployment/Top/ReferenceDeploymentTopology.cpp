@@ -114,6 +114,9 @@ void setupTopology(const TopologyState& state) {
     configComponents(state);
     // Project-specific component configuration. Function provided above. May be inlined, if desired.
     configureTopology();
+    // Restore the persisted mode now that the ports are wired and the GPIO drivers are open.
+    // This drives the load switches, so it must not run any earlier.
+    modeManager.restorePersistentState();
     // Read parameters from persistent storage
     readParameters();
     // Autocoded parameter loading. Function provided by autocoder.
@@ -144,6 +147,8 @@ void setupTopology(const TopologyState& state) {
 
     // UART from the board to the payload
     peripheralUartDriver.configure(state.peripheralUart, state.peripheralBaudRate);
+    // UART from the board to the payload driver board (uart1)
+    driverBoardUart.configure(state.peripheralUart2, state.peripheralBaudRate2);
     imuManager.configure(state.lis2mdlDevice, state.lsm6dsoDevice);
     ina219SysManager.configure(state.ina219SysDevice);
     ina219SolManager.configure(state.ina219SolDevice);

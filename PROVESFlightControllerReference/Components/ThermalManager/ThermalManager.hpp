@@ -6,6 +6,7 @@
 #ifndef Components_ThermalManager_HPP
 #define Components_ThermalManager_HPP
 
+#include "PROVESFlightControllerReference/Components/RunInterval/RunInterval.hpp"
 #include "PROVESFlightControllerReference/Components/ThermalManager/ThermalManagerComponentAc.hpp"
 
 namespace Components {
@@ -31,6 +32,25 @@ class ThermalManager final : public ThermalManagerComponentBase {
     bool battCellAboveTemperatureThrottleActive[getNum_battCellTempGet_OutputPorts()] = {false};
     bool battCellBelowTemperatureThrottleActive[getNum_battCellTempGet_OutputPorts()] = {false};
 
+    //! Tick decimator driving the sensor sweep
+    RunInterval m_interval;
+
+    //! Collection interval currently in force, in seconds. Initialised to the
+    //! 1 s default so a never-set parameter sweeps on every tick, as before.
+    U8 m_interval_s;
+
+    // ----------------------------------------------------------------------
+    // Parameter update hook
+    // ----------------------------------------------------------------------
+
+    //! Recompute the effective collection interval after a parameter store
+    void parameterUpdated(FwPrmIdType id  //!< The parameter ID
+                          ) override;
+
+    //! Apply the parameters loadParameters() has just read from PrmDb, so a
+    //! saved interval is effective before the first tick (F Prime 4.3.0 hook)
+    void parametersLoaded() override;
+
     // ----------------------------------------------------------------------
     // Handler implementations for typed input ports
     // ----------------------------------------------------------------------
@@ -53,6 +73,13 @@ class ThermalManager final : public ThermalManagerComponentBase {
         bool& aboveThrottleActive,  //!< Whether the above threshold event throttle is currently active
         bool& belowThrottleActive,  //!< Whether the below threshold event throttle is currently active
         Components::ThermalManager_TempSensorType sensorType  //!< The type of the temperature sensor
+    );
+
+    //! Report one threshold crossing to the FaultManager, if connected. The
+    //! disposition is ignored: this component's response to an out-of-range
+    //! reading is the WARNING event, which is emitted either way.
+    void reportFault(Components::FaultType type,  //!< The fault type to report
+                     F64 temperature              //!< The reading that crossed the threshold
     );
 };
 

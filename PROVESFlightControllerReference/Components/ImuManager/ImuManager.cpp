@@ -19,9 +19,41 @@ namespace Components {
 // Component construction and destruction
 // ----------------------------------------------------------------------
 
-ImuManager ::ImuManager(const char* const compName) : ImuManagerComponentBase(compName) {}
+ImuManager ::ImuManager(const char* const compName)
+    : ImuManagerComponentBase(compName), m_interval_s(Components::DEFAULT_INTERVAL_S) {}
 
 ImuManager ::~ImuManager() {}
+
+// ----------------------------------------------------------------------
+// Parameter update hook
+// ----------------------------------------------------------------------
+
+void ImuManager ::parameterUpdated(FwPrmIdType id) {
+    switch (id) {
+        case ImuManager::PARAMID_COLLECTION_INTERVAL_S: {
+            Fw::ParamValid is_valid;
+            const U8 requested = this->paramGet_COLLECTION_INTERVAL_S(is_valid);
+            const bool valid = (is_valid != Fw::ParamValid::INVALID) && (is_valid != Fw::ParamValid::UNINIT);
+            // Only a stored, in-range value replaces the cached interval; every
+            // other outcome leaves the safe 1 s default in force.
+            const U8 effective = RunInterval::effective(requested, valid);
+            if (!valid || (effective != requested)) {
+                this->log_WARNING_LO_CollectionIntervalRejected(requested);
+            }
+            this->m_interval_s = effective;
+            this->tlmWrite_CollectionIntervalS(this->m_interval_s);
+        } break;
+        default:
+            break;  // The sampling-frequency parameters are read on demand
+    }
+}
+
+void ImuManager ::parametersLoaded() {
+    // The generated loadParameters() fills the parameter database from
+    // /prmDb.dat but never calls parameterUpdated(); apply the saved value so
+    // a reboot does not fall back to the compiled default (A10).
+    this->parameterUpdated(ImuManager::PARAMID_COLLECTION_INTERVAL_S);
+}
 
 // ----------------------------------------------------------------------
 // Public helper methods
@@ -41,6 +73,10 @@ void ImuManager ::configure(const struct device* lis2mdl, const struct device* l
 // ----------------------------------------------------------------------
 
 void ImuManager ::run_handler(FwIndexType portNum, U32 context) {
+    if (!this->m_interval.due(this->m_interval_s)) {
+        return;
+    }
+
     Fw::Success condition;  // Ignoring for now
     Drv::Acceleration acceleration = this->accelerationGet_handler(0, condition);
     Drv::AngularVelocity angular_velocity = this->angularVelocityGet_handler(0, condition);
@@ -55,6 +91,10 @@ void ImuManager ::run_handler(FwIndexType portNum, U32 context) {
         !this->sensorValuesEqual(&gyro_odr, &this->m_curr_gyro_odr)) {
         this->configureSensors(magn_odr, accel_odr, gyro_odr);
     }
+
+    // Report the interval this fetch ran at; the channel is "update on change",
+    // so this costs a packet send only when the interval actually changes.
+    this->tlmWrite_CollectionIntervalS(this->m_interval_s);
 }
 
 Drv::Acceleration ImuManager ::accelerationGet_handler(FwIndexType portNum, Fw::Success& condition) {

@@ -15,7 +15,6 @@ register_fprime_library(
         "${CMAKE_CURRENT_LIST_DIR}/TelemetryGate.fpp"
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/TelemetryGate.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/TxStateCodec.cpp"
-#   DEPENDS
-#       MyPackage_MyOtherModule
+    DEPENDS
+        PROVESFlightControllerReference_Components_PersistedRecord
 )

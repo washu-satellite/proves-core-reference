@@ -9,15 +9,15 @@ Add sequence diagrams here
 
 ## Requirements
 Add requirements in the chart below
-| Name | Description | Validation |
-| ---- | -----------  | ------ |
-|BW-001|The burnwire shall turn on and off in response to a port calls (TBR for antenna deployer component) |Hardware Test|
-|BW-002|The burnwire shall turn on and off in response to commands (TBR for testing for now) |Hardware Test|
-|BW-003|The burnwire component shall provide an event when it is turned on and off |Integration Test|
-|BW-004|The burnwire component shall activate by turning both the GPIO pins that activate the burnwire | Hardware Test|
-|BW-005|The burnwire component shall be controlled by a safety timeout attached to a 1Hz rate group |Integration Test|
-|BW-006|The safety timeout shall emit an event when it is changes | Integration test|
-|BW-007|The burnwire safety time shall emit an event when it starts and stops |Integration Test|
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|BW-001|The burnwire shall turn on and off in response to a port calls (TBR for antenna deployer component)|Hardware Test|||||
+|BW-002|The burnwire shall turn on and off in response to commands (TBR for testing for now)|Integration Test|Board|START_BURNWIRE -> SetBurnwireState ON within 2 s and system power > 1 W; STOP_BURNWIRE -> SetBurnwireState OFF within 2 s and BurnwireEndCount|||
+|BW-003|The burnwire component shall provide an event when it is turned on and off|Integration Test|Board|SetBurnwireState ON and OFF events are emitted within 2 s of START_BURNWIRE and STOP_BURNWIRE respectively|||
+|BW-004|The burnwire component shall activate by turning both the GPIO pins that activate the burnwire|Hardware Test|||||
+|BW-005|The burnwire component shall be controlled by a safety timeout attached to a 1Hz rate group|Integration Test|||||
+|BW-006|The safety timeout shall emit an event when it is changes|Integration test|||||
+|BW-007|The burnwire safety time shall emit an event when it starts and stops|Integration Test|||||
 
 ## Port Descriptions
 Name | Type | Description |

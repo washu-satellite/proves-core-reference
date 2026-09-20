@@ -6,13 +6,13 @@ Component that deploys the antenna and activates the burnwire
 ## Requirements
 Add requirements in the chart below
 
-| Name | Description | Validation |
-|---|---|---|
-|AD0001|The Antenna Deployer shall attempt to redeploy the burnwire if the armed parameter is set| Unit Testing|
-|AD0002|The antenna deployer shall attempt to deploy| Unit Testing|
-|AD0003|The Antenna Deployer shall broadcast an event every time it tries to deploy | Unit Testing|
-|AD0004|The Antenna Deployer shall broadcast an event when it successfully deploys | Unit Testing|
-|AD0005|The Antenna Deployer shall carry a count of the amount of times it has tried to deploy attached to the Telemetry | Unit Testing|
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|AD0001|The Antenna Deployer shall attempt to redeploy the burnwire if the armed parameter is set|Unit Testing|||||
+|AD0002|The antenna deployer shall attempt to deploy|Integration Test|Board|DEPLOY with attempts=1, burn=1 s: DeployAttempt(1) within 5 s, burnwire SetBurnwireState ON then OFF, DeployFinish(FAILED, 1) without a distance sensor|||
+|AD0003|The Antenna Deployer shall broadcast an event every time it tries to deploy|Integration Test|Board|With MAX_DEPLOY_ATTEMPTS=3 and RETRY_DELAY=1 s, DeployAttempt events numbered 1, 2, 3 are emitted, each followed by a burnwire ON/OFF cycle|||
+|AD0004|The Antenna Deployer shall broadcast an event when it successfully deploys|Unit Testing|||||
+|AD0005|The Antenna Deployer shall carry a count of the amount of times it has tried to deploy attached to the Telemetry|Integration Test|Board|DeployFinish reports attempts equal to the number of DeployAttempt events observed (1 and 3 in the two parameterisations)|||
 
 
 ## Usage Examples

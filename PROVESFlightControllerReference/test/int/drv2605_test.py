@@ -12,6 +12,8 @@ from common import proves_send_and_assert_command
 from fprime_gds.common.models.serialize.time_type import TimeType
 from fprime_gds.common.testing_fw.api import IntegrationTestAPI
 
+pytestmark = [pytest.mark.requires_face]
+
 drv2605Manager = "ReferenceDeployment.drv2605Face0Manager"
 ina219SysManager = "ReferenceDeployment.ina219SysManager"
 
@@ -45,6 +47,7 @@ def get_system_power(fprime_test_api: IntegrationTestAPI) -> float:
     return power_event.args[0].val
 
 
+@pytest.mark.verifies("DRV-008")
 def test_01_magnetorquer_power_draw(fprime_test_api: IntegrationTestAPI, start_gds):
     """Test that magnetorquer powers on by asserting higher power draw"""
 

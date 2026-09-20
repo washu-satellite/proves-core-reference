@@ -13,15 +13,51 @@ namespace Components {
 // Component construction and destruction
 // ----------------------------------------------------------------------
 
-ThermalManager::ThermalManager(const char* const compName) : ThermalManagerComponentBase(compName) {}
+ThermalManager::ThermalManager(const char* const compName)
+    : ThermalManagerComponentBase(compName), m_interval_s(Components::DEFAULT_INTERVAL_S) {}
 
 ThermalManager::~ThermalManager() {}
+
+// ----------------------------------------------------------------------
+// Parameter update hook
+// ----------------------------------------------------------------------
+
+void ThermalManager::parameterUpdated(FwPrmIdType id) {
+    switch (id) {
+        case ThermalManager::PARAMID_COLLECTION_INTERVAL_S: {
+            Fw::ParamValid is_valid;
+            const U8 requested = this->paramGet_COLLECTION_INTERVAL_S(is_valid);
+            const bool valid = (is_valid != Fw::ParamValid::INVALID) && (is_valid != Fw::ParamValid::UNINIT);
+            // Only a stored, in-range value replaces the cached interval; every
+            // other outcome leaves the safe 1 s default in force.
+            const U8 effective = RunInterval::effective(requested, valid);
+            if (!valid || (effective != requested)) {
+                this->log_WARNING_LO_CollectionIntervalRejected(requested);
+            }
+            this->m_interval_s = effective;
+            this->tlmWrite_CollectionIntervalS(this->m_interval_s);
+        } break;
+        default:
+            break;  // Other parameters are read on demand and need no cache
+    }
+}
+
+void ThermalManager::parametersLoaded() {
+    // The generated loadParameters() fills the parameter database from
+    // /prmDb.dat but never calls parameterUpdated(); apply the saved value so
+    // a reboot does not fall back to the compiled default (A10).
+    this->parameterUpdated(ThermalManager::PARAMID_COLLECTION_INTERVAL_S);
+}
 
 // ----------------------------------------------------------------------
 // Handler implementations for typed input ports
 // ----------------------------------------------------------------------
 
 void ThermalManager::run_handler(FwIndexType portNum, U32 context) {
+    if (!this->m_interval.due(this->m_interval_s)) {
+        return;
+    }
+
     Fw::Success condition;
 
     // Face temp sensors
@@ -46,6 +82,10 @@ void ThermalManager::run_handler(FwIndexType portNum, U32 context) {
 
     // Pico temp sensor
     this->picoTempGet_out(0, condition);
+
+    // Report the interval this sweep ran at; the channel is "update on change",
+    // so this costs a packet send only when the interval actually changes.
+    this->tlmWrite_CollectionIntervalS(this->m_interval_s);
 }
 
 // ----------------------------------------------------------------------
@@ -80,6 +120,10 @@ void ThermalManager::evaluateTemperatureThreshold(U32 idx,
         belowTemperatureThrottleActive = true;
         aboveTemperatureThrottleActive = false;
         this->log_WARNING_LO_TemperatureBelowThreshold(sensorType, idx, temperature);
+        this->reportFault((sensorType == Components::ThermalManager_TempSensorType::FACE)
+                              ? Components::FaultType::FACE_TEMP_LOW
+                              : Components::FaultType::BATT_TEMP_LOW,
+                          temperature);
         return;
     }
     if (temperature > (lowerThreshold + ThermalManager::DEBOUNCE_ERROR)) {
@@ -91,10 +135,21 @@ void ThermalManager::evaluateTemperatureThreshold(U32 idx,
         aboveTemperatureThrottleActive = true;
         belowTemperatureThrottleActive = false;
         this->log_WARNING_LO_TemperatureAboveThreshold(sensorType, idx, temperature);
+        this->reportFault((sensorType == Components::ThermalManager_TempSensorType::FACE)
+                              ? Components::FaultType::FACE_TEMP_HIGH
+                              : Components::FaultType::BATT_TEMP_HIGH,
+                          temperature);
         return;
     }
     if (temperature < (upperThreshold - ThermalManager::DEBOUNCE_ERROR)) {
         aboveTemperatureThrottleActive = false;
+    }
+}
+
+void ThermalManager::reportFault(Components::FaultType type, F64 temperature) {
+    if (this->isConnected_faultOut_OutputPort(0)) {
+        static_cast<void>(this->faultOut_out(0, type, Components::FaultSource::THERMAL_MANAGER,
+                                             Components::FaultSeverity::WARNING, static_cast<F32>(temperature)));
     }
 }
 

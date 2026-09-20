@@ -19,6 +19,6 @@ register_fprime_library(
         "${CMAKE_CURRENT_LIST_DIR}/ModeManager.fpp"
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/ModeManager.cpp"
-#   DEPENDS
-#       MyPackage_MyOtherModule
+    DEPENDS
+        PROVESFlightControllerReference_Components_PersistedRecord
 )

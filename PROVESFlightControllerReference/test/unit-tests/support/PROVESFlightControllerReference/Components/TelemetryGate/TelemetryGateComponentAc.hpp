@@ -51,7 +51,7 @@ class TelemetryGateComponentBase {
     virtual void runIn_handler(FwIndexType portNum, U32 context) = 0;
     virtual void SET_TRANSMIT_STATE_cmdHandler(FwOpcodeType opCode,
                                                U32 cmdSeq,
-                                               Components::TelemetryTxState txState) = 0;
+                                               const Components::TelemetryTxState& txState) = 0;
 
     // ---- recorded outgoing effects, public for test inspection ----
     std::string compName;

@@ -70,6 +70,8 @@ nav:
           - Startup Manager: components/StartupManager.md
           - Reset Manager: components/ResetManager.md
           - Watchdog: components/Watchdog.md
+          - Fault Manager: components/FaultManager.md
+          - Task Gate: components/TaskGate.md
           - Bootloader Trigger: components/BootloaderTrigger.md
           - Detumble Manager: components/DetumbleManager.md
       - Communication Components:
@@ -79,8 +81,11 @@ nav:
           - Com CCSDS S-Band: components/ComCcsdsSband.md
           - Com CCSDS LoRa: components/ComCcsdsLora.md
           - Payload Com: components/PayloadCom.md
+          - Driver Board Handler: components/DriverBoardHandler.md
+          - Driver Board Protocol: components/DriverBoardProtocol.md
           - Com Delay: components/ComDelay.md
           - Telemetry Gate: components/TelemetryGate.md
+          - TC Frame Corrector: components/TcFrameCorrector.md
       - Hardware Components:
           - Antenna Deployer: components/AntennaDeployer.md
           - Burnwire: components/Burnwire.md
@@ -101,12 +106,14 @@ nav:
           - Fs Format: components/FsFormat.md
           - Fs Space: components/FsSpace.md
           - Null Prm Db: components/NullPrmDb.md
+          - Persisted Record: components/PersistedRecord.md
       - Security Components:
-          - Authenticate: components/Authenticate.md
-          - Authentication Router: components/AuthenticationRouter.md
+          - Tc Security Deframer: components/TcSecurityDeframer.md
+          - PROVES Router: components/ProvesRouter.md
   - Requirements:
       - Traceability Matrix: requirements-matrix.md
       - CDH System Requirements: requirements/cdh.md
+      - Verification Tooling Requirements: requirements/tooling.md
   - Additional Resources:
       - Troubleshooting: additional-resources/troubleshooting.md
       - WSL Notes: additional-resources/wsl-notes.md

@@ -5,6 +5,7 @@
 using Components::StrategySelector;
 
 TEST(StrategySelectorTest, IdleBelowLowerThreshold) {
+    RecordProperty("verifies", "ADCS-L2-02");
     StrategySelector selector;
     // Configure: Max=10, Upper=5, Lower=1
     selector.configure(10.0, 5.0, 1.0);
@@ -16,6 +17,7 @@ TEST(StrategySelectorTest, IdleBelowLowerThreshold) {
 }
 
 TEST(StrategySelectorTest, HysteresisAboveMaxThreshold) {
+    RecordProperty("verifies", "ADCS-L2-02");
     StrategySelector selector;
     selector.configure(10.0, 5.0, 1.0);
 
@@ -26,6 +28,7 @@ TEST(StrategySelectorTest, HysteresisAboveMaxThreshold) {
 }
 
 TEST(StrategySelectorTest, BdotInActiveRange) {
+    RecordProperty("verifies", "ADCS-L2-02");
     StrategySelector selector;
     selector.configure(10.0, 5.0, 1.0);
 
@@ -36,6 +39,7 @@ TEST(StrategySelectorTest, BdotInActiveRange) {
 }
 
 TEST(StrategySelectorTest, DeadbandCycleBehavior) {
+    RecordProperty("verifies", "ADCS-L2-02");
     StrategySelector selector;
     // Configure: Max=10, Upper=5, Lower=1
     selector.configure(10.0, 5.0, 1.0);

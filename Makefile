@@ -9,18 +9,8 @@ help: ## Display this help.
 
 .PHONY: submodules
 submodules: ## Initialize and update git submodules
+	@git submodule foreach --recursive 'git checkout -- . && git clean -fd' || true
 	@git submodule update --init --recursive
-	@echo "Applying fprime-gds version patch..."
-	@cd lib/fprime && \
-		if git apply --check ../../patches/fprime-gds-version.patch 2>/dev/null; then \
-			git apply ../../patches/fprime-gds-version.patch && \
-			echo "✓ Applied fprime-gds version patch"; \
-		elif git apply --reverse --check ../../patches/fprime-gds-version.patch 2>/dev/null; then \
-			echo "⚠ Patch already applied"; \
-		else \
-			echo "❌ Error: Unable to apply patch. Run 'cd lib/fprime && git status' to check."; \
-			exit 1; \
-		fi
 
 export VIRTUAL_ENV ?= $(shell pwd)/fprime-venv
 .PHONY: fprime-venv
@@ -47,6 +37,10 @@ fprime-venv: uv ## Create a virtual environment
 	@INST_CFG=$$(ls $(shell pwd)/fprime-venv/lib/python*/site-packages/fprime_yamcs/yamcs/src/main/yamcs/etc/yamcs.fprime-project.yaml 2>/dev/null | head -1); \
 	  if [ -z "$$INST_CFG" ]; then echo "⚠ instance config not found, skipping"; exit 0; fi; \
 	  $(VIRTUAL_ENV)/bin/python tools/apply-yamcs-instance-config-fix.py "$$INST_CFG"
+	@echo "Applying fprime-yamcs constants-order fix..."
+	@TARGET=$$(ls $(FPRIME_YAMCS_MAIN) 2>/dev/null | head -1); \
+	  if [ -z "$$TARGET" ]; then echo "⚠ fprime-yamcs not found, skipping"; exit 0; fi; \
+	  $(VIRTUAL_ENV)/bin/python tools/apply-yamcs-constants-order-fix.py "$$TARGET"
 
 
 .PHONY: zephyr-setup
@@ -93,12 +87,17 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/ComCcsdsSband/docs/sdd.md docs-site/components/ComCcsdsSband.md
 	@cp PROVESFlightControllerReference/ComCcsdsLora/docs/sdd.md docs-site/components/ComCcsdsLora.md
 	@cp PROVESFlightControllerReference/Components/PayloadCom/docs/sdd.md docs-site/components/PayloadCom.md
+	@cp PROVESFlightControllerReference/Components/DriverBoardHandler/docs/sdd.md docs-site/components/DriverBoardHandler.md
+	@cp PROVESFlightControllerReference/Components/DriverBoardProtocol/docs/sdd.md docs-site/components/DriverBoardProtocol.md
 	@cp PROVESFlightControllerReference/Components/ComDelay/docs/sdd.md docs-site/components/ComDelay.md
+	@cp PROVESFlightControllerReference/Components/TcFrameCorrector/docs/sdd.md docs-site/components/TcFrameCorrector.md
 	@# Copy Core Components
 	@cp PROVESFlightControllerReference/Components/ModeManager/docs/sdd.md docs-site/components/ModeManager.md
 	@cp PROVESFlightControllerReference/Components/StartupManager/docs/sdd.md docs-site/components/StartupManager.md
 	@cp PROVESFlightControllerReference/Components/ResetManager/docs/sdd.md docs-site/components/ResetManager.md
 	@cp PROVESFlightControllerReference/Components/Watchdog/docs/sdd.md docs-site/components/Watchdog.md
+	@cp PROVESFlightControllerReference/Components/FaultManager/docs/sdd.md docs-site/components/FaultManager.md
+	@cp PROVESFlightControllerReference/Components/TaskGate/docs/sdd.md docs-site/components/TaskGate.md
 	@cp PROVESFlightControllerReference/Components/BootloaderTrigger/docs/sdd.md docs-site/components/BootloaderTrigger.md
 	@cp PROVESFlightControllerReference/Components/DetumbleManager/docs/sdd.md docs-site/components/DetumbleManager.md
 	@# Copy Hardware Components
@@ -121,12 +120,13 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/Components/FsFormat/docs/sdd.md docs-site/components/FsFormat.md
 	@cp PROVESFlightControllerReference/Components/FsSpace/docs/sdd.md docs-site/components/FsSpace.md
 	@cp PROVESFlightControllerReference/Components/NullPrmDb/docs/sdd.md docs-site/components/NullPrmDb.md
+	@cp PROVESFlightControllerReference/Components/PersistedRecord/docs/sdd.md docs-site/components/PersistedRecord.md
 	@# Copy Security Components
-	@cp PROVESFlightControllerReference/Components/Authenticate/docs/sdd.md docs-site/components/Authenticate.md
-	@cp PROVESFlightControllerReference/Components/AuthenticationRouter/docs/sdd.md docs-site/components/AuthenticationRouter.md
+	@cp PROVESFlightControllerReference/Components/TcSecurityDeframer/docs/sdd.md docs-site/components/TcSecurityDeframer.md
+	@cp PROVESFlightControllerReference/Components/ProvesRouter/docs/sdd.md docs-site/components/ProvesRouter.md
 	@# Copy images
 	@find PROVESFlightControllerReference -path "*/docs/img/*" -type f -exec cp {} docs-site/components/img/ \; 2>/dev/null || true
-	@echo "✓ Synced 32 component SDDs and images"
+	@echo "✓ Synced 33 component SDDs and images"
 
 .PHONY: docs-serve
 docs-serve: uv ## Serve MkDocs documentation site locally
@@ -154,9 +154,14 @@ build: submodules zephyr fprime-venv generate-if-needed ## Build FPrime-Zephyr P
 	mv ./build-artifacts/zephyr.signed.hex bootable.signed.hex
 	@if [ "$(BUILD_YAMCS_MDB)" = "1" ]; then $(MAKE) yamcs-mdb; else echo "Skipping yamcs-mdb (BUILD_YAMCS_MDB=$(BUILD_YAMCS_MDB))"; fi
 
+.PHONY: check-console-disabled
+ZEPHYR_CONFIG ?= $(BUILD_DIR)/zephyr/.config
+check-console-disabled: uv ## Fail if the Zephyr UART console is enabled (it corrupts the F' downlink); run after 'make build'
+	@$(UV_RUN) python3 scripts/check_console_disabled.py "$(ZEPHYR_CONFIG)"
+
 ##@ Authentication Keys
 
-AUTH_DEFAULT_KEY_HEADER ?= PROVESFlightControllerReference/Components/Authenticate/AuthDefaultKey.h
+AUTH_DEFAULT_KEY_HEADER ?= PROVESFlightControllerReference/Components/TcSecurityDeframer/AuthDefaultKey.h
 AUTH_KEY_TEMPLATE ?= scripts/generate_auth_default_key.h
 
 .PHONY: generate-auth-key
@@ -257,6 +262,11 @@ test-integration: uv ## Run integration tests (set TEST=<name|file.py> or pass t
 # Allow test names to be passed as targets without Make trying to execute them
 %:
 	@:
+
+.PHONY: sync-sequence-number
+sync-sequence-number: uv ## Synchronize GDS/flight sequence number
+	@echo "Synchronizing sequence number"
+	@$(UV_RUN) pytest PROVESFlightControllerReference/test/int/sync_sequence_number_test.py --deployment build-artifacts/zephyr/fprime-zephyr-deployment
 
 .PHONY: test-interactive
 test-interactive: fprime-venv ## Run interactive test selection (set ARGS for CLI mode, e.g., ARGS="--all --cycles 10")
@@ -439,17 +449,23 @@ delete-shadow-gds:
 
 .PHONY: gds-integration
 gds-integration: framer-plugin
-	@$(GDS_COMMAND) --gui=none --uart-device=$(if $(UART_DEVICE),$(UART_DEVICE),/dev/ttyBOARD)
+	@$(GDS_COMMAND) --gui=none --output-unframed-data --uart-device=$(if $(UART_DEVICE),$(UART_DEVICE),/dev/ttyBOARD)
 
 .PHONY: DoL_test
-DoL_test:
+DOL_SERIAL_PORT ?= /dev/ttyACM0
+DoL_test: ## Run the day-in-the-life tests (DOL_SERIAL_PORT=/dev/ttyXXX)
 	@echo "make sure passthrough GDS is running"
-	@$(UV_RUN) pytest test/test_day_in_the_life.py --deployment build-artifacts/zephyr/fprime-zephyr-deployment
+	@DOL_SERIAL_PORT="$(DOL_SERIAL_PORT)" $(UV_RUN) pytest PROVESFlightControllerReference/test/day-in-the-life/test_day_in_the_life.py PROVESFlightControllerReference/test/day-in-the-life/test_edge_cases_day_in_the_life.py --deployment build-artifacts/zephyr/fprime-zephyr-deployment
 
 .PHONY: framer-plugin
 framer-plugin: fprime-venv ## Build framer plugin
 	@echo "Framer plugin built and installed in virtual environment."
-	@ cd Framing && $(UV_RUN) pip install -e .
+	@# Use `uv pip` (installs into $(VIRTUAL_ENV)) rather than `uv run` inside
+	@# Framing/: `uv run` treats Framing as its own uv project and syncs its
+	@# lockfile into the shared venv, uninstalling/reinstalling dozens of
+	@# packages. When gds-integration runs in the background this churn races
+	@# any concurrently starting pytest and breaks its imports mid-flight.
+	@ $(UV) pip install -e Framing
 
 .PHONY: copy-secrets
 copy-secrets:
@@ -460,7 +476,7 @@ copy-secrets:
 	@mkdir -p ./keys/
 	@cp $(SECRETS_DIR)/proves.pem ./keys/
 	@cp $(SECRETS_DIR)/proves.pub.pem ./keys/
-	@cp $(SECRETS_DIR)/AuthDefaultKey.h ./PROVESFlightControllerReference/Components/Authenticate/
+	@cp $(SECRETS_DIR)/AuthDefaultKey.h ./PROVESFlightControllerReference/Components/TcSecurityDeframer/
 	@echo "Copied secret files 🤫"
 
 .PHONY: make-ci-spacecraft-id

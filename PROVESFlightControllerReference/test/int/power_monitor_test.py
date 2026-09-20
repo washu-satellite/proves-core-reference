@@ -4,9 +4,19 @@ power_monitor_test.py:
 Integration tests for the Power Monitor component.
 """
 
+import time
+
+import pytest
 from common import proves_send_and_assert_command
 from fprime_gds.common.data_types.event_data import EventData
 from fprime_gds.common.testing_fw.api import IntegrationTestAPI
+
+# The powerMonitor run port fires on the 1 Hz rate group (topology.fpp), so a
+# 10 s gap between the two readings spans ~10 accumulation cycles. Ten seconds
+# is the interval named in the PWR-MON-REQ-001/004 pass criteria.
+ACCUMULATION_GAP_S = 10
+
+pytestmark = [pytest.mark.requires_battery]
 
 ina219SysManager = "ReferenceDeployment.ina219SysManager"
 ina219SolManager = "ReferenceDeployment.ina219SolManager"
@@ -101,10 +111,27 @@ def test_01_power_manager_readings(fprime_test_api: IntegrationTestAPI, start_gd
     # assert sol_power != 0, "Solar power reading should be non-zero"
 
 
+@pytest.mark.verifies("PWR-MON-REQ-001", "PWR-MON-REQ-004")
 def test_02_total_power_consumption(fprime_test_api: IntegrationTestAPI, start_gds):
-    """Test that TotalPowerConsumption is being updated"""
+    """Test that TotalPowerConsumption is being updated.
 
-    total_power = get_total_power_consumption(fprime_test_api)
+    PWR-MON-REQ-001: GET_TOTAL_POWER returns a reading > 0.
+    PWR-MON-REQ-004: a second reading 10 s later is strictly greater, which is
+    only possible if a system power request runs on each 1 Hz cycle.
+    Each requirement has its own assertion below (TP-9).
+    """
 
-    # Total power should be non-zero (accumulating over time)
-    assert total_power != 0, "Total power consumption should be non-zero"
+    first = get_total_power_consumption(fprime_test_api)
+
+    # PWR-MON-REQ-001: a reading exists and is positive.
+    assert first > 0, f"Total power consumption should be > 0, got {first}"
+
+    time.sleep(ACCUMULATION_GAP_S)
+    second = get_total_power_consumption(fprime_test_api)
+
+    # PWR-MON-REQ-004: the accumulator advanced over the gap.
+    assert second > first, (
+        f"Total power consumption should strictly increase over "
+        f"{ACCUMULATION_GAP_S}s (run port accumulating each 1 Hz cycle), "
+        f"but went from {first} to {second}"
+    )

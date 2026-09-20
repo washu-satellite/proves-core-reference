@@ -7,11 +7,29 @@
 #include "PROVESFlightControllerReference/Components/ModeManager/ModeManager.hpp"
 
 #include <algorithm>
-#include <cstring>
 
+#include "Fw/Time/Time.hpp"
 #include "Fw/Types/Assert.hpp"
+#include "PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.hpp"
 
 namespace Components {
+
+namespace {
+// Record-type magic: "MMS1" (Mode Manager State, PersistedRecord format
+// version 1). A file left by an older image carries no magic at all, so it
+// fails validation here rather than being misread as a valid state.
+constexpr U8 STATE_MAGIC[4] = {'M', 'M', 'S', '1'};
+
+// Highest defined SafeModeReason ordinal (ModeManager.fpp:10-17). A CRC-valid
+// record carrying a larger value is a validation failure, not a state.
+constexpr U8 MAX_SAFE_MODE_REASON = 6;
+
+//! Read a little-endian U32 out of the persisted payload.
+U32 decodeU32LE(const U8* in) {
+    return static_cast<U32>(in[0]) | (static_cast<U32>(in[1]) << 8) | (static_cast<U32>(in[2]) << 16) |
+           (static_cast<U32>(in[3]) << 24);
+}
+}  // namespace
 
 // ----------------------------------------------------------------------
 // Component construction and destruction
@@ -24,7 +42,9 @@ ModeManager ::ModeManager(const char* const compName)
       m_runCounter(0),
       m_safeModeReason(Components::SafeModeReason::NONE),
       m_safeModeVoltageCounter(0),
-      m_recoveryVoltageCounter(0) {
+      m_recoveryVoltageCounter(0),
+      m_commandLossCounter(0),
+      m_commandLossDebounce(false) {
     // Compile-time verification that internal SystemMode enum matches FPP-generated enum
     static_assert(static_cast<U8>(SystemMode::SAFE_MODE) == static_cast<U8>(Components::SystemMode::SAFE_MODE),
                   "Internal SAFE_MODE value must match FPP enum");
@@ -34,8 +54,7 @@ ModeManager ::ModeManager(const char* const compName)
 
 ModeManager ::~ModeManager() {}
 
-void ModeManager ::init(FwSizeType queueDepth, FwEnumStoreType instance) {
-    ModeManagerComponentBase::init(queueDepth, instance);
+void ModeManager ::restorePersistentState() {
     this->loadState();
 }
 
@@ -46,6 +65,10 @@ void ModeManager ::init(FwSizeType queueDepth, FwEnumStoreType instance) {
 void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
     // Increment run counter (1Hz tick counter)
     this->m_runCounter++;
+    {
+        Os::ScopeLock lock(m_commandLossMutex);
+        this->m_commandLossCounter++;  // keep track of seconds since last packet
+    }
 
     // Get current voltage (used by mode-specific voltage monitoring)
     bool valid = false;
@@ -65,14 +88,21 @@ void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
         bool isFault = !valid || (voltage < entryVoltage);
 
         if (isFault) {
-            this->m_safeModeVoltageCounter++;
+            // Observation only while the FaultManager is in shadow mode: a
+            // CLAIMED disposition means it owns the entry for this condition.
+            const bool claimed = this->reportLowBattery(valid ? voltage : 0.0f);
 
-            if (this->m_safeModeVoltageCounter >= debounceSeconds) {
-                // Trigger automatic entry into safe mode
-                this->runSafeModeSequence();
-                this->log_WARNING_HI_AutoSafeModeEntry(Components::SafeModeReason::LOW_BATTERY, valid ? voltage : 0.0f);
-                this->enterSafeMode(Components::SafeModeReason::LOW_BATTERY);
-                this->m_safeModeVoltageCounter = 0;  // Reset counter
+            if (!claimed) {
+                this->m_safeModeVoltageCounter++;
+
+                if (this->m_safeModeVoltageCounter >= debounceSeconds) {
+                    // Trigger automatic entry into safe mode
+                    this->runSafeModeSequence();
+                    this->log_WARNING_HI_AutoSafeModeEntry(Components::SafeModeReason::LOW_BATTERY,
+                                                           valid ? voltage : 0.0f);
+                    this->enterSafeMode(Components::SafeModeReason::LOW_BATTERY);
+                    this->m_safeModeVoltageCounter = 0;  // Reset counter
+                }
             }
         } else {
             // Voltage OK and valid - reset counter
@@ -107,6 +137,9 @@ void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
         this->m_safeModeVoltageCounter = 0;
     }
 
+    // Check for command loss and trigger safe mode if timeout has expired
+    commandLossCheck();
+
     // Update telemetry
     this->tlmWrite_CurrentMode(static_cast<U8>(this->m_mode));
     this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
@@ -139,7 +172,8 @@ void ModeManager ::runSafeModeSequence() {
     Fw::ParamValid is_valid;
     Fw::ParamString safe_mode_sequence = this->paramGet_SAFEMODE_SEQUENCE_FILE(is_valid);
     FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
-    this->runSequence_out(0, safe_mode_sequence);
+    const Svc::SeqArgs no_args;
+    this->runSequence_out(0, safe_mode_sequence, no_args);
 }
 
 void ModeManager ::completeSequence_handler(FwIndexType portNum,
@@ -147,8 +181,6 @@ void ModeManager ::completeSequence_handler(FwIndexType portNum,
                                             U32 cmdSeq,
                                             const Fw::CmdResponse& response) {
     (void)portNum;
-    (void)opCode;
-    (void)cmdSeq;
 
     if (response == Fw::CmdResponse::OK) {
         // log that sequence completed successfully
@@ -156,6 +188,11 @@ void ModeManager ::completeSequence_handler(FwIndexType portNum,
     } else {
         // log that sequence failed
         this->log_WARNING_LO_SafeModeSequenceFailed(response);
+    }
+
+    // Forward completion to other listeners (e.g. StartupManager active-sequence tracking)
+    if (this->isConnected_sequenceDoneNotify_OutputPort(0)) {
+        this->sequenceDoneNotify_out(0, opCode, cmdSeq, response);
     }
 }
 
@@ -170,36 +207,16 @@ void ModeManager ::prepareForReboot_handler(FwIndexType portNum) {
     // This allows us to detect unintended reboots on next startup
     this->log_ACTIVITY_HI_PreparingForReboot();
 
-    // Save state with clean shutdown flag set
-    // We directly write to file here to ensure the flag is persisted
-    Os::File file;
-    Os::File::Status status = file.open(STATE_FILE_PATH, Os::File::OPEN_CREATE, Os::File::OVERWRITE);
+    // Persist the state with the clean-shutdown flag set. On failure the
+    // previous record survives, so the next boot reads a clear flag and
+    // classifies this shutdown as unintended - conservative, and reported.
+    (void)this->storeState(1, "shutdown-store");
+}
 
-    if (status != Os::File::OP_OK) {
-        // Log failure - next boot will be misclassified as unintended reboot
-        Fw::LogStringArg opStr("shutdown-open");
-        this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
-        return;
-    }
-
-    PersistentState state;
-    state.mode = static_cast<U8>(this->m_mode);
-    state.safeModeEntryCount = this->m_safeModeEntryCount;
-    state.safeModeReason = static_cast<U8>(this->m_safeModeReason);
-    state.cleanShutdown = 1;  // Mark as clean shutdown
-
-    FwSizeType bytesToWrite = sizeof(PersistentState);
-    FwSizeType bytesWritten = bytesToWrite;
-    Os::File::Status writeStatus = file.write(reinterpret_cast<U8*>(&state), bytesWritten, Os::File::WaitType::WAIT);
-
-    // Check if write succeeded and correct number of bytes written
-    if (writeStatus != Os::File::OP_OK || bytesWritten != bytesToWrite) {
-        // Log failure - next boot will be misclassified as unintended reboot
-        Fw::LogStringArg opStr("shutdown-write");
-        this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(writeStatus));
-    }
-
-    file.close();
+void ModeManager ::packetRouted_handler(FwIndexType portNum) {
+    Os::ScopeLock lock(m_commandLossMutex);
+    this->m_commandLossCounter = 0;
+    this->m_commandLossDebounce = false;
 }
 
 // ----------------------------------------------------------------------
@@ -245,82 +262,90 @@ void ModeManager ::GET_SAFE_MODE_REASON_cmdHandler(FwOpcodeType opCode, U32 cmdS
 // ----------------------------------------------------------------------
 
 void ModeManager ::loadState() {
-    Os::File file;
-    Os::File::Status status = file.open(STATE_FILE_PATH, Os::File::OPEN_READ);
+    U8 payload[STATE_PAYLOAD_SIZE] = {0};
+    U16 payloadLen = 0;
+
+    const PersistedRecord::Status status =
+        PersistedRecord::load(STATE_FILE_PATH, STATE_TEMP_PATH, STATE_MAGIC, payload, STATE_PAYLOAD_SIZE, payloadLen);
+
+    // First-boot defaults. Every path below either keeps them or overwrites
+    // them with a fully validated record.
+    this->m_mode = SystemMode::NORMAL;
+    this->m_safeModeEntryCount = 0;
+    this->m_safeModeReason = Components::SafeModeReason::NONE;
 
     bool unintendedReboot = false;
+    bool corrupt = false;
 
-    if (status == Os::File::OP_OK) {
-        PersistentState state;
-        FwSizeType size = sizeof(PersistentState);
-        FwSizeType bytesRead = size;
-        status = file.read(reinterpret_cast<U8*>(&state), bytesRead, Os::File::WaitType::WAIT);
+    if (status == PersistedRecord::Status::MISSING) {
+        // No state file: first boot (or a fresh filesystem). MM0012 requires
+        // NORMAL with no event. PersistedRecord separates absent from
+        // unopenable with a stat, so this stays silent on Zephyr too, where
+        // every open failure collapses to OTHER_ERROR.
+        this->turnOnComponents();
+    } else if (status == PersistedRecord::Status::OPEN_ERROR || status == PersistedRecord::Status::READ_ERROR ||
+               status == PersistedRecord::Status::INVALID_ARGUMENT) {
+        // The file is present but could not be read. That is a storage fault,
+        // not a failed validation, so MM0012's SAFE rule does not apply and
+        // today's behaviour (NORMAL defaults plus one warning) is kept.
+        Fw::LogStringArg opStr(status == PersistedRecord::Status::OPEN_ERROR ? "load-open" : "load-read");
+        this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
+        this->turnOnComponents();
+    } else if (status != PersistedRecord::Status::OK || payloadLen != STATE_PAYLOAD_SIZE) {
+        // Truncated, wrong magic, bad length, bad CRC or an unrecognized
+        // format version: the state cannot be trusted (MM0012).
+        corrupt = true;
+    } else {
+        const U8 mode = payload[0];
+        const U32 entryCount = decodeU32LE(&payload[1]);
+        const U8 reason = payload[5];
+        const U8 cleanShutdown = payload[6];
 
-        if (status == Os::File::OP_OK && bytesRead == sizeof(PersistentState)) {
-            // Validate state data before restoring (valid range: 1-2 for SAFE, NORMAL)
-            if (state.mode >= static_cast<U8>(SystemMode::SAFE_MODE) &&
-                state.mode <= static_cast<U8>(SystemMode::NORMAL)) {
-                // Valid mode value - restore state
-                this->m_mode = static_cast<SystemMode>(state.mode);
-                this->m_safeModeEntryCount = state.safeModeEntryCount;
-                this->m_safeModeReason = static_cast<Components::SafeModeReason::T>(state.safeModeReason);
+        // A CRC-valid record can still carry out-of-range fields (e.g. written
+        // by a future image); MM0012 calls that a validation failure too.
+        if (mode < static_cast<U8>(SystemMode::SAFE_MODE) || mode > static_cast<U8>(SystemMode::NORMAL) ||
+            reason > MAX_SAFE_MODE_REASON || cleanShutdown > 1) {
+            corrupt = true;
+        } else {
+            this->m_mode = static_cast<SystemMode>(mode);
+            this->m_safeModeEntryCount = entryCount;
+            this->m_safeModeReason = static_cast<Components::SafeModeReason::T>(reason);
 
-                // Check for unintended reboot:
-                // If cleanShutdown flag is NOT set (0) and we were in NORMAL mode,
-                // this indicates an unintended reboot (crash, watchdog, power loss, etc.)
-                if (state.cleanShutdown == 0 && this->m_mode == SystemMode::NORMAL) {
-                    unintendedReboot = true;
-                }
+            // Check for unintended reboot:
+            // If cleanShutdown flag is NOT set (0) and we were in NORMAL mode,
+            // this indicates an unintended reboot (crash, watchdog, power loss, etc.)
+            if (cleanShutdown == 0 && this->m_mode == SystemMode::NORMAL) {
+                unintendedReboot = true;
+            }
 
-                // Restore physical hardware state to match loaded mode
-                if (this->m_mode == SystemMode::SAFE_MODE) {
-                    // Turn off non-critical components to match safe mode state
-                    this->turnOffNonCriticalComponents();
+            // Restore physical hardware state to match loaded mode
+            if (this->m_mode == SystemMode::SAFE_MODE) {
+                // Turn off non-critical components to match safe mode state
+                this->turnOffNonCriticalComponents();
 
-                    // TODO: commented out because this crashes the board on boot
-                    // run radio safe to match default safe params
-                    // this->runSafeModeSequence();
+                // TODO: commented out because this crashes the board on boot
+                // run radio safe to match default safe params
+                // this->runSafeModeSequence();
 
-                    // Log that we're restoring safe mode (not entering it fresh)
-                    Fw::LogStringArg reasonStr("State restored from persistent storage");
-                    this->log_WARNING_HI_EnteringSafeMode(reasonStr);
-                } else {
-                    // NORMAL mode - ensure components are turned on
-                    this->turnOnComponents();
-                }
+                // Log that we're restoring safe mode (not entering it fresh)
+                Fw::LogStringArg reasonStr("State restored from persistent storage");
+                this->log_WARNING_HI_EnteringSafeMode(reasonStr);
             } else {
-                // Corrupted state (invalid mode value) - use defaults
-                Fw::LogStringArg opStr("load-corrupt");
-                this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(state.mode));
-                this->m_mode = SystemMode::NORMAL;
-                this->m_safeModeEntryCount = 0;
-                this->m_safeModeReason = Components::SafeModeReason::NONE;
+                // NORMAL mode - ensure components are turned on
                 this->turnOnComponents();
             }
-        } else {
-            // Read failed or file truncated - use defaults
-            Fw::LogStringArg opStr("load-read");
-            this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
-            this->m_mode = SystemMode::NORMAL;
-            this->m_safeModeEntryCount = 0;
-            this->m_safeModeReason = Components::SafeModeReason::NONE;
-            this->turnOnComponents();
         }
+    }
 
-        file.close();
-    } else {
-        // Initialize to default state
-        this->m_mode = SystemMode::NORMAL;
-        this->m_safeModeEntryCount = 0;
-        this->m_safeModeReason = Components::SafeModeReason::NONE;
-        this->turnOnComponents();
-
-        // Only log warning for unexpected errors, not for expected "file not found" on first boot
-        if (status != Os::File::DOESNT_EXIST) {
-            Fw::LogStringArg opStr("load-open");
-            this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
-        }
-        // Note: DOESNT_EXIST is expected on first boot - no warning needed
+    // A state file that fails validation boots into safe mode with reason
+    // SYSTEM_FAULT and exactly one StatePersistenceFailure (MM0012). The event
+    // is emitted first so the ground sees the cause before the consequence;
+    // enterSafeMode turns the load switches off, reports the entry and
+    // rewrites the record in the current format.
+    if (corrupt) {
+        Fw::LogStringArg opStr("load-corrupt");
+        this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
+        this->enterSafeMode(Components::SafeModeReason::SYSTEM_FAULT);
     }
 
     // Handle unintended reboot detection AFTER basic state restoration
@@ -341,36 +366,39 @@ void ModeManager ::loadState() {
     this->saveState();
 }
 
-void ModeManager ::saveState() {
-    Os::File file;
-    Os::File::Status status = file.open(STATE_FILE_PATH, Os::File::OPEN_CREATE, Os::File::OVERWRITE);
+void ModeManager ::encodeState(U8 clean, U8* out) const {
+    const U32 entryCount = this->m_safeModeEntryCount;
+    out[0] = static_cast<U8>(this->m_mode);
+    out[1] = static_cast<U8>(entryCount & 0xFFU);
+    out[2] = static_cast<U8>((entryCount >> 8) & 0xFFU);
+    out[3] = static_cast<U8>((entryCount >> 16) & 0xFFU);
+    out[4] = static_cast<U8>((entryCount >> 24) & 0xFFU);
+    out[5] = static_cast<U8>(this->m_safeModeReason);
+    out[6] = clean;
+}
 
-    if (status != Os::File::OP_OK) {
-        // Log failure to open file, but allow component to continue
-        Fw::LogStringArg opStr("save-open");
+bool ModeManager ::storeState(U8 clean, const char* op) {
+    U8 payload[STATE_PAYLOAD_SIZE];
+    this->encodeState(clean, payload);
+
+    // Atomic replace: written and flushed to the staging file, then renamed
+    // over the target, so a failure at any step leaves the previous record
+    // intact and still valid.
+    const PersistedRecord::Status status =
+        PersistedRecord::store(STATE_FILE_PATH, STATE_TEMP_PATH, STATE_MAGIC, payload, STATE_PAYLOAD_SIZE);
+    if (status != PersistedRecord::Status::OK) {
+        // Report but allow the component to continue: this runs during safe
+        // mode entry, where crashing would be worse than a stale record.
+        Fw::LogStringArg opStr(op);
         this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
-        return;
+        return false;
     }
+    return true;
+}
 
-    PersistentState state;
-    state.mode = static_cast<U8>(this->m_mode);
-    state.safeModeEntryCount = this->m_safeModeEntryCount;
-    state.safeModeReason = static_cast<U8>(this->m_safeModeReason);
-    state.cleanShutdown = 0;  // Default to unclean - only prepareForReboot sets this to 1
-
-    FwSizeType bytesToWrite = sizeof(PersistentState);
-    FwSizeType bytesWritten = bytesToWrite;
-    Os::File::Status writeStatus = file.write(reinterpret_cast<U8*>(&state), bytesWritten, Os::File::WaitType::WAIT);
-
-    // Check if write succeeded and correct number of bytes written
-    if (writeStatus != Os::File::OP_OK || bytesWritten != bytesToWrite) {
-        // Log failure but allow component to continue operating
-        // This is critical - we don't want to crash during safe mode entry
-        Fw::LogStringArg opStr("save-write");
-        this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(writeStatus));
-    }
-
-    file.close();
+void ModeManager ::saveState() {
+    // Clean-shutdown flag clear: only prepareForReboot stores a 1.
+    (void)this->storeState(0, "save-store");
 }
 
 void ModeManager ::enterSafeMode(Components::SafeModeReason reason) {
@@ -396,6 +424,9 @@ void ModeManager ::enterSafeMode(Components::SafeModeReason reason) {
             break;
         case Components::SafeModeReason::LORA:
             reasonStr = "LoRa communication fault";
+            break;
+        case Components::SafeModeReason::COMMAND_LOSS:
+            reasonStr = "Loss of contact with ground";
             break;
         default:
             reasonStr = "Unknown";
@@ -504,6 +535,59 @@ F32 ModeManager ::getCurrentVoltage(bool& valid) {
     // Do NOT return a fake value that could mask a real brown-out condition
     valid = false;
     return 0.0f;
+}
+
+bool ModeManager ::reportLowBattery(F32 voltage) {
+    if (!this->isConnected_faultOut_OutputPort(0)) {
+        return false;
+    }
+    const Components::FaultDisposition disposition =
+        this->faultOut_out(0, Components::FaultType::LOW_BATTERY, Components::FaultSource::MODE_MANAGER,
+                           Components::FaultSeverity::CRITICAL, voltage);
+    return disposition == Components::FaultDisposition::CLAIMED;
+}
+
+bool ModeManager ::reportCommandLoss(U32 elapsedSeconds) {
+    if (!this->isConnected_faultOut_OutputPort(0)) {
+        return false;
+    }
+    const Components::FaultDisposition disposition =
+        this->faultOut_out(0, Components::FaultType::COMMAND_LOSS, Components::FaultSource::MODE_MANAGER,
+                           Components::FaultSeverity::CRITICAL, static_cast<F32>(elapsedSeconds));
+    return disposition == Components::FaultDisposition::CLAIMED;
+}
+
+void ModeManager::commandLossCheck() {
+    // Protect against concurrent access to command loss state
+    Os::ScopeLock lock(this->m_commandLossMutex);
+
+    // Get command loss period from parameter
+    Fw::ParamValid paramValid;
+    Fw::TimeIntervalValue commLossPeriod = this->paramGet_COMM_LOSS_TIME(paramValid);
+    FW_ASSERT(paramValid == Fw::ParamValid::VALID || paramValid == Fw::ParamValid::DEFAULT);
+
+    if (this->m_commandLossCounter >= commLossPeriod.get_seconds() && !this->m_commandLossDebounce) {
+        // Debounce so we don't repeatedly re-trigger command loss behavior
+        this->m_commandLossDebounce = true;
+
+        // Telemeter the command loss duration
+        U32 commandLossDuration = this->m_commandLossCounter;
+        this->log_WARNING_HI_CommandLossDetected(commandLossDuration);
+
+        // Report once per loss episode (the debounce flag above guards this as
+        // it guards the rest). Observation only while the FaultManager is in
+        // shadow mode: a CLAIMED disposition means it owns the recovery action.
+        const bool claimed = this->reportCommandLoss(commandLossDuration);
+
+        if (!claimed) {
+            // Trigger safe mode entry due to command loss
+            this->runSafeModeSequence();
+            this->enterSafeMode(Components::SafeModeReason::COMMAND_LOSS);
+
+            // Stop the watchdog to trigger a hardware power cycle as a last resort for recovery
+            this->stopWatchdog_out(0);
+        }
+    }
 }
 
 }  // namespace Components
