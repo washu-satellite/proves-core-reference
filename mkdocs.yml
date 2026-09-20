@@ -113,6 +113,7 @@ nav:
   - Requirements:
       - Traceability Matrix: requirements-matrix.md
       - CDH System Requirements: requirements/cdh.md
+      - Verification Tooling Requirements: requirements/tooling.md
   - Additional Resources:
       - Troubleshooting: additional-resources/troubleshooting.md
       - WSL Notes: additional-resources/wsl-notes.md

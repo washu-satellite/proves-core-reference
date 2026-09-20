@@ -53,8 +53,33 @@ counts a skipped pytest case as passed; `check_packet_set.py` standalone prints 
 | NUM_TASKS | 5 / 5 | OK |
 | MAX_FAULT_TYPE | 8 / 8 (U8) | WARN |
 
-## Tests (Stage 3b) — filled in after the test-author reports
-Hashes (`shasum -a 256`) of every file under `scripts/tests/` and `docs-site/requirements/tooling.md` are recorded here
-before the coder starts; the same command must reproduce them at Stage 5.
+## Tests (Stage 3b) — written 2026-09-19 from `01-normative.md`, `02-requirements.md` and this review only
+44 cases (41 in `test_check_capacity.py` claiming AUDIT-1..8 plus one unclaimed grammar test; 3 in `test_verify_sh.py`
+claiming AUDIT-9). Reviewed test-by-test against the criterion clauses: each claimed clause has one assertion, no test
+reads the tree's numbers, no test depends on `~/scalar-build`, the packet-script byte pin is in AUDIT-2. Expected state
+before the coder: 1 failed at the first test (`scripts/check_capacity.py: No such file or directory`).
+
+Author's findings, resolved here:
+- AUDIT-3 "L opcodes give OK" contradicted §1.4 (USED ≥ 0.9·LIMIT is WARN). **§1.4 wins:** at L the line is WARN; the
+  test asserts status ∈ {OK, WARN} and exit 0. Plan wording amended by this note.
+- AUDIT-4's `(project override|lib default)` contained a bare `|`, which `req.py` splits on; entered as
+  `(project override or lib default)`. The script's DETAIL text is `project override` or `lib default` as planned.
+- `pytest.ini` is at the repo root (not under `PROVESFlightControllerReference/`) and already registers `verifies`;
+  the conftest registration is redundant and harmless.
+- Amendment 4 (a skipped script test shows as not passed in the matrix) is not assertable from results because
+  `generate_rtm.py` has no output-path option. **It stays a coder requirement, verified at Stage 5 by inspection and
+  by running the parser on a junit with a `<skipped>` case.**
+- The `build-fprime-automatic-zephyr*/**` search root of `--dictionary auto` and the no-WARN case for a matching HEAD
+  hash are exercised at Stage 5 on the build copy, not by a test.
+
+Hashes (`shasum -a 256`), the contract the coder inherits; the same command must reproduce them at Stage 5:
+```
+8c779d5d4b586eedf3f0dce5ef83055ec03d431bd1bc96395534b713588a8604  scripts/tests/conftest.py
+b6222a4cff61886c1871d4c96e0c6b95c49a85a814f4235dd5bd42c8e27ba781  scripts/tests/test_check_capacity.py
+616071dc706970bb4c68af80f7ebfe21ec650fbb21b31fcb64225e36917f54cc  scripts/tests/test_verify_sh.py
+1d3d6620fc269f842ad0f25a9ddec47493ac22e891f81cca0a3b6c391bed4d98  docs-site/requirements/tooling.md
+```
+Commit order for this cycle: tests and rows first (the gate stays green because `verify.sh` does not yet run
+`scripts/tests`), then the implementation row. Git then shows the tests predating the code.
 
 ## Gate — filled in at Stage 5
