@@ -10,7 +10,7 @@ compile-time constant. When a plan deviates, it says so in its normative section
 |---|---|---|---|
 | **Parameter** | a *number* a CONOPS decision would move, with a named consumer that exists | `param` in the component `.fpp`, `PRM_SET` by command, range-checked with fallback to the compiled default, re-read at boot via `parametersLoaded()` | only after `PRM_SAVE_FILE`, and only the first `PRMDB_NUM_DB_ENTRIES` (25 today) saved ids — see the persistence gate in `ROADMAP.md` |
 | **Command argument** | a one-shot choice for this invocation only | command arg (e.g. `STREAM_START(rateHz)` on the wire) | n/a |
-| **File** | a *table* or a *behaviour*: gain schedules, soft-iron matrix, mode entry/exit sequences, TLE + epoch, the STM32 image | file uplink to the SD NAND, consumed by name | yes |
+| **File** | a *table* or a *behaviour*: gain schedules, soft-iron matrix, activity entry/exit sequences, TLE + epoch, the STM32 image | file uplink to the SD NAND, consumed by name | yes |
 | **Compile-time constant** | anything fixed by the board or the framework's static allocation, and hardware constants that will never be set from orbit | `constant` / `static const` / devicetree; capacity constants are audited by `scripts/check_capacity.py` | yes, by reflash only |
 
 Rules of thumb: a parameter without a consumer is dead code a test cannot claim; a parameter that is really a
@@ -21,13 +21,13 @@ Rules of thumb: a parameter without a consumer is dead code a test cannot claim;
 
 | Value | Where | Why fixed | The runtime knob that replaces it |
 |---|---|---|---|
-| Rate-group rates (50 / 10 / 1 Hz) and membership | `topology.fpp`, `instances.fpp` | F´ rate groups are static; there is no runtime move | per-mode TaskGate mask (on/off per task); `COLLECTION_INTERVAL_S` per source (slower, whole seconds) |
+| Rate-group rates (50 / 10 / 1 Hz) and membership | `topology.fpp`, `instances.fpp` | F´ rate groups are static; there is no runtime move | TaskGate `ENABLE_TASK`/`DISABLE_TASK` issued from an activity's sequence file (on/off per task); `COLLECTION_INTERVAL_S` per source (slower, whole seconds) |
 | Buffer and queue sizes, BufferManager pools, ComQueue depths | `project/config/*`, `instances.fpp` | allocated once at boot, library `setup()` guarded | none; A8's recorder owns its own ring with a parameterised retention |
 | Bus and pin assignments, baud rates | devicetree overlays, `Main.cpp` | hardware | none |
 | Packet layouts (which channel in which packet) | `ReferenceDeploymentPackets.fppi` | packetizer table is static | packet section levels (`SET_LEVEL`) and the telemetry divider control *volume* |
 | Sequence-number window (authenticated uplink) | `TcSecurityDeframer` config | security property, not a tuning knob | none |
 | Capacity constants (`MAX_PACKETIZER_*`, dispatch table, `PRMDB_NUM_DB_ENTRIES`, port arrays, `MAX_FAULT_TYPE`) | `project/config`, component `.fpp` | static tables | none; raised by a cycle when the audit warns |
-| Fault action map (type → action) | `FaultManager` `defaultPolicy` | opcode budget; a mode overlay is planned as a compiled table | debounce per type and `AUTHORITY_MASK` are parameters |
+| Fault action map (type → action) | `FaultManager` `defaultPolicy` | opcode budget; a later row adds a PAYLOAD_ABORT action (force activity NONE), no mode overlay | debounce per type and `AUTHORITY_MASK` are parameters |
 | **Coil geometry** (the ~29 per-coil area / turns / resistance values on DetumbleManager, of its 34 parameters) | `DetumbleManager` — **decision 2026-09-19: move to compile-time constants** | hardware constants that consumed a third of the saved-parameter budget and will never be set from orbit | B-dot gain, deadband, torque duration, cooldown and threshold stay parameters |
 | Board-side allowed stream rates (5 / 10 / 20 / 50 Hz) | STM32 firmware (A1) | fixed timer options in version 1 | `STREAM_START(rateHz)` picks one; the host-side default rate is a parameter |
 
