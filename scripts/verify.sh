@@ -126,7 +126,7 @@ if stage pre-commit; then
   say "pre-commit hooks (formatting, cpplint, codespell, ruff)"
   # The git hook records the interpreter pre-commit was installed with; reuse it so
   # this gate runs the same hooks the commit will.
-  HOOK_PY=$(sed -n 's/^INSTALL_PYTHON=//p' .git/hooks/pre-commit 2>/dev/null)
+  HOOK_PY=$(sed -n 's/^INSTALL_PYTHON=//p' "$(git rev-parse --git-path hooks/pre-commit)" 2>/dev/null)
   if [ -n "$HOOK_PY" ] && [ -x "$HOOK_PY" ]; then PC=("$HOOK_PY" -mpre_commit)
   elif command -v pre-commit >/dev/null 2>&1; then PC=(pre-commit)
   else PC=(); fi
