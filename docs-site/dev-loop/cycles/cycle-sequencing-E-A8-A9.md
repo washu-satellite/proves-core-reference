@@ -69,7 +69,7 @@ A9 needs no ring of its own — only a 220-byte staging buffer. That removes the
 | DH-L2-03/04/05/08/12, CDH-16, CDH-27 (scheduled per-pass downlink), DH-L2-13, DataRecorder-* | A8 |
 | ADCS-L2-04 (collect and store attitude telemetry), ADCS-L2-06, BurstCapture-*, and the model's MO-2 minimal path | A9 |
 
-## Stale lines in `design/stored-data/` to fix in A8 Phase 0 (do not fix them now)
+## Stale lines in `design/stored-data/` to fix in A8 Phase 0 — **done 2026-09-27** (design half of A8-0; the `req.py` half is still open)
 
 - 1 Hz slot 20 → 21. Opcode baseline 361 → 373 (after E). "packet count unchanged" still true.
 - Open decision 3 (card size): S8 resolved it — 4 GB soldered SD NAND; capacity defaults can be raised and `RESERVE_BYTES` set once `fsSpace.TotalSpace` is read on a board.

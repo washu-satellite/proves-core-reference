@@ -25,7 +25,7 @@ the ID. Component rows `DataRecorder-1..9` are added to `P/Components/DataRecord
 | CDH-12 prioritisation of stored data | Unchanged | Inspection |: |
 | CDH-14 manage onboard storage for telemetry and housekeeping | Capacity, retention, `BytesOnDisk`/`SegmentsOnDisk` next to `FsSpace` | Board (existing criterion + recorder channels) | 3 |
 | CDH-27 controls telemetry at least every 2 days | Detumble packets are in the `tlm` stream; per-pass sequence | Demonstration / Board | 3 |
-| ADCS-L2-04 collect and store attitude telemetry (may) | Stored once an attitude channel exists; recorder is the store |: | later |
+| ADCS-L2-04 collect and store attitude telemetry (may) | Stored once an attitude channel exists; recorder is the store. Claimed by A9 with ADCS-L2-06 and BurstCapture-* (`cycle-sequencing-E-A8-A9.md` §Requirement ownership) |: | A9 |
 
 Proposed component rows:
 

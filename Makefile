@@ -116,6 +116,7 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/Components/Drv/Tmp112Manager/docs/sdd.md docs-site/components/Tmp112Manager.md
 	@cp PROVESFlightControllerReference/Components/Drv/Veml6031Manager/docs/sdd.md docs-site/components/Veml6031Manager.md
 	@# Copy Storage Components
+	@cp PROVESFlightControllerReference/Components/DataRecorder/docs/sdd.md docs-site/components/DataRecorder.md
 	@cp PROVESFlightControllerReference/Components/FlashWorker/docs/sdd.md docs-site/components/FlashWorker.md
 	@cp PROVESFlightControllerReference/Components/FsFormat/docs/sdd.md docs-site/components/FsFormat.md
 	@cp PROVESFlightControllerReference/Components/FsSpace/docs/sdd.md docs-site/components/FsSpace.md
@@ -431,6 +432,10 @@ sequence: fprime-venv ## Compile a sequence file (usage: make sequence SEQ=start
 	fi
 	@echo "Compiling sequence: $(SEQ).seq"
 	@$(UV_RUN) fprime-seqgen sequences/$(SEQ).seq -d $(ARTIFACT_DIR)/zephyr/fprime-zephyr-deployment
+
+.PHONY: bench-sequence
+bench-sequence: fprime-venv ## Regenerate sequences/bench_startup.seq from sequences/startup.seq
+	@$(UV_RUN) python3 scripts/make_bench_sequence.py
 
 .PHONY: gds
 gds: ## Run FPrime GDS

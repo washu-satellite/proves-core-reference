@@ -46,3 +46,4 @@
 - DIVIDER 0 is required for the 1 s / 2 s power-rise windows; restore 29.
 - `detumbleManager` reads the IMU at 50 Hz; in AUTO it will torque whenever the rate exceeds 8 deg/s, including during handling. Set DISABLED before steps 3, 5-7.
 - Parameters are RAM-only until `PRM_SAVE_FILE`; do not save attempts=3.
+- The flight `startup.seq` fires `antennaDeployer.DEPLOY` 45 min after every boot (and sets detumble AUTO at +5 min): select the bench sequence first, see [Bench preconditions](README.md#bench-preconditions).

@@ -32,7 +32,7 @@ REPO = Path(__file__).resolve().parents[2]
 VERIFY_SH = Path("scripts") / "verify.sh"
 CAPACITY_SCRIPT = Path("scripts") / "check_capacity.py"
 
-HOST_TEST_BINARIES = 30
+HOST_TEST_BINARIES = 32
 PARTIAL_LABEL = "stages: host-tests (partial run — not a gate result)"
 AUDIT_HEADER = "== capacity audit"
 OLD_PACKET_HEADER = "== packet set vs TlmPacketizer config"

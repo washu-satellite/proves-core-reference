@@ -258,3 +258,29 @@ Potential improvements:
 - Event size calculations
 - Comparison between builds to track changes
 - Integration with F Prime dictionary files for validation
+
+## Recorder Reader
+
+`recorder_reader.py` decodes DataRecorder segment files (`/rec/tlm/NNNNNNNN.bin`, `/rec/evt/NNNNNNNN.bin` on the flight
+SD card) into CSV, using the deployment dictionary for packet layouts, names and enum values. Standard library only.
+
+Fetch segments with `dataRecorder.DOWNLINK_NEWEST TLM|EVT` (or `sequences/pass_recorder.seq`, which does both, events
+first), or list them with `dataRecorder.LIST_SEGMENTS` and send one with `fileDownlink.SendFile`. Then:
+
+```shell
+fprime-venv/bin/python3 tools/recorder_reader.py \
+  --dictionary build-artifacts/zephyr/fprime-zephyr-deployment/dict/ReferenceDeploymentTopologyDictionary.json \
+  --output recorded.csv 00000042.bin 00000043.bin
+```
+
+- CSV columns: `segment,record,stream,kind,id,name,time_base,time_context,seconds,useconds,value`. A telemetry packet
+  gives one `tlm` row per channel in the packet; an event gives one `evt` row whose `value` is `arg=value` pairs joined
+  by `;`; anything the dictionary does not describe is one `unknown` row with the packet bytes in hex.
+- Stderr: one `<path>: <n> records, stop=<END|TRUNCATED|BAD_LENGTH|BAD_CRC>` line per segment. A segment cut by a power
+  loss ends `TRUNCATED`; every row before the stop is still valid (each record carries its own CRC-32).
+- Exit status: `0` every segment ended cleanly, `1` at least one stopped early, `2` an unreadable file or dictionary or
+  an invalid segment header (one `error: ...` line).
+- Use the dictionary of the image that recorded the segments: packet layouts change between builds.
+
+The segment and record formats are specified in `docs-site/dev-loop/cycles/cycle-m-plan/01-normative.md` §5 and the
+command line in §10; the flight side is `PROVESFlightControllerReference/Components/DataRecorder/`.
