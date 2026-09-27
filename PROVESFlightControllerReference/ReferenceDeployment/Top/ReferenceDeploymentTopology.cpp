@@ -178,10 +178,10 @@ void setupTopology(const TopologyState& state) {
 
     // Configure DRV2605 magnetorquer managers
     drv2605Face0Manager.configure(state.tca9548aDevice, state.muxChannel0Device, state.face0drv2605Device);
-    drv2605Face1Manager.configure(state.tca9548aDevice, state.muxChannel0Device, state.face1drv2605Device);
-    drv2605Face2Manager.configure(state.tca9548aDevice, state.muxChannel0Device, state.face2drv2605Device);
-    drv2605Face3Manager.configure(state.tca9548aDevice, state.muxChannel0Device, state.face3drv2605Device);
-    drv2605Face5Manager.configure(state.tca9548aDevice, state.muxChannel0Device, state.face5drv2605Device);
+    drv2605Face1Manager.configure(state.tca9548aDevice, state.muxChannel1Device, state.face1drv2605Device);
+    drv2605Face2Manager.configure(state.tca9548aDevice, state.muxChannel2Device, state.face2drv2605Device);
+    drv2605Face3Manager.configure(state.tca9548aDevice, state.muxChannel3Device, state.face3drv2605Device);
+    drv2605Face5Manager.configure(state.tca9548aDevice, state.muxChannel5Device, state.face5drv2605Device);
 
     detumbleManager.configure();
 
