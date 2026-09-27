@@ -86,6 +86,10 @@ class PowerMonitor final : public PowerMonitorComponentBase {
     //! decimated sample is not discarded.
     static F64 maxAccumulationDt(U8 interval_s);
 
+    //! Read the charge-status pin once, if connected, and report Charging;
+    //! ChargeStateChanged fires on the first read and on every change only
+    void updateChargeStatus();
+
     // ----------------------------------------------------------------------
     // Member variables
     // ----------------------------------------------------------------------
@@ -106,6 +110,12 @@ class PowerMonitor final : public PowerMonitorComponentBase {
 
     //! Tick decimator driving the power sampling
     RunInterval m_interval;
+
+    //! True once the charge-status pin has been read at least once
+    bool m_chargeKnown;
+
+    //! Charge state from the most recent read (valid when m_chargeKnown)
+    Fw::On m_charging;
 };
 
 }  // namespace Components

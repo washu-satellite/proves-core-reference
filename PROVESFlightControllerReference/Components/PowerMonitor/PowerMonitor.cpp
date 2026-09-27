@@ -18,7 +18,9 @@ PowerMonitor ::PowerMonitor(const char* const compName)
       m_totalPower_mWh(0.0f),
       m_totalGeneration_mWh(0.0f),
       m_lastUpdateTime_s(0.0),
-      m_interval_s(Components::DEFAULT_INTERVAL_S) {}
+      m_interval_s(Components::DEFAULT_INTERVAL_S),
+      m_chargeKnown(false),
+      m_charging(Fw::On::OFF) {}
 
 PowerMonitor ::~PowerMonitor() {}
 
@@ -58,6 +60,10 @@ void PowerMonitor ::parametersLoaded() {
 // ----------------------------------------------------------------------
 
 void PowerMonitor ::run_handler(FwIndexType portNum, U32 context) {
+    // The charge pin is read on every run tick, independent of the collection
+    // interval that decimates the power sampling below.
+    this->updateChargeStatus();
+
     if (!this->m_interval.due(this->m_interval_s)) {
         return;
     }
@@ -113,6 +119,26 @@ void PowerMonitor ::GET_TOTAL_POWER_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) 
 F64 PowerMonitor ::maxAccumulationDt(U8 interval_s) {
     const F64 twoIntervals = 2.0 * static_cast<F64>(interval_s);
     return (twoIntervals > 10.0) ? twoIntervals : 10.0;
+}
+
+void PowerMonitor ::updateChargeStatus() {
+    // Unconnected on a board without the charger pin wired: read nothing, emit nothing.
+    if (!this->isConnected_chargeStatusGet_OutputPort(0)) {
+        return;
+    }
+
+    // The devicetree declares LT3652 ~CHRG active low, so logical HIGH means charging.
+    Fw::Logic level = Fw::Logic::LOW;
+    this->chargeStatusGet_out(0, level);
+    const Fw::On charging = (level == Fw::Logic::HIGH) ? Fw::On::ON : Fw::On::OFF;
+
+    // The channel is "update on change"; the event marks the first read and each change.
+    this->tlmWrite_Charging(charging);
+    if (!this->m_chargeKnown || (charging != this->m_charging)) {
+        this->log_ACTIVITY_LO_ChargeStateChanged(charging);
+    }
+    this->m_charging = charging;
+    this->m_chargeKnown = true;
 }
 
 F64 PowerMonitor ::getCurrentTimeSeconds() {

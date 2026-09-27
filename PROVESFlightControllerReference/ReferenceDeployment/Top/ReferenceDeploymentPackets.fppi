@@ -61,6 +61,7 @@ telemetry packets ReferenceDeploymentPackets {
     ina219SolManager.Current
     ina219SolManager.Power
     powerMonitor.CollectionIntervalS
+    powerMonitor.Charging
   }
 
   packet LightSensor id 13 group 2 {
@@ -94,6 +95,7 @@ telemetry packets ReferenceDeploymentPackets {
     tmp112Face2Manager.Temperature
     tmp112Face3Manager.Temperature
     tmp112Face5Manager.Temperature
+    tmp112Face6Manager.Temperature
     tmp112BattCell1Manager.Temperature
     tmp112BattCell2Manager.Temperature
     tmp112BattCell3Manager.Temperature

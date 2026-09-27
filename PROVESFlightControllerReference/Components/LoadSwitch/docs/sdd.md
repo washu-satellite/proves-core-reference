@@ -67,14 +67,15 @@ The component logs the `StatusChanged` event whenever the switch transitions due
 
 ## Requirements
 
-| Name | Description | Validation |
-|---|---|---|
-| Control via Command | The component shall allow turning the load switch on and off via ground commands `TURN_ON` and `TURN_OFF`. | Integration test |
-| Control via Port | The component shall allow turning the load switch on and off via input ports `turnOn` and `turnOff`. | Verify `turnOn` and `turnOff` port calls change the GPIO state and telemetry. |
-| State Telemetry | The component shall report the current state of the load switch via the `IsOn` telemetry channel. | Integration test |
-| State Event | The component shall emit a `StatusChanged` event when the load switch state changes. | Verify `StatusChanged` event is emitted upon state transitions. |
-| State Notification | The component shall notify connected components of state changes via the `loadSwitchStateChanged` port. | Downstream component testing |
-| GPIO Control | The component shall control the physical GPIO pin corresponding to the load switch using the `gpioSet` port. | Downstream component testing |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|Control via Command|The component shall allow turning the load switch on and off via ground commands `TURN_ON` and `TURN_OFF`.|Integration test|||||
+|Control via Port|The component shall allow turning the load switch on and off via input ports `turnOn` and `turnOff`.|Verify `turnOn` and `turnOff` port calls change the GPIO state and telemetry.|||||
+|State Telemetry|The component shall report the current state of the load switch via the `IsOn` telemetry channel.|Integration test|||||
+|State Event|The component shall emit a `StatusChanged` event when the load switch state changes.|Verify `StatusChanged` event is emitted upon state transitions.|||||
+|State Notification|The component shall notify connected components of state changes via the `loadSwitchStateChanged` port.|Downstream component testing|||||
+|GPIO Control|The component shall control the physical GPIO pin corresponding to the load switch using the `gpioSet` port.|Downstream component testing|||||
+|LoadSwitch-1|face4LoadSwitch shall power the mux-channel-5 face devices and face5LoadSwitch the mux-channel-6 face devices|Integration Test|Board|With every face switch OFF, face4LoadSwitch.TURN_ON alone: within 45 s tmp112Face5Manager.GetTemperature gives a Temperature event, veml6031Face5Manager.GetVisibleLight a VisibleLight event and drv2605Face5Manager.START acks OK, with no DeviceNotReady from those three; face5LoadSwitch.TURN_ON alone: within 45 s veml6031Face6Manager VisibleLight and tmp112Face6Manager Temperature events, and tmp112Face5Manager, veml6031Face5Manager and drv2605Face5Manager each report DeviceNotReady|||
 
 ## Change Log
 

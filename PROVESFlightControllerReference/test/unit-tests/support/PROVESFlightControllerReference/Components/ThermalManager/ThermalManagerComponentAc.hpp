@@ -9,7 +9,8 @@
 // writes before invoking run_handler.
 //
 // Port counts and parameter defaults mirror ThermalManager.fpp:
-//   numFaceTempSensors = 5, numBattCellTempSensors = 4,
+//   numFaceTempSensors = 6 (raised from 5 by Cycle L, 01-normative.md R2.1:
+//   faceTempGet[5] -> tmp112Face6Manager), numBattCellTempSensors = 4,
 //   FACE_TEMP_LOWER/UPPER = -40.0 / 60.0, BATT_CELL_TEMP_LOWER/UPPER = 5.0 / 60.0
 // Port signature mirrors Tmp112Manager.fpp:2
 //   port temperatureGet(ref condition: Fw.Success) -> F64
@@ -70,7 +71,7 @@ class ThermalManagerComponentBase {
     static constexpr FwPrmIdType PARAMID_COLLECTION_INTERVAL_S = 4;
 
     // ---- port counts (constexpr: ThermalManager.hpp:29-32 uses them as array bounds) ----
-    static constexpr FwIndexType getNum_faceTempGet_OutputPorts() { return 5; }
+    static constexpr FwIndexType getNum_faceTempGet_OutputPorts() { return 6; }
     static constexpr FwIndexType getNum_battCellTempGet_OutputPorts() { return 4; }
     static constexpr FwIndexType getNum_picoTempGet_OutputPorts() { return 1; }
 
@@ -87,9 +88,9 @@ class ThermalManagerComponentBase {
     virtual void parametersLoaded() {}
 
     // ---- test-controlled sensor readings ----
-    F64 faceTemp[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-    Fw::Success faceTempStatus[5] = {Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS,
-                                     Fw::Success::SUCCESS, Fw::Success::SUCCESS};
+    F64 faceTemp[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    Fw::Success faceTempStatus[6] = {Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS,
+                                     Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS};
     F64 battTemp[4] = {0.0, 0.0, 0.0, 0.0};
     Fw::Success battTempStatus[4] = {Fw::Success::SUCCESS, Fw::Success::SUCCESS, Fw::Success::SUCCESS,
                                      Fw::Success::SUCCESS};
@@ -109,6 +110,7 @@ class ThermalManagerComponentBase {
     std::vector<TempEventRecord> eventsAboveThreshold;
     std::vector<TempEventRecord> eventsBelowThreshold;
     U32 faceTempReads = 0;
+    U32 faceTempReadsByPort[6] = {0, 0, 0, 0, 0, 0};  //!< per-port count of faceTempGet_out calls
     U32 battTempReads = 0;
     U32 picoTempReads = 0;
     std::vector<U8> tlmCollectionIntervalS;
@@ -125,6 +127,7 @@ class ThermalManagerComponentBase {
     // ---- base-class services the component implementation calls ----
     F64 faceTempGet_out(FwIndexType portNum, Fw::Success& condition) {
         this->faceTempReads++;
+        this->faceTempReadsByPort[portNum]++;
         condition = this->faceTempStatus[portNum];
         return this->faceTemp[portNum];
     }

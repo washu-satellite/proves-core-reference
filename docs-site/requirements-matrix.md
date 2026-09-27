@@ -12,7 +12,7 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**322** requirements &middot; **140** linked to automated tests &middot; **84** verified by passing unit tests in this build &middot; **56** deferred to hardware (environment: host, no board in this environment)
+**330** requirements &middot; **148** linked to automated tests &middot; **89** verified by passing unit tests in this build &middot; **59** deferred to hardware (environment: host, no board in this environment)
 
 ## CDH L1 Requirements
 
@@ -175,6 +175,15 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | ADCS-L2-05 | System may schedule ADCS control loops. | Inspection | Unit | [may] detumbleManager runs in the 50 Hz group (topology.fpp:252); further control loops [not implemented] | *none* | 📋 CDR: Not met | "May" requirement; not implemented, requires nonlinear control logic |
 | ADCS-L2-06 | System may support downlink of control telemetry. | Integration Test | Board | [may] detumbleManager.Mode and coil parameter channels are received at least once per 45 s at level 6 | `driver_board_test.py` :: test_03_hk_channels_update<br>`telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | "May" requirement; not implemented |
 
+## Hardware Consistency (HWC)
+
+*2 requirements &middot; 2 automated &middot; 2 passing*
+
+| Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
+|---|---|---|---|---|---|---|---|
+| HWC-1 | check_hardware_consistency.py checks that every tmp112/veml6031/drv2605 face manager is configured with the mux channel the devicetree places its device on | Unit Test | Unit | Line HWC-1 mux-channels: N managers checked, M mismatched — S with one indented offender line per mismatch naming the instance, the channel passed and the channel in the devicetree; a --topology-cpp copy that moves one tmp112 or veml6031 manager to another channel raises M by one and gives FAIL and exit 1; a copy that fixes one drv2605 manager lowers M by one; a --main-cpp copy missing the inputs.<field> assignment for a checked manager exits 2; on the current tree the line is well-formed with status OK and exit 0 | `test_hwc1_drv2605_fix_lowers_mismatch_count` :: test_check_hardware_consistency.py<br>`test_hwc1_moving_tmp112_or_veml6031_raises_mismatch_count` :: test_check_hardware_consistency.py<br>`test_hwc1_all_channels_matching_is_ok` :: test_check_hardware_consistency.py<br>`test_hwc1_missing_inputs_assignment_exits_2` :: test_check_hardware_consistency.py<br>`test_hwc1_current_tree_ok` :: test_check_hardware_consistency.py | ✅ Unit (passing) |  |
+| HWC-2 | check_hardware_consistency.py checks that the declared size of &flash0 covers the end of every fixed partition | Unit Test | Unit | Line HWC-2 flash-size: reg R bytes, partitions end E bytes — S with R from the reg size cell (DT_SIZE_M, DT_SIZE_K, hex or decimal) and E the largest offset+size in the partitions block; a --dts copy with DT_SIZE_M(16) gives OK; a copy where a partition ends one byte past R gives FAIL and exit 1; a copy with no partitions block exits 2; the RESULT line is last and its shape matches check_docs.py (ok, warn, skip, fail counts); on the current tree the line is well-formed with status OK and exit 0 | `test_hwc2_size_16m_is_ok` :: test_check_hardware_consistency.py<br>`test_hwc2_partition_one_byte_past_reg_fails` :: test_check_hardware_consistency.py<br>`test_hwc2_reg_literal_forms` :: test_check_hardware_consistency.py<br>`test_hwc2_no_partitions_block_exits_2` :: test_check_hardware_consistency.py<br>`test_hwc2_current_tree_ok` :: test_check_hardware_consistency.py | ✅ Unit (passing) |  |
+
 ## Verification Tooling (AUDIT)
 
 *9 requirements &middot; 9 automated &middot; 9 passing*
@@ -227,7 +236,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## Burnwire
 
-*7 requirements &middot; 2 automated &middot; 0 passing*
+*9 requirements &middot; 4 automated &middot; 1 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -238,6 +247,8 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | BW-005 | The burnwire component shall be controlled by a safety timeout attached to a 1Hz rate group | Integration Test |  |  | *none* | ⬜ No automated test |  |
 | BW-006 | The safety timeout shall emit an event when it is changes | Integration test |  |  | *none* | ⬜ No automated test |  |
 | BW-007 | The burnwire safety time shall emit an event when it starts and stops | Integration Test |  |  | *none* | ⬜ No automated test |  |
+| BW-008 | A Burnwire instance with only gpioSet[0] connected shall drive port 0 and never invoke gpioSet[1]; with both ports connected its GPIO writes shall be unchanged | Unit Test | Unit | Host stub, SAFETY_TIMER 10: with only gpioSet[0] connected, START_BURNWIRE emits SetBurnwireState(ON) and responds OK; the first schedIn tick writes HIGH on port 0; STOP_BURNWIRE, and separately 10 ticks without STOP (safety timer), write LOW on port 0 and emit SetBurnwireState(OFF); gpioSet[1] is invoked zero times throughout. With both ports connected the writes are exactly (0,HIGH),(1,HIGH) on the first tick and (0,LOW),(1,LOW) on STOP_BURNWIRE or on safety-timer expiry | `test_Burnwire_SinglePort` :: BurnwireTest.SinglePortStartThenStopDrivesPortZeroOnly<br>`test_Burnwire_SinglePort` :: BurnwireTest.SinglePortSafetyTimerExpiryDrivesPortZeroOnly<br>`test_Burnwire_SinglePort` :: BurnwireTest.SinglePortStopWhileIdleNeverInvokesPortOne<br>`test_Burnwire_SinglePort` :: BurnwireTest.BothPortsStartThenStopWriteOrderUnchanged<br>`test_Burnwire_SinglePort` :: BurnwireTest.BothPortsSafetyTimerWriteOrderUnchanged | ✅ Unit (passing) |  |
+| BW-009 | burnwireDeploy2 shall start and stop the DEPLOY2 burn channel on command, with the safety timer bounding an unstopped burn | Integration Test | Board | With a dummy load on J24: RD.burnwireDeploy2.START_BURNWIRE gives SetBurnwireState(ON) within 2 s and ina219SysManager power at least 0.3 W above the pre-START reading; STOP_BURNWIRE gives SetBurnwireState(OFF) within 2 s and a BurnwireEndCount event; START_BURNWIRE without STOP gives SetBurnwireState(OFF) 8.5-11 s (FSW event time) after the ON event (SAFETY_TIMER 10 s) | `burnwire_deploy2_test.py` :: test_01_start_and_stop_deploy2<br>`burnwire_deploy2_test.py` :: test_02_safety_timer_stops_deploy2 | ⏸ Integration (deferred: no board in host env) |  |
 
 ## CameraHandler
 
@@ -422,7 +433,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## LoadSwitch
 
-*6 requirements &middot; 0 automated &middot; 0 passing*
+*7 requirements &middot; 1 automated &middot; 0 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -432,6 +443,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | State Event | The component shall emit a `StatusChanged` event when the load switch state changes. | Verify `StatusChanged` event is emitted upon state transitions. |  |  | *none* | ⬜ No automated test |  |
 | State Notification | The component shall notify connected components of state changes via the `loadSwitchStateChanged` port. | Downstream component testing |  |  | *none* | ⬜ No automated test |  |
 | GPIO Control | The component shall control the physical GPIO pin corresponding to the load switch using the `gpioSet` port. | Downstream component testing |  |  | *none* | ⬜ No automated test |  |
+| LoadSwitch-1 | face4LoadSwitch shall power the mux-channel-5 face devices and face5LoadSwitch the mux-channel-6 face devices | Integration Test | Board | With every face switch OFF, face4LoadSwitch.TURN_ON alone: within 45 s tmp112Face5Manager.GetTemperature gives a Temperature event, veml6031Face5Manager.GetVisibleLight a VisibleLight event and drv2605Face5Manager.START acks OK, with no DeviceNotReady from those three; face5LoadSwitch.TURN_ON alone: within 45 s veml6031Face6Manager VisibleLight and tmp112Face6Manager Temperature events, and tmp112Face5Manager, veml6031Face5Manager and drv2605Face5Manager each report DeviceNotReady | `face_rail_wiring_test.py` :: test_01_face4_switch_powers_mux_channel_5<br>`face_rail_wiring_test.py` :: test_02_face5_switch_powers_mux_channel_6_only | ⏸ Integration (deferred: no board in host env) |  |
 
 ## ModeManager
 
@@ -488,7 +500,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## PowerMonitor
 
-*10 requirements &middot; 5 automated &middot; 3 passing*
+*12 requirements &middot; 7 automated &middot; 4 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -502,6 +514,8 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | PWR-MON-REQ-008 | run shall sample the power monitors every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sample sweeps occur (ticks 1,4,7,10); at the default interval every tick samples | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.IntervalThreeSamplesFourTimesInTwelveTicks<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN | ✅ Unit (passing) |  |
 | PWR-MON-REQ-009 | Energy accumulation shall remain correct at any configured collection interval, and an invalid interval shall fall back to 1 s | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event and CollectionIntervalS telemetry 1; TotalPowerConsumption keeps accumulating at interval 30 s | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultIntervalAccumulatesEverySecond<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.DefaultIntervalStillDropsATwelveSecondJump<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.IntervalThirtyKeepsAccumulating<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange | ✅ Unit (passing) |  |
 | PWR-MON-REQ-010 | A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective sampling interval from the first run tick after boot, without any PRM_SET | Unit Test | Unit | With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks make exactly 4 system-power requests (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick samples, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event | `test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.SavedIntervalIsEffectiveOnTheFirstTickAfterBoot<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection<br>`test_PowerMonitor_CollectionInterval` :: PowerMonitorCollectionIntervalTest.ParameterSetAfterBootStillAppliesOnce | ✅ Unit (passing) |  |
+| PWR-MON-REQ-011 | PowerMonitor shall report the battery charge status read on chargeStatusGet as the Charging channel and a ChargeStateChanged event | Unit Test | Unit | Host stub at the default interval, chargeStatusGet connected: each run tick reads the port once; Charging is written ON after a HIGH read and OFF after a LOW read; ChargeStateChanged fires on the first read and on each change only (reads HIGH,HIGH,LOW,LOW,HIGH give events ON,OFF,ON); with the port unconnected it is never invoked and no Charging write or ChargeStateChanged event occurs over 5 ticks; system/solar reads and TotalPowerConsumption are the same with the port connected or not | `test_PowerMonitor_ChargeStatus` :: PowerMonitorChargeStatusTest.FirstHighReadReportsChargingOnWithOneEvent<br>`test_PowerMonitor_ChargeStatus` :: PowerMonitorChargeStatusTest.FirstLowReadReportsChargingOffWithOneEvent<br>`test_PowerMonitor_ChargeStatus` :: PowerMonitorChargeStatusTest.EventOnlyOnChangeAndChannelFollowsEveryRead<br>`test_PowerMonitor_ChargeStatus` :: PowerMonitorChargeStatusTest.UnconnectedPortIsNeverReadAndNothingNewIsEmitted<br>`test_PowerMonitor_ChargeStatus` :: PowerMonitorChargeStatusTest.ConnectedPortLeavesTotalsAndSamplingUnchanged | ✅ Unit (passing) |  |
+| PWR-MON-REQ-012 | powerMonitor.Charging shall follow the battery charger state | Integration Test | Board | With a supply on VSOLAR above the pack voltage, ChargeStateChanged(ON) within 2 s of applying it and powerMonitor.Charging reads ON; with the supply removed, ChargeStateChanged(OFF) within 2 s and Charging reads OFF; exactly one ChargeStateChanged per transition | `charge_status_test.py` :: test_01_charging_follows_vsolar_supply | ⏸ Integration (deferred: no board in host env) |  |
 
 ## ResetManager
 
@@ -595,7 +609,7 @@ assessment (e.g. from CDR) with no automated evidence yet.
 
 ## ThermalManager
 
-*9 requirements &middot; 3 automated &middot; 3 passing*
+*10 requirements &middot; 4 automated &middot; 4 passing*
 
 | Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
 |---|---|---|---|---|---|---|---|
@@ -608,3 +622,4 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | ThermalManager-1 | run shall perform the sensor sweep every COLLECTION_INTERVAL_S seconds (1..60), default 1 s | Unit Test | Unit | Over 12 ticks at interval 3 exactly 4 sweeps occur (ticks 1,4,7,10); at the default interval every tick sweeps | `test_RunInterval` :: RunInterval.DefaultRunsEveryTick<br>`test_RunInterval` :: RunInterval.IntervalNRunsEveryN<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.IntervalThreeSweepsFourTimesInTwelveTicks<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.DefaultBehaviourUnchanged<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.IntervalSixtyIsAccepted<br>`collection_interval_test.py` :: test_01_interval_spaces_channel_updates<br>`collection_interval_test.py` :: test_03_default_interval_updates_every_second | ✅ Unit (passing)<br>⏸ Integration (deferred: no board in host env) |  |
 | ThermalManager-2 | An out-of-range or invalid COLLECTION_INTERVAL_S shall fall back to the 1 s default and report the rejection | Unit Test | Unit | An interval of 0 or >60 or an INVALID param yields effective 1 s, one CollectionIntervalRejected event, and CollectionIntervalS telemetry 1 | `test_RunInterval` :: RunInterval.EffectiveFallsBackOutOfRange<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.ZeroIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.AboveRangeIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.InvalidParamIsRejectedAndFallsBackToOne<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.UninitParamIsRejectedAndFallsBackToOne<br>`collection_interval_test.py` :: test_02_out_of_range_interval_is_rejected | ✅ Unit (passing)<br>⏸ Integration (deferred: no board in host env) |  |
 | ThermalManager-3 | A COLLECTION_INTERVAL_S value saved in PrmDb shall be the effective sweep interval from the first run tick after boot, without any PRM_SET | Unit Test | Unit | With COLLECTION_INTERVAL_S = 3 VALID in the stub and no parameterUpdated call, after parametersLoaded() 12 ticks sweep exactly 4 times (ticks 1,4,7,10) and the first CollectionIntervalS write is 3; with paramValidity INVALID (host-stub case: on the target loadParameters leaves VALID or DEFAULT) every tick sweeps, one CollectionIntervalRejected, first write 1; a parameterUpdated after boot applies as today with no duplicate event | `test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.SavedIntervalIsEffectiveOnTheFirstTickAfterBoot<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.InvalidSavedIntervalAtBootFallsBackToOneWithOneRejection<br>`test_ThermalManager_CollectionInterval` :: ThermalCollectionIntervalTest.ParameterSetAfterBootStillAppliesOnce | ✅ Unit (passing) |  |
+| ThermalManager-4 | ThermalManager shall sweep six face temperature sensors, the sixth reported as sensorId 5 | Unit Test | Unit | Host stub with six faceTempGet ports: each executed collection tick calls every port 0-5 exactly once (3 ticks at the default interval: 3 calls each; 12 ticks at interval 3: 4 calls each); a face-5 reading of 61 C raises one TemperatureAboveThreshold(FACE, 5, 61.0) and of -41 C one TemperatureBelowThreshold(FACE, 5, -41.0); existing ThermalManager host tests stay green | `test_ThermalManager_SixthFace` :: ThermalSixthFaceTest.EverySweepCallsAllSixFacePortsOnce<br>`test_ThermalManager_SixthFace` :: ThermalSixthFaceTest.SixthFaceFollowsTheCollectionInterval<br>`test_ThermalManager_SixthFace` :: ThermalSixthFaceTest.SixthFaceAboveUpperReportsSensorIdFive<br>`test_ThermalManager_SixthFace` :: ThermalSixthFaceTest.SixthFaceBelowLowerReportsSensorIdFive | ✅ Unit (passing) |  |

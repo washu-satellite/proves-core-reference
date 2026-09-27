@@ -20,6 +20,7 @@ Windows (from `telemetry_sources_test.py`): period 30 s; ONE_PERIOD_WINDOW 45 s;
 5. `RD.tmp112Face0Manager.GetTemperature` and `RD.picoTempManager.GetPicoTemperature`. Observable: `Temperature` / `PicoTemperature` events <= 5 s, -40..125 C (CDH-2).
 6. `GetTemperature` on each of the 9 TMP112 managers and `GetPicoTemperature`. Observable: each returns its Temperature event <= 5 s (CDH-31 functional clause).
 7. `SET_LEVEL 1`.
+8. Face rail wiring (needs face boards on the F4 connector J1 = mux channel 5 and the F5 connector J2 = mux channel 6; run on a board that has not already logged five `DeviceNotReady` from the channel-5 managers since boot, the event is `throttle 5`). `TURN_OFF` every face switch (`RD.face0..5LoadSwitch`). (a) `RD.face4LoadSwitch.TURN_ON` alone. Observable within 45 s: `tmp112Face5Manager.GetTemperature` gives a `Temperature` event, `veml6031Face5Manager.GetVisibleLight` a `VisibleLight` event, `drv2605Face5Manager.START` acks OK, and none of the three reports `DeviceNotReady`. (b) Every face switch OFF again, then `RD.face5LoadSwitch.TURN_ON` alone. Observable within 45 s: `veml6031Face6Manager` `VisibleLight` and `tmp112Face6Manager` `Temperature` events; `tmp112Face5Manager`, `veml6031Face5Manager` and `drv2605Face5Manager` each report `DeviceNotReady` (LoadSwitch-1). Turn every face switch back ON (step 1) before any later group.
 
 ## Criteria
 | ID | Criterion | Automated | Evidence |
@@ -38,6 +39,7 @@ Windows (from `telemetry_sources_test.py`): period 30 s; ONE_PERIOD_WINDOW 45 s;
 | FD-L2-04 | Clause 1 only: fault event FSW timestamp within 5 s of GDS receipt. Retention clause: no on-board log (see README) | manual | Step 4 event log with GDS receive times |
 | CDH-2 | GetTemperature / GetPicoTemperature answer <= 5 s in -40..125 C | pico_temp_test.py::test_01_get_pico_temperature ; tmp112_test.py::test_01_get_temperature | Step 5 |
 | CDH-31 | Functional clause: each of 9 TMP112 + pico returns Temperature <= 5 s of its Get. Schematic/BOM clause: Inspection, list TBD (README) | manual | Step 6 event log |
+| LoadSwitch-1 | face4LoadSwitch alone: channel-5 managers (tmp112/veml6031/drv2605 Face5) answer within 45 s, no DeviceNotReady; face5LoadSwitch alone: veml6031Face6/tmp112Face6 answer within 45 s and the three channel-5 managers report DeviceNotReady | face_rail_wiring_test.py::test_01_face4_switch_powers_mux_channel_5 ; face_rail_wiring_test.py::test_02_face5_switch_powers_mux_channel_6_only | Step 8 |
 
 ## Why this verifies it
 - TM-L2-01/05/06, CDH-4/6/9, FD-L2-09, ADCS-L2-06: the requirement's observable is "telemetry received on the ground"; a 105 s window at level 6 covers three packetizer runs, so a missing source is a real absence, not a phase effect. Values from real sensors (range check, non-zero axis) rule out placeholder writes.
@@ -46,6 +48,7 @@ Windows (from `telemetry_sources_test.py`): period 30 s; ONE_PERIOD_WINDOW 45 s;
 - DH-L2-02: NoBuffs is a library counter independent of the components that consume buffers; static pool sizes are cited from `ComCcsdsConfig.fpp`.
 - CDH-2/31: per-sensor Get commands prove each device answers on its own bus address after power-on. CDH-31's Inspection clause is not covered here.
 - TM-L2-07 / CDH-18 (electrical values) need a known bus voltage: HP-11.
+- LoadSwitch-1: with exactly one face rail ON, a device that answers can only be powered by that rail, so the step confirms the netlist reading (F4 connector = mux channel 5, F5 connector = mux channel 6) on the bench rather than trusting the topology that encodes it.
 
 ## Known traps
 - Level 1 = Beacon only; forgetting `SET_LEVEL 6` fails every non-Beacon assertion. Restore level 1 or later groups see extra link load.

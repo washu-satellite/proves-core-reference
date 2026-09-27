@@ -178,6 +178,15 @@ module ReferenceDeployment {
 
   instance ina219SolManager: Drv.Ina219Manager base id 0x1003A000
 
+  # Cycle L: base ids 0x10081000 and above (0x10080000 is Cycle M's dataRecorder)
+  instance tmp112Face6Manager: Drv.Tmp112Manager base id 0x10081000
+
+  instance gpioDeploy2: Zephyr.ZephyrGpioDriver base id 0x10082000
+
+  instance burnwireDeploy2: Components.Burnwire base id 0x10083000
+
+  instance gpioCharge: Zephyr.ZephyrGpioDriver base id 0x10084000
+
   instance startupManager: Components.StartupManager base id 0x1003B000
 
   instance telemetryGate: Components.TelemetryGate base id 0x1003C000
