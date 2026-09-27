@@ -12,7 +12,16 @@ a requirement's test results only count as *passing* once its pass criteria are
 defined (🚫 marks tests run against undefined criteria). 📋 marks a manual
 assessment (e.g. from CDR) with no automated evidence yet.
 
-**334** requirements &middot; **157** linked to automated tests &middot; **97** verified by passing unit tests in this build &middot; **60** deferred to hardware (environment: host, no board in this environment)
+**338** requirements &middot; **161** linked to automated tests &middot; **101** verified by passing unit tests in this build &middot; **60** deferred to hardware (environment: host, no board in this environment)
+
+## Bench Safety (BENCH)
+
+*2 requirements &middot; 2 automated &middot; 2 passing*
+
+| Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
+|---|---|---|---|---|---|---|---|
+| BENCH-1 | make_bench_sequence.py derives the bench startup sequence from startup.seq by removing only the deploy, transmit-enable, safe-mode-exit and detumble-mode commands | Unit Test | Unit | Output = the two fixed header lines then every source line byte for byte except command lines for antennaDeployer.DEPLOY, modeManager.EXIT_SAFE_MODE, detumbleManager.SET_MODE (any argument) and lora.TRANSMIT with first argument ENABLED, and a comment line immediately before a dropped line; TRANSMIT, DISABLED and blank lines inside the sequence are kept; blank lines at the end of the output are dropped so the file ends in exactly one newline; --stdout prints the same text and writes nothing; a missing --source exits 2 with one stderr line | `test_bench1_drops_hazard_commands` :: test_make_bench_sequence.py<br>`test_bench1_transmit_disabled_kept` :: test_make_bench_sequence.py<br>`test_bench1_transmit_enabled_without_comma_dropped` :: test_make_bench_sequence.py<br>`test_bench1_comment_before_dropped_line_dropped` :: test_make_bench_sequence.py<br>`test_bench1_blank_lines_kept` :: test_make_bench_sequence.py<br>`test_bench1_trailing_blank_lines_dropped` :: test_make_bench_sequence.py<br>`test_bench1_stdout_prints_same_text_writes_nothing` :: test_make_bench_sequence.py<br>`test_bench1_missing_source_exits_2` :: test_make_bench_sequence.py | ✅ Unit (passing) |  |
+| BENCH-2 | make_bench_sequence.py --check fails the gate when sequences/bench_startup.seq is missing or differs from the regeneration | Unit Test | Unit | With --check: exit 0 when --output equals the generated text byte for byte; exit 1 with the line bench_startup.seq: stale after any byte differs; exit 1 with bench_startup.seq: missing when absent; nothing is written in --check mode; on the current tree --check exits 0 | `test_bench2_check_equal_stale_missing` :: test_make_bench_sequence.py<br>`test_bench2_current_tree_check_exits_0` :: test_make_bench_sequence.py | ✅ Unit (passing) |  |
 
 ## CDH L1 Requirements
 
@@ -174,6 +183,15 @@ assessment (e.g. from CDR) with no automated evidence yet.
 | ADCS-L2-04 | System may collect and store attitude telemetry. | Integration Test | Board | [may] An attitude estimate channel is written each cycle and stored on board [not implemented; imu channels only] | *none* | 📋 CDR: Not met | "May" requirement; not implemented |
 | ADCS-L2-05 | System may schedule ADCS control loops. | Inspection | Unit | [may] detumbleManager runs in the 50 Hz group (topology.fpp:252); further control loops [not implemented] | *none* | 📋 CDR: Not met | "May" requirement; not implemented, requires nonlinear control logic |
 | ADCS-L2-06 | System may support downlink of control telemetry. | Integration Test | Board | [may] detumbleManager.Mode and coil parameter channels are received at least once per 45 s at level 6 | `driver_board_test.py` :: test_03_hk_channels_update<br>`telemetry_sources_test.py` :: test_01_every_registered_source_updates | ⏸ Integration (deferred: no board in host env) | "May" requirement; not implemented |
+
+## Hardware Consistency (HWC)
+
+*2 requirements &middot; 2 automated &middot; 2 passing*
+
+| Requirement | Description | Method | Level | Pass Criteria | Verified by | Status | Reason |
+|---|---|---|---|---|---|---|---|
+| HWC-1 | check_hardware_consistency.py checks that every tmp112/veml6031/drv2605 face manager is configured with the mux channel the devicetree places its device on | Unit Test | Unit | Line HWC-1 mux-channels: N managers checked, M mismatched — S with one indented offender line per mismatch naming the instance, the channel passed and the channel in the devicetree; a --topology-cpp copy that moves one tmp112 or veml6031 manager to another channel raises M by one and gives FAIL and exit 1; a copy that fixes one drv2605 manager lowers M by one; a --main-cpp copy missing the inputs.<field> assignment for a checked manager exits 2; on the current tree the line is well-formed with status OK and exit 0 | `test_hwc1_drv2605_fix_lowers_mismatch_count` :: test_check_hardware_consistency.py<br>`test_hwc1_moving_tmp112_or_veml6031_raises_mismatch_count` :: test_check_hardware_consistency.py<br>`test_hwc1_all_channels_matching_is_ok` :: test_check_hardware_consistency.py<br>`test_hwc1_missing_inputs_assignment_exits_2` :: test_check_hardware_consistency.py<br>`test_hwc1_current_tree_ok` :: test_check_hardware_consistency.py | ✅ Unit (passing) |  |
+| HWC-2 | check_hardware_consistency.py checks that the declared size of &flash0 covers the end of every fixed partition | Unit Test | Unit | Line HWC-2 flash-size: reg R bytes, partitions end E bytes — S with R from the reg size cell (DT_SIZE_M, DT_SIZE_K, hex or decimal) and E the largest offset+size in the partitions block; a --dts copy with DT_SIZE_M(16) gives OK; a copy where a partition ends one byte past R gives FAIL and exit 1; a copy with no partitions block exits 2; the RESULT line is last and its shape matches check_docs.py (ok, warn, skip, fail counts); on the current tree the line is well-formed with status OK and exit 0 | `test_hwc2_size_16m_is_ok` :: test_check_hardware_consistency.py<br>`test_hwc2_partition_one_byte_past_reg_fails` :: test_check_hardware_consistency.py<br>`test_hwc2_reg_literal_forms` :: test_check_hardware_consistency.py<br>`test_hwc2_no_partitions_block_exits_2` :: test_check_hardware_consistency.py<br>`test_hwc2_current_tree_ok` :: test_check_hardware_consistency.py | ✅ Unit (passing) |  |
 
 ## Verification Tooling (AUDIT)
 
