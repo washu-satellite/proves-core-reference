@@ -141,6 +141,18 @@ Rationale: CDH-1/2 have numeric, automated criteria (Test, not Demonstration). T
 - Not implemented, criterion cannot be exercised: CDH-24, CDH-25, CDH-26, CDH-29, CDH-30 (pointing/settle/coil hold, all "may"); CDH-17, CDH-20 (payload not interfaced); ADCS-L2-04 (no attitude estimate). (DH-L2-05/08/12 and CDH-16 left this list in Cycle M: the DataRecorder implements them, HP-12 Part B.)
 - Placed but with a Mission Ops remainder: CDH-18 (sensor list), CDH-31 (critical-component list), SC-L2-05 (headroom %), TM-L2-08 (voltage/current thresholds), MS-L2-01 (STANDBY/CALIBRATION/EXPERIMENT), TM-L2-09 and SC-L2-07 (per-subsystem/generic task commands: design TBD), FD-L2-04 (retention), MS-L2-09 (SYSTEM_FAULT entry if HP-10 step D shows it is not provokable).
 
+## Bench preconditions
+On the first 1 Hz tick of every boot `startupManager` dispatches the file named by `STARTUP_SEQUENCE_FILE` (default `/seq/startup.bin`; `StartupManager.cpp:375-383`). The flight `sequences/startup.seq` then fires the burn wire at +45 min (`:7` `antennaDeployer.DEPLOY`), keys the radio (`:17` `lora.TRANSMIT ENABLED`), turns the faces on (`:20` `modeManager.EXIT_SAFE_MODE`) and puts detumble in AUTO so the coils torque whenever the board is moved (`:22`). `ARMED=false` does not stop any of it: it only skips the quiescence wait (`StartupManager.cpp:426-434`). There is no hard-coded radio enable on this fork (`DEFAULT_STARTUP_VALUE == 0`, `test_StartupManager_Persistence.cpp:592`), so the sequence file is the only thing to change.
+
+Select the bench sequence (`sequences/bench_startup.seq`: the flight file minus those four commands, generated and tracked) once per board, before any T1-T3 procedure:
+1. `make bench-sequence` (or use the tracked file as it is; `make_bench_sequence.py --check` in the gate keeps it in step with `startup.seq`).
+2. `make sequence SEQ=bench_startup` -> `sequences/bench_startup.bin` (gitignored).
+3. `fileUplink` `sequences/bench_startup.bin` -> `/seq/bench_startup.bin` (HP-09 step 2 pattern). Observable: `FileReceived`.
+4. `RD.startupManager.STARTUP_SEQUENCE_FILE_PRM_SET /seq/bench_startup.bin`, then `RD.startupManager.STARTUP_SEQUENCE_FILE_PRM_SAVE`, then `FileHandling.prmDb.PRM_SAVE_FILE`. Observable: `PrmFileSaveComplete`.
+5. Reboot. Observable: `RD.startupManager.StartupSequenceFinished`; no `RD.antennaDeployer.DeployAttempt` after +45 min.
+
+On a freshly formatted filesystem with no `/seq/startup.bin` the default dispatch fails harmlessly (`StartupSequenceFailed`), so the hazard exists only once `/seq/startup.bin` has been uplinked: select the bench file first. To return a board to the flight sequence, repeat step 4 with `/seq/startup.bin`.
+
 ## Recommended execution order
 1. T1: HP-01 (command path) -> HP-02, HP-03 (sources, scheduler; same setup) -> HP-04 (interval) -> HP-08 (thresholds) -> HP-09 (files/seq/RTC) -> HP-05 (gate) -> HP-06 (modes) -> HP-07 (reboots, last: destructive, turns faces off). Unlocks 61 rows.
 2. T2 and T3 in parallel on two rigs: T2 HP-11 (electrical/actuators) -> HP-10 (faults) -> HP-12 (power cut, Part A then Part B): 23 rows. T3 HP-13 (RF silence/buffering, 10 min) then start HP-14 (96 h soak): 7 rows.
