@@ -190,7 +190,6 @@ module ReferenceDeployment {
   instance tmp112Face1Manager: Drv.Tmp112Manager base id 0x10043000
   instance tmp112Face2Manager: Drv.Tmp112Manager base id 0x10044000
   instance tmp112Face3Manager: Drv.Tmp112Manager base id 0x10045000
-  instance tmp112Face4Manager: Drv.Tmp112Manager base id 0x10046000
   instance tmp112Face5Manager: Drv.Tmp112Manager base id 0x10047000
   instance tmp112BattCell1Manager: Drv.Tmp112Manager base id 0x10048000
   instance tmp112BattCell2Manager: Drv.Tmp112Manager base id 0x10049000
@@ -203,7 +202,6 @@ module ReferenceDeployment {
   instance veml6031Face1Manager: Drv.Veml6031Manager base id 0x1004E000
   instance veml6031Face2Manager: Drv.Veml6031Manager base id 0x1004F000
   instance veml6031Face3Manager: Drv.Veml6031Manager base id 0x10050000
-  instance veml6031Face4Manager: Drv.Veml6031Manager base id 0x10051000
   instance veml6031Face5Manager: Drv.Veml6031Manager base id 0x10052000
   instance veml6031Face6Manager: Drv.Veml6031Manager base id 0x10053000
   instance veml6031Face7Manager: Drv.Veml6031Manager base id 0x10054000

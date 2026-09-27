@@ -99,4 +99,4 @@ Host: R1–R6 with a sequencer stub and a mode stub (refusal table exhaustive ov
 triple; R4 forced-NONE; R5 reset). Board (deferred): experiment enter/exit transcript on the bench shows rail on →
 PING → detumble stand-down → ARM, and the reverse; forcing SAFE mid-experiment shows ABORT and DISARM refusals at most
 as warnings. Requirement rows: `MS-L2-01` (modes/activities) and `ADCS` arbitration rows from
-`generated/requirements-not-verified.md` Tier 1; add `ACT-1..n` in a component sdd table via `req.py`.
+`generated/requirements-not-verified.md` (SCALAR model repo, not this one) Tier 1; add `ACT-1..n` in a component sdd table via `req.py`.

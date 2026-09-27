@@ -191,7 +191,7 @@ The ModeManager publishes telemetry every 1Hz via the `run` handler:
 - **Component Definition**: `PROVESFlightControllerReference/Components/ModeManager/ModeManager.fpp`
 - **Implementation**: `PROVESFlightControllerReference/Components/ModeManager/ModeManager.cpp`
 - **Header**: `PROVESFlightControllerReference/Components/ModeManager/ModeManager.hpp`
-- **Integration Tests**: `PROVESFlightControllerReference/test/int/safe_mode_test.py`
+- **Integration Tests**: `PROVESFlightControllerReference/test/int/mode_manager_test.py`
 
 ### Key Methods
 - `run_handler()`: 1Hz periodic handler for voltage monitoring and telemetry
@@ -216,7 +216,7 @@ Stored at: `/mode_state.bin` (size is architecture-dependent due to struct paddi
 
 ## Testing Validation
 
-The Safe Mode FSM is validated through integration tests in `safe_mode_test.py`:
+The Safe Mode FSM is validated through integration tests in `mode_manager_test.py`:
 
 | Test | Validates | Status |
 |------|-----------|--------|

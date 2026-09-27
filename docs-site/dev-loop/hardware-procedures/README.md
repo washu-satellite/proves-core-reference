@@ -1,6 +1,6 @@
 # Hardware verification procedures for the deferred CDH rows (index)
 
-Input: `scratchpad/deferred-rows.md` (106 rows). 91 rows are placed in 14 groups; 15 rows are unmeasurable as written (Needs Mission Ops). Cycle M (DataRecorder) moved DH-L2-05/08/12 and CDH-16 from Needs Mission Ops to HP-12 Part B. One file per group; read the group file for steps, criteria and the verification argument. `RD.` = `ReferenceDeployment.`. Repo is read-only for this plan; `req.py` commands below are listed, not run.
+Input: the 106 requirement rows deferred to hardware in `docs-site/requirements-matrix.md` when this plan was written. 91 rows are placed in 14 groups; 15 rows are unmeasurable as written (Needs Mission Ops). Cycle M (DataRecorder) moved DH-L2-05/08/12 and CDH-16 from Needs Mission Ops to HP-12 Part B. One file per group; read the group file for steps, criteria and the verification argument. `RD.` = `ReferenceDeployment.`. Repo is read-only for this plan; `req.py` commands below are listed, not run.
 
 ## Tier summary
 | Tier | Groups | Rows | Hardware needed | Rough time |
