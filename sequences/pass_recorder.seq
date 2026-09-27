@@ -1,0 +1,5 @@
+; Per-pass stored-data downlink (DH-L2-13 / CDH-27): close and send the newest
+; DataRecorder segment of each stream. Events first (smaller, higher value).
+; Decode the received files with tools/recorder_reader.py.
+R00:00:00 ReferenceDeployment.dataRecorder.DOWNLINK_NEWEST, EVT
+R00:00:02 ReferenceDeployment.dataRecorder.DOWNLINK_NEWEST, TLM

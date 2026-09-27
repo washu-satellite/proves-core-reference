@@ -1,0 +1,310 @@
+{
+    "metadata": {
+        "deploymentName": "ReferenceDeployment.ReferenceDeployment",
+        "projectVersion": "fixture-cycle-m",
+        "frameworkVersion": "v4.3.0",
+        "libraryVersions": [],
+        "dictionarySpecVersion": "1.0.0"
+    },
+    "typeDefinitions": [
+        {
+            "kind": "alias",
+            "qualifiedName": "FwIdType",
+            "type": {
+                "name": "U32",
+                "kind": "integer",
+                "size": 32,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U32",
+                "kind": "integer",
+                "size": 32,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwEventIdType",
+            "type": {
+                "name": "FwIdType",
+                "kind": "qualifiedIdentifier"
+            },
+            "underlyingType": {
+                "name": "U32",
+                "kind": "integer",
+                "size": 32,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwChanIdType",
+            "type": {
+                "name": "FwIdType",
+                "kind": "qualifiedIdentifier"
+            },
+            "underlyingType": {
+                "name": "U32",
+                "kind": "integer",
+                "size": 32,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwPacketDescriptorType",
+            "type": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwTlmPacketizeIdType",
+            "type": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwTimeBaseStoreType",
+            "type": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwTimeContextStoreType",
+            "type": {
+                "name": "U8",
+                "kind": "integer",
+                "size": 8,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U8",
+                "kind": "integer",
+                "size": 8,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwSizeStoreType",
+            "type": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U16",
+                "kind": "integer",
+                "size": 16,
+                "signed": false
+            }
+        },
+        {
+            "kind": "alias",
+            "qualifiedName": "FwSizeType",
+            "type": {
+                "name": "U64",
+                "kind": "integer",
+                "size": 64,
+                "signed": false
+            },
+            "underlyingType": {
+                "name": "U64",
+                "kind": "integer",
+                "size": 64,
+                "signed": false
+            }
+        },
+        {
+            "kind": "enum",
+            "qualifiedName": "Components.RecorderStream",
+            "representationType": {
+                "name": "U8",
+                "kind": "integer",
+                "size": 8,
+                "signed": false
+            },
+            "enumeratedConstants": [
+                {
+                    "name": "TLM",
+                    "value": 0
+                },
+                {
+                    "name": "EVT",
+                    "value": 1
+                }
+            ],
+            "default": "Components.RecorderStream.TLM"
+        },
+        {
+            "kind": "enum",
+            "qualifiedName": "Components.DeleteReason",
+            "representationType": {
+                "name": "U8",
+                "kind": "integer",
+                "size": 8,
+                "signed": false
+            },
+            "enumeratedConstants": [
+                {
+                    "name": "CAPACITY",
+                    "value": 0
+                },
+                {
+                    "name": "AGE",
+                    "value": 1
+                },
+                {
+                    "name": "COMMAND",
+                    "value": 2
+                }
+            ],
+            "default": "Components.DeleteReason.CAPACITY"
+        }
+    ],
+    "constants": [],
+    "commands": [],
+    "parameters": [],
+    "events": [
+        {
+            "name": "ReferenceDeployment.dataRecorder.SegmentDeleted",
+            "severity": "ACTIVITY_LO",
+            "formalParams": [
+                {
+                    "name": "stream",
+                    "type": {
+                        "name": "Components.RecorderStream",
+                        "kind": "qualifiedIdentifier"
+                    },
+                    "ref": false
+                },
+                {
+                    "name": "seq",
+                    "type": {
+                        "name": "U32",
+                        "kind": "integer",
+                        "size": 32,
+                        "signed": false
+                    },
+                    "ref": false
+                },
+                {
+                    "name": "reason",
+                    "type": {
+                        "name": "Components.DeleteReason",
+                        "kind": "qualifiedIdentifier"
+                    },
+                    "ref": false
+                }
+            ],
+            "id": 268959746,
+            "format": "Deleted {} segment {} ({})"
+        },
+        {
+            "name": "ReferenceDeployment.fixture.Temperature",
+            "severity": "WARNING_HI",
+            "formalParams": [
+                {
+                    "name": "sensor",
+                    "type": {
+                        "name": "I16",
+                        "kind": "integer",
+                        "size": 16,
+                        "signed": true
+                    },
+                    "ref": false
+                },
+                {
+                    "name": "degrees",
+                    "type": {
+                        "name": "F32",
+                        "kind": "float",
+                        "size": 32
+                    },
+                    "ref": false
+                },
+                {
+                    "name": "latched",
+                    "type": {
+                        "name": "bool",
+                        "kind": "bool"
+                    },
+                    "ref": false
+                }
+            ],
+            "id": 268959747,
+            "format": "Sensor {} at {} (latched {})"
+        }
+    ],
+    "telemetryChannels": [
+        {
+            "name": "ReferenceDeployment.fsSpace.FreeSpace",
+            "type": {
+                "name": "FwSizeType",
+                "kind": "qualifiedIdentifier"
+            },
+            "id": 268623872,
+            "telemetryUpdate": "always"
+        },
+        {
+            "name": "ReferenceDeployment.fsSpace.TotalSpace",
+            "type": {
+                "name": "FwSizeType",
+                "kind": "qualifiedIdentifier"
+            },
+            "id": 268623873,
+            "telemetryUpdate": "always"
+        }
+    ],
+    "records": [],
+    "containers": [],
+    "telemetryPacketSets": [
+        {
+            "name": "ReferenceDeploymentPackets",
+            "members": [
+                {
+                    "name": "FileSystem",
+                    "id": 5,
+                    "group": 5,
+                    "members": [
+                        "ReferenceDeployment.fsSpace.FreeSpace",
+                        "ReferenceDeployment.fsSpace.TotalSpace"
+                    ]
+                }
+            ],
+            "omitted": []
+        }
+    ]
+}
