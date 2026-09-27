@@ -26,8 +26,10 @@ slot 21 free and slot 20 = `faultManager.run` (`topology.fpp:330`, `check_capaci
    (branch `feat/data-recorder`; no spaces). Another session is live in the Documents tree (Cycle K), which breaks the
    single-writer rule there. In the worktree the four `lib/` submodules are **empty directories**: read framework headers from
    `/Users/jesse-cm/Documents/Documents - Jesse's Mac/scalar-softwarestack/proves-core-reference/lib/...` (read-only, quote
-   the path). `fprime-venv` and `.venv` are symlinks to that checkout's venvs. The host gate (`VERIFY_ENV=host scripts/verify.sh`)
-   runs in the worktree. Target compile: rsync from the worktree to `~/scalar-build/proves-core-reference` with the CLAUDE.md
+   the path). `fprime-venv` and `.venv` are symlinks to that checkout's venvs. The host gate runs in the worktree as
+   `PATH="/Users/jesse-cm/.cache/uv/archive-v0/7tw0Reg0rGT9KFKdw5ogI/bin:$PATH" VERIFY_ENV=host scripts/verify.sh`
+   (that directory holds the `pre-commit` the git hook uses; do **not** put `fprime-venv/bin` on PATH — its `cmake` shim
+   has a dead interpreter path and the host build then fails silently). Gate PASS recorded 2026-09-27 before Stage 3b. Target compile: rsync from the worktree to `~/scalar-build/proves-core-reference` with the CLAUDE.md
    exclude list **plus `--exclude 'lib/'`** (the copy already holds the full `lib/`; this cycle never changes it).
 2. **Frozen-path hazard replaced.** The worktree's baseline is: untracked `docs-site/dev-loop/cycles/cycle-m-plan/` and this
    file; modified `docs-site/dev-loop/design/stored-data/*.md` (5), `docs-site/dev-loop/cycles/commit-plan-E-A8-A9.md`,
@@ -50,5 +52,46 @@ slot 21 free and slot 20 = `faultManager.run` (`topology.fpp:330`, `check_capaci
 8. **Board rows stay deferred.** `data_recorder_test.py` is collected and linted only; DH-L2-05/08/12 and CDH-16 show ⏸ in the
    matrix. Nothing in this cycle claims DH-L2-01/07/09/10/11/13/14, CDH-8/14/27 or FD-L2-04.
 
-## Tests (Stage 3b) — pinned after the test author reports
-_(hashes recorded here by the orchestrator before Stage 4; the coder inherits these read-only)_
+## Amendments 9–11 (after Stage 3b; from the test author's report)
+9. **Rows A8-1 and A8-2 are one coder pass and one gate, two commits.** Every `test_*.cpp` builds in one `cmake --build`, so
+   `test_DataRecorder_Component.cpp` (A8-2's contract) breaks the host build until `DataRecorder.hpp` exists; A8-1 alone cannot
+   be gated. The coder delivers both rows together; the orchestrator gates once (green) and then commits A8-1 (codec sources,
+   codec test, its CMake library, `HOST_TEST_BINARIES` 30 → 31) and A8-2 (everything else, `HOST_TEST_BINARIES` → 32). Revert
+   order stays A8-2 before A8-1.
+10. **`scripts/tests/test_verify_sh.py:35` `HOST_TEST_BINARIES` is a count pin, not a recorder test.** The coder may change that
+    one constant (30 → 31 in A8-1, → 32 in A8-2) and nothing else in that file; it is the single exception to the read-only
+    rule on `test/` and `scripts/tests/`.
+11. **Interface names the test author chose are final** (its report §3): `Components::PacketRing<SLOTS, SLOT_BYTES>` and
+    `Components::flushDue` in `PacketRing.hpp`; `Components::DataRecorder(const char* compName)` with public base
+    `DataRecorderComponentBase`, no init/configure call before the first `schedIn`; enums and `Svc::SendFileResponse` reached on
+    the host only through the stub; `SET_FLUSH(stream, U8 records, U16 intervalS)`; `sendFileOut_out(FwIndexType, const
+    Fw::StringBase&, const Fw::StringBase&, U32, U32)`; `tlmWrite_{Tlm,Evt}<X>(U32)`; `log_<SEV>_<Name>` with enum args by
+    `const&`; `LIST_SEGMENTS(stream, 0xFFFFFFFF)` answers OK with no `SegmentInfo` once the scan is done (the scan-complete
+    probe). The stub takes the lock in `tlmIn_handlerBase`/`evtIn_handlerBase` only; `schedIn` and commands lock themselves.
+    Not asserted by any test (open for the coder, still bound by 01 §7): the exact rotation tick at `SEGMENT_MAX_S`,
+    `OldestRecordAgeS`, the `ConfigCorrupt` status of a 27-byte payload, "≤ 3 file opens".
+
+Not gated separately: the A8-0 requirements commit below lands while the tree holds the untracked Stage 3b tests, which
+break the host build until A8-2 (the red window D-002 expects); its own checks are the pre-commit hooks and the RTM
+regeneration (12 `DataRecorder` rows, DH-L2-03/04 Unit, DH-L2-05/08/12 and CDH-16 Board).
+
+## Tests (Stage 3b) — pinned 2026-09-27
+Test author: Opus, general-purpose agent under the `cdh-test-author` contract; reviewed by the orchestrator against the
+criterion sentences of `02-requirements.md` (golden vector verbatim; age rule at +61 not +60; DH-L2-04's 17 rejections;
+every host claim a Unit-level ID; `File.hpp`/`FileSystem.hpp` diffs add-only, 61/69 lines, 0 removed). 25 + 44 gtests,
+15 pytest cases, 4 board tests (⏸). All red on the tree until Stage 4. The coder inherits every path below read-only
+(amendment 10 excepted); any drift before a commit is a coder edit and the row goes back.
+
+| sha256 | path (`P` = `PROVESFlightControllerReference`) |
+|---|---|
+| `07676c3d6afca43c7ffc83bfa0065af783c916365fbe8a0143ad0ba43fc3d8e5` | `P/test/unit-tests/test_DataRecorder_Codec.cpp` |
+| `abbdfba7e5abbb8ccec2a33217fe9c651d4ceab1c51241b43a212a88a0aadf68` | `P/test/unit-tests/test_DataRecorder_Component.cpp` |
+| `22deb3ee04ee32ee5f3ffac8430dc509fce74f26958ac760305221193acc5f8f` | `P/test/unit-tests/support/Os/Directory.hpp` |
+| `8c4d69025f59fca7e1829b847f639bec34d400ba0a6cadeab66a24c8c71ea6dc` | `P/test/unit-tests/support/Os/File.hpp` |
+| `fb5cc7d92f27c94c480c23d8cd478e52bd8bb63c7ca88691ff429618f36b4b35` | `P/test/unit-tests/support/Os/FileSystem.hpp` |
+| `cb28fb8a4733cbbb3be26f56b8316b61e2341716a774fe6559c641f9f73ace14` | `P/test/unit-tests/support/Fw/Com/ComBuffer.hpp` |
+| `3d806c171f8a40583d877d0333c262ef53d3a620deaec7280bae7082fb9a2008` | `P/test/unit-tests/support/PROVESFlightControllerReference/Components/DataRecorder/DataRecorderComponentAc.hpp` |
+| `a1031a4307c4a257a051916c21649cfd01d167ea675d65bc20a1511b4594867e` | `scripts/tests/test_recorder_reader.py` |
+| `f2e70f4fbbaee2d48a0b8e6d6e7246d1fbf391232a76ad67b4bc8c8c9fd5ee1c` | `scripts/tests/fixtures/recorder_reader_dictionary.json` |
+| `841dec058248782ba59011eeee4563c92e08a0dc6ad681a4b4d412baa123daea` | `P/test/int/data_recorder_test.py` |
+| `36633d77cc99e04387aa548ec704ec9177ad1544d99a8502d3ed6d14f418c1e3` | `P/Components/DataRecorder/docs/sdd.md` (`## Requirements` table; A8-2 adds body sections above it, table unchanged) |
