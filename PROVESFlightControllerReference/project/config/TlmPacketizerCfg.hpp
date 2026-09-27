@@ -19,7 +19,7 @@ namespace Svc {
 static const FwChanIdType MAX_PACKETIZER_PACKETS = 24;
 
 static const FwChanIdType MAX_PACKETIZER_CHANNELS =
-    256;  // !< Must be >= the number of distinct channels named in ReferenceDeploymentPackets.fppi,
+    288;  // !< Must be >= the number of distinct channels named in ReferenceDeploymentPackets.fppi,
           // packets AND the omit block: setPacketList inserts both lists into one
           // RedBlackTreeMap<FwChanIdType, FwSizeType, MAX_PACKETIZER_CHANNELS>
           // (Svc/TlmPacketizer/TlmPacketizer.cpp:86-87,148-149) and asserts at boot when it is full.

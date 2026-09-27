@@ -6,7 +6,7 @@
 | Hardware | FC board with 2 INA219, DRV2605 coil drivers with coils (or dummy loads), burnwire heater with NO deployment wire fitted (or dummy resistor), UART GDS, PSU 8.0 V with current limit sized for burnwire |
 | Image / flash | Current image, NORMAL |
 | Preconditions | `SET_LEVEL 5`; `telemetryDelay.DIVIDER_PRM_SET 0` (1 s power resolution); `detumbleManager.SET_MODE DISABLED`; antennaDeployer params at defaults noted |
-| Restore | `DIVIDER_PRM_SET 29`; `SET_LEVEL 1`; `antennaDeployer` `MAX_DEPLOY_ATTEMPTS`/`RETRY_DELAY` back to defaults; detumbleManager to OPERATING_MODE; verify `STOP_BURNWIRE` acked |
+| Restore | `DIVIDER_PRM_SET 29`; `SET_LEVEL 1`; `antennaDeployer` `MAX_DEPLOY_ATTEMPTS`/`RETRY_DELAY` back to defaults; detumbleManager to OPERATING_MODE; verify `STOP_BURNWIRE` acked; `antennaDeployer.RESET_DEPLOYMENT_STATE` acked OK (steps 6-7 write the persisted deployed flag even on FAILED, `AntennaDeployer.cpp:221-226`; without the reset the next real `DEPLOY` answers `DeploymentAlreadyComplete` and never burns) |
 | Destructive | Yes (burnwire and coils energised; brownout possible on a weak supply) |
 | Duration | ~15 min automated, ~25 min manual |
 

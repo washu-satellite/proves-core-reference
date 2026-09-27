@@ -96,6 +96,7 @@ module ReferenceDeployment {
     instance driverBoardUart
     instance driverBoardBufferManager
     instance driverBoardHandler
+    instance dataRecorder
     instance adcs
 
     # Face Board Instances
@@ -584,6 +585,19 @@ module ReferenceDeployment {
 
       # Mode poll on each 1 Hz tick (no ModeManager change)
       driverBoardHandler.getMode -> modeManager.getMode
+    }
+
+    connections DataRecorder {
+      # Third tap on each splitter: indices 0 (LoRa) and 1 (UART) are the existing
+      # unindexed connections, so both downlink queues get each packet first.
+      comSplitterTelemetry.comOut[2] -> dataRecorder.tlmIn
+      comSplitterEvents.comOut[2] -> dataRecorder.evtIn
+
+      # 1 Hz file work. Slot 21 must follow faultManager.run (slot 20).
+      rateGroup1Hz.RateGroupMemberOut[21] -> dataRecorder.schedIn
+
+      # DOWNLINK_NEWEST requests the newest segment from file downlink
+      dataRecorder.sendFileOut -> FileHandling.fileDownlink.SendFile
     }
 
     connections FatalHandler {

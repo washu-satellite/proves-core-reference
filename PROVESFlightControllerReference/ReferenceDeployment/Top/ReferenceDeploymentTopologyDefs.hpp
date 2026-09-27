@@ -136,7 +136,7 @@ struct TopologyState {
     const device* muxChannel3Device;              //!< Multiplexer channel 3 device
     const device* muxChannel4Device;              //!< Multiplexer channel 4 device
     const device* muxChannel5Device;              //!< Multiplexer channel 5 device
-    const device* muxChannel6Device;              //!< Multiplexer channel 5 device
+    const device* muxChannel6Device;              //!< Multiplexer channel 6 device
     const device* muxChannel7Device;              //!< Multiplexer channel 7 device
     int storagePartitionId;                       //!< Storage partition ID
 

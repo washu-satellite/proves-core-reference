@@ -102,6 +102,7 @@ nav:
           - Tmp112 Manager: components/Tmp112Manager.md
           - Veml6031 Manager: components/Veml6031Manager.md
       - Storage Components:
+          - Data Recorder: components/DataRecorder.md
           - Flash Worker: components/FlashWorker.md
           - Fs Format: components/FsFormat.md
           - Fs Space: components/FsSpace.md

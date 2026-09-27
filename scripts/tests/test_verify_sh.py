@@ -32,7 +32,7 @@ REPO = Path(__file__).resolve().parents[2]
 VERIFY_SH = Path("scripts") / "verify.sh"
 CAPACITY_SCRIPT = Path("scripts") / "check_capacity.py"
 
-HOST_TEST_BINARIES = 33
+HOST_TEST_BINARIES = 35
 PARTIAL_LABEL = "stages: host-tests (partial run — not a gate result)"
 AUDIT_HEADER = "== capacity audit"
 OLD_PACKET_HEADER = "== packet set vs TlmPacketizer config"
@@ -66,7 +66,7 @@ def run_gate(env: dict[str, str], timeout: float) -> subprocess.CompletedProcess
 
 @pytest.mark.verifies("AUDIT-9")
 def test_audit9_host_tests_stage_starts_from_empty_build_dir(tmp_path):
-    """A canary in VERIFY_BUILD_DIR is gone after the run, 33 test_* PASSED, exit 0, partial label."""
+    """A canary in VERIFY_BUILD_DIR is gone after the run, 30 test_* PASSED, exit 0, partial label."""
     build_dir = tmp_path / "bt"
     build_dir.mkdir()
     canary = build_dir / "canary"

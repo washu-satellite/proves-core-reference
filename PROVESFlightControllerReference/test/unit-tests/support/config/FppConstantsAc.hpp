@@ -22,4 +22,8 @@ enum { SpacecraftId = 68 };
 
 }  // namespace ComCfg
 
+//! Max size of Fw::ComBuffer (lib/fprime/default/config/FpConstants.fpp:22);
+//! generated at global scope, as in the target build's FppConstantsAc.hpp:349.
+enum { FW_COM_BUFFER_MAX_SIZE = 227 };
+
 #endif
