@@ -278,6 +278,18 @@ target_include_directories(data_recorder_codec PUBLIC
 )
 target_link_libraries(data_recorder_codec PUBLIC persisted_record_codec)
 
+# DataRecorder component (real DataRecorder.cpp built against the host stubs in
+# support/: a recording ComponentAc base whose lock()/unLock() count the guarded
+# region, the in-memory Os::File / FileSystem / Directory and Fw::ComBuffer).
+add_library(data_recorder_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/DataRecorder/DataRecorder.cpp
+)
+target_include_directories(data_recorder_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(data_recorder_component PUBLIC data_recorder_codec persisted_record_file)
+
 # Find PSA provider (we use libmbedcrypto) and ensure PSA headers exist
 find_path(PSA_CRYPTO_H psa/crypto.h)
 find_library(MBEDCRYPTO_LIB mbedcrypto)
@@ -330,6 +342,7 @@ foreach(test_src ${TEST_SOURCES})
         fault_manager_component
         watchdog_component
         data_recorder_codec
+        data_recorder_component
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})

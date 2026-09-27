@@ -13,7 +13,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,6 +33,25 @@ struct FileSystemState {
     bool partialWrite = false;    //!< write() succeeds but reports size - 1 bytes
     bool failFlush = false;       //!< flush() returns OTHER_ERROR
     bool failRename = false;      //!< FileSystem::rename() returns OTHER_ERROR and changes nothing
+
+    // ---- Cycle M (DataRecorder) additions, 01-normative.md section 9 ----
+    //! Directories that exist ("/" is implicit). Os::Directory::open(READ) and
+    //! Os::FileSystem::createDirectory consult it.
+    std::set<std::string> directories;
+    //! Files open right now (successful open not yet closed).
+    I32 openHandles = 0;
+    //! Calls per operation key: open read write flush close exists rename
+    //! removeFile getFileSize getFreeSpace createDirectory dirOpen dirRead.
+    std::map<std::string, U32> opCounts;
+    //! Called with the key before every counted operation (null = off).
+    std::function<void(const std::string&)> onOperation;
+    bool failRemove = false;                //!< FileSystem::removeFile() returns OTHER_ERROR, nothing removed
+    bool failGetFreeSpace = false;          //!< FileSystem::getFreeSpace() returns OTHER_ERROR
+    bool failCreateDirectory = false;       //!< FileSystem::createDirectory() returns OTHER_ERROR
+    FwSizeType totalBytes = 4294967296ULL;  //!< getFreeSpace total; free = total - sum of file sizes
+    bool failDirectoryOpen = false;         //!< Directory::open() returns OTHER_ERROR
+    I32 dirReadFailAt = -1;              //!< 0-based Directory::read() call (per open) that returns OTHER_ERROR; -1 off
+    bool reverseDirectoryOrder = false;  //!< Directory::read() yields names in reverse lexicographic order
 };
 
 inline FileSystemState& fileSystem() {
@@ -40,6 +61,15 @@ inline FileSystemState& fileSystem() {
 
 inline void resetFileSystem() {
     fileSystem() = FileSystemState();
+}
+
+//! Count one operation and call the onOperation hook (Cycle M addition).
+inline void recordOperation(const char* key) {
+    FileSystemState& fs = fileSystem();
+    fs.opCounts[key]++;
+    if (fs.onOperation) {
+        fs.onOperation(key);
+    }
 }
 
 }  // namespace Test
@@ -73,6 +103,7 @@ class File {
     Status open(const char* path, Mode mode, OverwriteType overwrite) {
         (void)overwrite;
         Test::FileSystemState& fs = Test::fileSystem();
+        Test::recordOperation("open");
         if (mode == OPEN_READ) {
             if (fs.files.find(path) == fs.files.end()) {
                 return DOESNT_EXIST;
@@ -82,8 +113,17 @@ class File {
                 return OTHER_ERROR;
             }
             fs.files[path].clear();
+        } else if (mode == OPEN_APPEND) {
+            // Creates the file if missing, keeps its content; writes append.
+            if (fs.failOpenCreate) {
+                return OTHER_ERROR;
+            }
+            fs.files[path];
         } else {
             return INVALID_MODE;
+        }
+        if (!this->m_open) {
+            fs.openHandles++;
         }
         this->m_path = path;
         this->m_mode = mode;
@@ -93,6 +133,10 @@ class File {
     }
 
     void close() {
+        if (this->m_open) {
+            Test::recordOperation("close");
+            Test::fileSystem().openHandles--;
+        }
         this->m_open = false;
         this->m_mode = OPEN_NO_MODE;
         this->m_position = 0;
@@ -104,6 +148,7 @@ class File {
 
     Status read(U8* buffer, FwSizeType& size, WaitType wait) {
         (void)wait;
+        Test::recordOperation("read");
         if (!this->m_open || this->m_mode != OPEN_READ) {
             size = 0;
             return NOT_OPENED;
@@ -125,6 +170,7 @@ class File {
     //! Mirrors Os::File::flush(): fs_sync on the target, a no-op here beyond
     //! fault injection (writes already land in the in-memory content).
     Status flush() {
+        Test::recordOperation("flush");
         if (!this->m_open) {
             return NOT_OPENED;
         }
@@ -137,6 +183,21 @@ class File {
     Status write(const U8* buffer, FwSizeType& size, WaitType wait) {
         (void)wait;
         Test::FileSystemState& fs = Test::fileSystem();
+        Test::recordOperation("write");
+        if (this->m_open && this->m_mode == OPEN_APPEND) {
+            if (fs.failWrite) {
+                size = 0;
+                return OTHER_ERROR;
+            }
+            FwSizeType appended = size;
+            if (fs.partialWrite && appended > 0) {
+                appended -= 1;
+            }
+            std::vector<U8>& tail = fs.files[this->m_path];
+            tail.insert(tail.end(), buffer, buffer + static_cast<size_t>(appended));
+            size = appended;
+            return OP_OK;
+        }
         if (!this->m_open || this->m_mode != OPEN_CREATE) {
             size = 0;
             return NOT_OPENED;

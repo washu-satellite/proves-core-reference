@@ -30,7 +30,7 @@ slot 21 free and slot 20 = `faultManager.run` (`topology.fpp:330`, `check_capaci
    `PATH="/Users/jesse-cm/.cache/uv/archive-v0/7tw0Reg0rGT9KFKdw5ogI/bin:$PATH" VERIFY_ENV=host scripts/verify.sh`
    (that directory holds the `pre-commit` the git hook uses; do **not** put `fprime-venv/bin` on PATH — its `cmake` shim
    has a dead interpreter path and the host build then fails silently). Gate PASS recorded 2026-09-27 before Stage 3b. Target compile: rsync from the worktree to `~/scalar-build/proves-core-reference` with the CLAUDE.md
-   exclude list **plus `--exclude 'lib/'`** (the copy already holds the full `lib/`; this cycle never changes it).
+   exclude list **plus `--exclude 'lib/'` and `--exclude '.git'`** (the copy already holds the full `lib/`; this cycle never changes it; the worktree's `.git` is a file and the copy's a directory, so rsync exits 23 on it otherwise — coder finding).
 2. **Frozen-path hazard replaced.** The worktree's baseline is: untracked `docs-site/dev-loop/cycles/cycle-m-plan/` and this
    file; modified `docs-site/dev-loop/design/stored-data/*.md` (5), `docs-site/dev-loop/cycles/commit-plan-E-A8-A9.md`,
    `cycle-sequencing-E-A8-A9.md`. Any other change in `git status` that an agent did not make is a stop. The plan README's
@@ -85,7 +85,7 @@ every host claim a Unit-level ID; `File.hpp`/`FileSystem.hpp` diffs add-only, 61
 | sha256 | path (`P` = `PROVESFlightControllerReference`) |
 |---|---|
 | `07676c3d6afca43c7ffc83bfa0065af783c916365fbe8a0143ad0ba43fc3d8e5` | `P/test/unit-tests/test_DataRecorder_Codec.cpp` |
-| `abbdfba7e5abbb8ccec2a33217fe9c651d4ceab1c51241b43a212a88a0aadf68` | `P/test/unit-tests/test_DataRecorder_Component.cpp` |
+| `38dc69a5e219677057f1db01a9ecffbd290b89c2d4c67b864ff9aa95f78e98b9` | `P/test/unit-tests/test_DataRecorder_Component.cpp` (re-pinned after the Stage 4 test-defect fix at line 941: prefix check per 01 §7.7; was `abbdfba7…df68`) |
 | `22deb3ee04ee32ee5f3ffac8430dc509fce74f26958ac760305221193acc5f8f` | `P/test/unit-tests/support/Os/Directory.hpp` |
 | `8c4d69025f59fca7e1829b847f639bec34d400ba0a6cadeab66a24c8c71ea6dc` | `P/test/unit-tests/support/Os/File.hpp` |
 | `fb5cc7d92f27c94c480c23d8cd478e52bd8bb63c7ca88691ff429618f36b4b35` | `P/test/unit-tests/support/Os/FileSystem.hpp` |
