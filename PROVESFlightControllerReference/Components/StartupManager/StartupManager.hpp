@@ -53,10 +53,17 @@ class StartupManager final : public StartupManagerComponentBase {
 
     //! \brief get and possibly initialize the quiescence start time
     //!
-    //! Reads the quiescence start time from the quiescence start time file. If the read fails, the current time is
-    //! written to the file and returned.
+    //! Reads the quiescence start time from the quiescence start time file, a PersistedRecord (magic "SQS1", format
+    //! version, CRC) carrying time base, context, seconds and microseconds as explicit little-endian fields. A valid
+    //! record is returned untouched - there is a single quiescence start time for the whole mission.
     //!
-    //! \warning this function will modify the quiescence start time file on disk if it does not already exist.
+    //! A missing file is the first boot: quiescence starts now and is written, with no event. A file that is present
+    //! but fails validation - including a CRC-valid record whose useconds field is outside [0, 999999], which would
+    //! panic Fw::Time::add in a boot loop - restarts quiescence from now, writes it, and emits exactly one
+    //! QuiescenceFileInitFailure; a failing store emits a second (REQ-SM-008).
+    //!
+    //! \warning this function will modify the quiescence start time file on disk if it does not already hold a valid
+    //!          record.
     //!
     //! \return The quiescence start time
     Fw::Time update_quiescence_start();
@@ -78,8 +85,9 @@ class StartupManager final : public StartupManagerComponentBase {
                                          ) override;
 
     //! Handler implementation for startupsequenceStarted
-    void startupsequenceStarted_handler(FwIndexType portNum,            //!< The port number
-                                        const Fw::StringBase& fileName  //!< The file path for start-up sequence
+    void startupsequenceStarted_handler(FwIndexType portNum,             //!< The port number
+                                        const Fw::StringBase& fileName,  //!< The file path for start-up sequence
+                                        const Svc::SeqArgs& args         //!< Sequence arguments
                                         ) override;
 
     //! Handler implementation for safeModeCompleteSequence
@@ -90,8 +98,9 @@ class StartupManager final : public StartupManagerComponentBase {
                                           ) override;
 
     //! Handler implementation for safeModeSequenceStarted
-    void safeModeSequenceStarted_handler(FwIndexType portNum,            //!< The port number
-                                         const Fw::StringBase& fileName  //!< The sequence file
+    void safeModeSequenceStarted_handler(FwIndexType portNum,             //!< The port number
+                                         const Fw::StringBase& fileName,  //!< The sequence file
+                                         const Svc::SeqArgs& args         //!< Sequence arguments
                                          ) override;
 
     //! Handler implementation for payloadCompleteSequence
@@ -102,8 +111,9 @@ class StartupManager final : public StartupManagerComponentBase {
                                          ) override;
 
     //! Handler implementation for payloadSequenceStarted
-    void payloadSequenceStarted_handler(FwIndexType portNum,            //!< The port number
-                                        const Fw::StringBase& fileName  //!< The sequence file
+    void payloadSequenceStarted_handler(FwIndexType portNum,             //!< The port number
+                                        const Fw::StringBase& fileName,  //!< The sequence file
+                                        const Svc::SeqArgs& args         //!< Sequence arguments
                                         ) override;
 
     //! Handler implementation for loraFirstStart

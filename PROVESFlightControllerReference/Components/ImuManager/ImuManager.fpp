@@ -80,6 +80,11 @@ module Components {
         @ Parameter for storing the axis orientation
         param AXIS_ORIENTATION: AxisOrientation default AxisOrientation.STANDARD id 3
 
+        @ Parameter for the IMU collection interval in seconds (1..60).
+        @ The default of 1 fetches on every 1 Hz tick, as before this parameter
+        @ existed. Out-of-range or invalid values fall back to 1.
+        param COLLECTION_INTERVAL_S: U8 default 1 id 4
+
         ### Telemetry channels ###
 
         @ Telemetry channel for axis orientation
@@ -102,6 +107,9 @@ module Components {
 
         @ Temetry channel for magnetometer sampling frequency
         telemetry MagnetometerSamplingFrequency: Lis2mdlSamplingFrequency
+
+        @ Telemetry channel for the collection interval actually in force
+        telemetry CollectionIntervalS: U8 update on change
 
         ### Events ###
 
@@ -134,6 +142,13 @@ module Components {
 
         @ Event to report magnetic field data
         event MagneticFieldData(x: F64, y: F64, z: F64) severity activity low format "Magnetic Field: x={} gauss, y={} gauss, z={} gauss"
+
+        @ Event reporting that a requested collection interval was rejected and
+        @ the 1 s default is in force instead
+        event CollectionIntervalRejected(requested: U8) \
+            severity warning low \
+            format "Rejected collection interval {} s; using 1 s" \
+            throttle 5
 
         ### Commands ###
 

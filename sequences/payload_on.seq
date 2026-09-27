@@ -1,0 +1,6 @@
+; Payload on: power the driver board and ping it (HP-15 part B, steps B1 and B3)
+; The handler has been sending DISARM then HK_REQUEST every second since boot,
+; so the board's first HK reply raises LinkUp on its own; the PING two seconds
+; later confirms the link with PongReceived(fwVersion, protoVersion).
+R00:00:00 ReferenceDeployment.payloadPowerLoadSwitch.TURN_ON
+R00:00:02 ReferenceDeployment.driverBoardHandler.PING

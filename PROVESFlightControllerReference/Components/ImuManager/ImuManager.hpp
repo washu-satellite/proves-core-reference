@@ -7,6 +7,7 @@
 #define Components_ImuManager_HPP
 
 #include "PROVESFlightControllerReference/Components/ImuManager/ImuManagerComponentAc.hpp"
+#include "PROVESFlightControllerReference/Components/RunInterval/RunInterval.hpp"
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 
@@ -33,6 +34,18 @@ class ImuManager final : public ImuManagerComponentBase {
     void configure(const struct device* lis2mdl, const struct device* lsm6dso);
 
   private:
+    // ----------------------------------------------------------------------
+    // Parameter update hook
+    // ----------------------------------------------------------------------
+
+    //! Recompute the effective collection interval after a parameter store
+    void parameterUpdated(FwPrmIdType id  //!< The parameter ID
+                          ) override;
+
+    //! Apply the parameters loadParameters() has just read from PrmDb, so a
+    //! saved interval is effective before the first tick (F Prime 4.3.0 hook)
+    void parametersLoaded() override;
+
     // ----------------------------------------------------------------------
     // Handler implementations for typed input ports
     // ----------------------------------------------------------------------
@@ -138,6 +151,13 @@ class ImuManager final : public ImuManagerComponentBase {
 
     //! Zephyr device storing the initialized LSM6DSO sensor
     const struct device* m_lsm6dso;
+
+    //! Tick decimator driving the periodic IMU fetch
+    RunInterval m_interval;
+
+    //! Collection interval currently in force, in seconds. Initialised to the
+    //! 1 s default so a never-set parameter fetches on every tick, as before.
+    U8 m_interval_s;
 
     //! Current odr values for sensors
     struct sensor_value m_curr_magn_odr;

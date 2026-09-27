@@ -41,8 +41,12 @@ void Burnwire::startBurn() {
 
 void Burnwire::stopBurn() {
     this->log_ACTIVITY_HI_SetBurnwireState(Fw::On::OFF);
-    this->gpioSet_out(0, Fw::Logic::LOW);
-    this->gpioSet_out(1, Fw::Logic::LOW);
+    if (this->isConnected_gpioSet_OutputPort(0)) {
+        this->gpioSet_out(0, Fw::Logic::LOW);
+    }
+    if (this->isConnected_gpioSet_OutputPort(1)) {
+        this->gpioSet_out(1, Fw::Logic::LOW);
+    }
 
     this->m_state = Fw::On::OFF;
     this->log_ACTIVITY_LO_BurnwireEndCount(m_safetyCounter);
@@ -55,8 +59,12 @@ void Burnwire ::schedIn_handler(FwIndexType portNum, U32 context) {
     if (this->m_state == Fw::On::ON) {
         this->m_safetyCounter++;
         if (this->m_safetyCounter == 1) {
-            this->gpioSet_out(0, Fw::Logic::HIGH);
-            this->gpioSet_out(1, Fw::Logic::HIGH);
+            if (this->isConnected_gpioSet_OutputPort(0)) {
+                this->gpioSet_out(0, Fw::Logic::HIGH);
+            }
+            if (this->isConnected_gpioSet_OutputPort(1)) {
+                this->gpioSet_out(1, Fw::Logic::HIGH);
+            }
             this->log_ACTIVITY_HI_SafetyTimerStatus(Fw::On::ON);
         }
 

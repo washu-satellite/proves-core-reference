@@ -18,6 +18,8 @@ Add requirements in the chart below
 |BW-005|The burnwire component shall be controlled by a safety timeout attached to a 1Hz rate group|Integration Test|||||
 |BW-006|The safety timeout shall emit an event when it is changes|Integration test|||||
 |BW-007|The burnwire safety time shall emit an event when it starts and stops|Integration Test|||||
+|BW-008|A Burnwire instance with only gpioSet[0] connected shall drive port 0 and never invoke gpioSet[1]; with both ports connected its GPIO writes shall be unchanged|Unit Test|Unit|Host stub, SAFETY_TIMER 10: with only gpioSet[0] connected, START_BURNWIRE emits SetBurnwireState(ON) and responds OK; the first schedIn tick writes HIGH on port 0; STOP_BURNWIRE, and separately 10 ticks without STOP (safety timer), write LOW on port 0 and emit SetBurnwireState(OFF); gpioSet[1] is invoked zero times throughout. With both ports connected the writes are exactly (0,HIGH),(1,HIGH) on the first tick and (0,LOW),(1,LOW) on STOP_BURNWIRE or on safety-timer expiry|||
+|BW-009|burnwireDeploy2 shall start and stop the DEPLOY2 burn channel on command, with the safety timer bounding an unstopped burn|Integration Test|Board|With a dummy load on J24: RD.burnwireDeploy2.START_BURNWIRE gives SetBurnwireState(ON) within 2 s and ina219SysManager power at least 0.3 W above the pre-START reading; STOP_BURNWIRE gives SetBurnwireState(OFF) within 2 s and a BurnwireEndCount event; START_BURNWIRE without STOP gives SetBurnwireState(OFF) 8.5-11 s (FSW event time) after the ON event (SAFETY_TIMER 10 s)|||
 
 ## Port Descriptions
 Name | Type | Description |

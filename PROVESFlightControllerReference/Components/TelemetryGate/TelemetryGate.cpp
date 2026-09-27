@@ -73,7 +73,7 @@ void TelemetryGate ::runIn_handler(FwIndexType portNum, U32 context) {
 
 void TelemetryGate ::SET_TRANSMIT_STATE_cmdHandler(FwOpcodeType opCode,
                                                    U32 cmdSeq,
-                                                   Components::TelemetryTxState txState) {
+                                                   const Components::TelemetryTxState& txState) {
     // Latch the new state in RAM immediately so the very next scheduler tick
     // honors it (command is sync, so this takes effect within one cycle). Mark
     // as loaded so a not-yet-performed lazy load cannot overwrite it.

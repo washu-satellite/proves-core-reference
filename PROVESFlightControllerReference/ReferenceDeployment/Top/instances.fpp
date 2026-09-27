@@ -178,6 +178,15 @@ module ReferenceDeployment {
 
   instance ina219SolManager: Drv.Ina219Manager base id 0x1003A000
 
+  # Cycle L: base ids 0x10081000 and above (0x10080000 is Cycle M's dataRecorder)
+  instance tmp112Face6Manager: Drv.Tmp112Manager base id 0x10081000
+
+  instance gpioDeploy2: Zephyr.ZephyrGpioDriver base id 0x10082000
+
+  instance burnwireDeploy2: Components.Burnwire base id 0x10083000
+
+  instance gpioCharge: Zephyr.ZephyrGpioDriver base id 0x10084000
+
   instance startupManager: Components.StartupManager base id 0x1003B000
 
   instance telemetryGate: Components.TelemetryGate base id 0x1003C000
@@ -190,7 +199,6 @@ module ReferenceDeployment {
   instance tmp112Face1Manager: Drv.Tmp112Manager base id 0x10043000
   instance tmp112Face2Manager: Drv.Tmp112Manager base id 0x10044000
   instance tmp112Face3Manager: Drv.Tmp112Manager base id 0x10045000
-  instance tmp112Face4Manager: Drv.Tmp112Manager base id 0x10046000
   instance tmp112Face5Manager: Drv.Tmp112Manager base id 0x10047000
   instance tmp112BattCell1Manager: Drv.Tmp112Manager base id 0x10048000
   instance tmp112BattCell2Manager: Drv.Tmp112Manager base id 0x10049000
@@ -203,7 +211,6 @@ module ReferenceDeployment {
   instance veml6031Face1Manager: Drv.Veml6031Manager base id 0x1004E000
   instance veml6031Face2Manager: Drv.Veml6031Manager base id 0x1004F000
   instance veml6031Face3Manager: Drv.Veml6031Manager base id 0x10050000
-  instance veml6031Face4Manager: Drv.Veml6031Manager base id 0x10051000
   instance veml6031Face5Manager: Drv.Veml6031Manager base id 0x10052000
   instance veml6031Face6Manager: Drv.Veml6031Manager base id 0x10053000
   instance veml6031Face7Manager: Drv.Veml6031Manager base id 0x10054000
@@ -243,5 +250,40 @@ module ReferenceDeployment {
   instance fsFormat: Components.FsFormat base id 0x10078000
 
   instance picoTempManager: Drv.PicoTempManager base id 0x10079000
+
+  instance taskGate: Components.TaskGate base id 0x1007A000
+
+  instance tcFrameCorrector: Components.TcFrameCorrector base id 0x1007B000
+
+  instance faultManager: Components.FaultManager base id 0x1007C000
+
+  # Payload (driver board) link on uart1: driver, its own buffer pool, handler
+  instance driverBoardUart: Zephyr.ZephyrUartDriver base id 0x1007D000
+
+  instance driverBoardBufferManager: Svc.BufferManager base id 0x1007E000 \
+  {
+    phase Fpp.ToCpp.Phases.configObjects """
+    Svc::BufferManager::BufferBins bins;
+    """
+    phase Fpp.ToCpp.Phases.configComponents """
+    memset(&ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins, 0, sizeof(ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins));
+    // UART RX buffers for the driver-board link (128 B, 4 buffers); separate from the camera pool
+    ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins.bins[0].bufferSize = 128;
+    ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins.bins[0].numBuffers = 4;
+    ReferenceDeployment::driverBoardBufferManager.setup(
+        2,  // manager ID
+        0,  // store ID
+        ComCcsds::Allocation::memAllocator,  // Reuse existing allocator from ComCcsds subtopology
+        ConfigObjects::ReferenceDeployment_driverBoardBufferManager::bins
+    );
+    """
+    phase Fpp.ToCpp.Phases.tearDownComponents """
+    ReferenceDeployment::driverBoardBufferManager.cleanup();
+    """
+  }
+
+  instance driverBoardHandler: Components.DriverBoardHandler base id 0x1007F000
+
+  instance dataRecorder: Components.DataRecorder base id 0x10080000
 
 }

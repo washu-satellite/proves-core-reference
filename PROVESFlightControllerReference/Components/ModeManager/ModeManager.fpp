@@ -77,6 +77,12 @@ module Components {
         @ Port to get system voltage from INA219 manager
         output port voltageGet: Drv.VoltageGet
 
+        @ Port reporting each low-voltage sample to the FaultManager. When the
+        @ FaultManager answers CLAIMED it owns the safe mode entry for this
+        @ condition; while it answers OBSERVED (the shipped configuration) the
+        @ debounce and entry below run exactly as they always have.
+        output port faultOut: Components.FaultReport
+
         @ Port to stop the watchdog, triggering a hardware power cycle
         output port stopWatchdog: Fw.Signal
 

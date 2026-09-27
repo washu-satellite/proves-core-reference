@@ -43,6 +43,7 @@ telemetry packets ReferenceDeploymentPackets {
     imuManager.AccelerometerSamplingFrequency
     imuManager.GyroscopeSamplingFrequency
     imuManager.MagnetometerSamplingFrequency
+    imuManager.CollectionIntervalS
   }
 
   packet Radio id 8 group 2 {
@@ -59,6 +60,8 @@ telemetry packets ReferenceDeploymentPackets {
     ina219SolManager.Voltage
     ina219SolManager.Current
     ina219SolManager.Power
+    powerMonitor.CollectionIntervalS
+    powerMonitor.Charging
   }
 
   packet LightSensor id 13 group 2 {
@@ -69,6 +72,7 @@ telemetry packets ReferenceDeploymentPackets {
     veml6031Face5Manager.VisibleLight
     veml6031Face6Manager.VisibleLight
     veml6031Face7Manager.VisibleLight
+    adcs.CollectionIntervalS
   }
 
   ### Satellite Meta Data Packets ###
@@ -91,17 +95,44 @@ telemetry packets ReferenceDeploymentPackets {
     tmp112Face2Manager.Temperature
     tmp112Face3Manager.Temperature
     tmp112Face5Manager.Temperature
+    tmp112Face6Manager.Temperature
     tmp112BattCell1Manager.Temperature
     tmp112BattCell2Manager.Temperature
     tmp112BattCell3Manager.Temperature
     tmp112BattCell4Manager.Temperature
     picoTempManager.PicoTemperature
+    thermalManager.CollectionIntervalS
   }
 
   packet Detumble id 15 group 3 {
     detumbleManager.Mode
     detumbleManager.State
     detumbleManager.DetumbleStrategy
+  }
+
+  packet PayloadHousekeeping id 23 group 3 {
+    driverBoardHandler.LinkState
+    driverBoardHandler.DriverState
+    driverBoardHandler.FaultFlags
+    driverBoardHandler.CoilCurrent0
+    driverBoardHandler.CoilCurrent1
+    driverBoardHandler.CoilCurrent2
+    driverBoardHandler.CoilTemperature0
+    driverBoardHandler.CoilTemperature1
+    driverBoardHandler.PwmDuty0
+    driverBoardHandler.PwmDuty1
+    driverBoardHandler.PwmDuty2
+    driverBoardHandler.BoardUptime
+    driverBoardHandler.FirmwareVersion
+    driverBoardHandler.PulsesCommanded
+    driverBoardHandler.FramesReceived
+    driverBoardHandler.FramesRejected
+    driverBoardHandler.LinkTimeouts
+    driverBoardHandler.SamplesReceived
+    driverBoardHandler.PulseDurationMs
+    driverBoardHandler.PulseDutyPct
+    driverBoardHandler.LinkTimeoutMs
+    driverBoardHandler.HkIntervalS
   }
 
   ### Payload Meta Data Packets ###
@@ -151,11 +182,45 @@ telemetry packets ReferenceDeploymentPackets {
 #    ComCcsdsSband.comQueue.buffQueueDepth
     payloadBufferManager.HiBuffs
     CdhCore.tlmSend.SectionEnabled
+    taskGate.TasksEnabledMask
+    taskGate.GatedRuns
+    tcFrameCorrector.CorrectedFrames
+    tcFrameCorrector.UncorrectableFrames
+  }
+
+  packet Faults id 9 group 5 {
+    faultManager.FaultsDetected
+    faultManager.FaultsConfirmed
+    faultManager.ActiveFaults
+    faultManager.LastFaultType
+    faultManager.LastFaultSource
+    faultManager.LastFaultValue
+    faultManager.ShadowActionsSuppressed
+    faultManager.ActionsTaken
+    faultManager.AuthorityState
+    faultManager.FaultCountThermal
+    faultManager.FaultCountLowBattery
+    faultManager.FaultCountCommandLoss
+    faultManager.FaultCountWatchdogStop
   }
 
   packet FileSystem id 5 group 5 {
     fsSpace.FreeSpace
     fsSpace.TotalSpace
+    dataRecorder.TlmRecordsStored
+    dataRecorder.TlmRecordsOnDisk
+    dataRecorder.TlmBytesOnDisk
+    dataRecorder.TlmSegmentsOnDisk
+    dataRecorder.TlmOldestRecordAgeS
+    dataRecorder.TlmRingDropped
+    dataRecorder.TlmWriteFailures
+    dataRecorder.EvtRecordsStored
+    dataRecorder.EvtRecordsOnDisk
+    dataRecorder.EvtBytesOnDisk
+    dataRecorder.EvtSegmentsOnDisk
+    dataRecorder.EvtOldestRecordAgeS
+    dataRecorder.EvtRingDropped
+    dataRecorder.EvtWriteFailures
   }
 
   packet Security id 6 group 5 {
@@ -269,17 +334,21 @@ telemetry packets ReferenceDeploymentPackets {
   cmdSeq.CS_CommandsExecuted
   cmdSeq.CS_SequencesCompleted
   cmdSeq.CS_Errors
+  cmdSeq.CS_CurrentSequence
   payloadSeq.CS_LoadCommands
   payloadSeq.CS_CancelCommands
   payloadSeq.CS_CommandsExecuted
   payloadSeq.CS_SequencesCompleted
   payloadSeq.CS_Errors
+  payloadSeq.CS_CurrentSequence
   safeModeSeq.CS_LoadCommands
   safeModeSeq.CS_CancelCommands
   safeModeSeq.CS_CommandsExecuted
   safeModeSeq.CS_SequencesCompleted
   safeModeSeq.CS_Errors
+  safeModeSeq.CS_CurrentSequence
   FileHandling.fileUplink.FilesReceived
+  FileHandling.fileUplink.FilesReceivedFailed
   FileHandling.fileUplink.PacketsReceived
   FileHandling.fileDownlink.FilesSent
   FileHandling.fileDownlink.PacketsSent
@@ -308,11 +377,20 @@ telemetry packets ReferenceDeploymentPackets {
   payloadBufferManager.TotalBuffs
   payloadBufferManager.CurrBuffs
 
+  # Driver-board link pool (4 x 128 B): pool stats are not useful in normal ops
+  driverBoardBufferManager.TotalBuffs
+  driverBoardBufferManager.CurrBuffs
+  driverBoardBufferManager.HiBuffs
+  driverBoardBufferManager.NoBuffs
+  driverBoardBufferManager.EmptyBuffs
+
   CdhCore.tlmSend.GroupConfigs
   CdhCore.version.FrameworkVersion
   CdhCore.version.ProjectVersion
   CdhCore.version.LibraryVersion01
 
   watchdog.WatchdogTransitions
+
+  CdhCore.events.EventsDropped
 
 }

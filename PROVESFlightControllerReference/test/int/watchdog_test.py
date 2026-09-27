@@ -87,8 +87,8 @@ def test_02_system_stays_running_with_watchdog(
     )
 
 
-@pytest.mark.requires_watchdog_jumper
 @pytest.mark.verifies("FD-L2-05")
+@pytest.mark.requires_watchdog_jumper
 def test_03_system_reboots_without_watchdog(
     fprime_test_api: IntegrationTestAPI, start_gds
 ):

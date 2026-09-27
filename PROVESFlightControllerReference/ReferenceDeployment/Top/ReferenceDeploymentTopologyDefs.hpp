@@ -136,7 +136,7 @@ struct TopologyState {
     const device* muxChannel3Device;              //!< Multiplexer channel 3 device
     const device* muxChannel4Device;              //!< Multiplexer channel 4 device
     const device* muxChannel5Device;              //!< Multiplexer channel 5 device
-    const device* muxChannel6Device;              //!< Multiplexer channel 5 device
+    const device* muxChannel6Device;              //!< Multiplexer channel 6 device
     const device* muxChannel7Device;              //!< Multiplexer channel 7 device
     int storagePartitionId;                       //!< Storage partition ID
 
@@ -147,6 +147,7 @@ struct TopologyState {
     const device* face2TempDevice;      //!< TMP112 device for cube face 2
     const device* face3TempDevice;      //!< TMP112 device for cube face 3
     const device* face5TempDevice;      //!< TMP112 device for cube face 5
+    const device* face6TempDevice;      //!< TMP112 device for cube face 6
     const device* battCell1TempDevice;  //!< TMP112 device for battery cell 1
     const device* battCell2TempDevice;  //!< TMP112 device for battery cell 2
     const device* battCell3TempDevice;  //!< TMP112 device for battery cell 3

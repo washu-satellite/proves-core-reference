@@ -63,7 +63,7 @@ zephyr_udc0: &usbd {
 };
 
 &flash0 {
-    reg = <0x10000000 DT_SIZE_M(4)>;
+    reg = <0x10000000 DT_SIZE_M(16)>;
     partitions {
         compatible = "fixed-partitions";
         #address-cells = <0x1>;
@@ -382,7 +382,7 @@ zephyr_udc0: &usbd {
 			};
 		};
 
-		// Z- Face x1
+		// Z- face x1 - F4 connector J1, rail F4_PWR (FACE4_ENABLE)
 		mux_channel_5: i2c_mux@5 {
 			reg = <5>;
 			#address-cells = <1>;
@@ -418,7 +418,7 @@ zephyr_udc0: &usbd {
 
 		};
 
-		// Z- Face x2
+		// Z- face x2 - F5 connector J2, rail F5_PWR (FACE5_ENABLE)
 		mux_channel_6: i2c_mux@6 {
 			reg = <6>;
 			#address-cells = <1>;
@@ -623,7 +623,9 @@ zephyr_udc0: &usbd {
 
 		charge: charge {
 
-            gpios = <&mcp23017 15 GPIO_ACTIVE_HIGH>;  // GPB7
+            // LT3652 ~CHRG is open-drain, pulled up by R70 (10 k) to +3V3: low while charging.
+            // ACTIVE_LOW makes logical 1 = charging.
+            gpios = <&mcp23017 15 GPIO_ACTIVE_LOW>;  // GPB7
             label = "CHARGE";
         };
 

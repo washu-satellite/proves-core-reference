@@ -10,7 +10,7 @@
 | Destructive | No (load switches cycle) |
 | Duration | ~6 min automated, ~12 min manual |
 
-Windows (from `mode_manager_test.py`): mode readback 5 s; event 2 s; detumble telemetry 45 s; MM0004 no-auto-exit window 13 s (10 s debounce + 3).
+Windows (from `safe_mode_test.py`): mode readback 5 s; event 2 s; detumble telemetry 45 s; MM0004 no-auto-exit window 13 s (10 s debounce + 3).
 
 ## Procedure
 1. `SET_LEVEL 5`; `GET_CURRENT_MODE` -> NORMAL. Record `detumbleManager.Mode` (should equal OPERATING_MODE) <= 45 s.
@@ -25,16 +25,16 @@ Windows (from `mode_manager_test.py`): mode readback 5 s; event 2 s; detumble te
 ## Criteria
 | ID | Criterion | Automated | Evidence |
 |---|---|---|---|
-| CDH-10 | FORCE_SAFE_MODE -> SAFE_MODE <= 5 s; EXIT -> NORMAL <= 5 s; reason GROUND_COMMAND then NONE | mode_manager_test.py::test_safe_03_exit_clears_reason | Steps 2, 6 |
-| MS-L2-02 | Same pair within 5 s each | mode_manager_test.py::test_safe_03_exit_clears_reason | Steps 2, 6 |
-| MM0001 | GET_CURRENT_MODE SAFE_MODE after FORCE, NORMAL after EXIT, <= 5 s | mode_manager_test.py::test_safe_03_exit_clears_reason | Steps 2, 6 |
-| MM0002 | ManualSafeModeEntry + EnteringSafeMode(Ground command) <= 2 s; reason GROUND_COMMAND | mode_manager_test.py::test_safe_02_ground_command_sets_reason | Step 2 |
-| MM0004 | No AutoSafeModeExit within 13 s for reason GROUND_COMMAND; EXIT -> NORMAL <= 5 s (voltage-recovery exit: HP-10 step A) | mode_manager_test.py::test_safe_04_no_auto_recovery_for_ground_command | Steps 5-6 |
-| MS-L2-05 | <= 5 s of FORCE: all 8 switches OFF via GET_IS_ON; payload switches stay OFF after EXIT | mode_manager_test.py::test_safe_11_safe_mode_turns_off_load_switches | Steps 3, 6 |
-| MM0005 | Board clause: every switch OFF via GET_IS_ON <= 5 s (unit: 8 loadSwitchTurnOff calls, passing) | test_ModeManager_VoltageDebounce (unit) ; mode_manager_test.py::test_safe_10 | Step 3 |
-| MS-L2-03 | detumbleManager.Mode DISABLED <= 45 s on FORCE; back to OPERATING_MODE <= 45 s on EXIT | mode_manager_test.py::test_safe_12_detumble_disabled_in_safe_mode | Steps 4, 6 |
-| MS-L2-06 | Every mode change emits EnteringSafeMode / ExitingSafeMode <= 2 s and modeChanged reaches detumbleManager | mode_manager_test.py::test_safe_02 ; ::test_safe_11 | Steps 2, 4, 6 |
-| MS-L2-01 | Only SAFE_MODE and NORMAL are reachable (steps 2, 6); STANDBY/CALIBRATION/EXPERIMENT: README (Mission Ops) | mode_manager_test.py::test_safe_03 (the two existing modes) | Steps 2, 6, 7 |
+| CDH-10 | FORCE_SAFE_MODE -> SAFE_MODE <= 5 s; EXIT -> NORMAL <= 5 s; reason GROUND_COMMAND then NONE | safe_mode_test.py::test_safe_03_exit_clears_reason | Steps 2, 6 |
+| MS-L2-02 | Same pair within 5 s each | safe_mode_test.py::test_safe_03_exit_clears_reason | Steps 2, 6 |
+| MM0001 | GET_CURRENT_MODE SAFE_MODE after FORCE, NORMAL after EXIT, <= 5 s | safe_mode_test.py::test_safe_03_exit_clears_reason | Steps 2, 6 |
+| MM0002 | ManualSafeModeEntry + EnteringSafeMode(Ground command) <= 2 s; reason GROUND_COMMAND | safe_mode_test.py::test_safe_02_ground_command_sets_reason | Step 2 |
+| MM0004 | No AutoSafeModeExit within 13 s for reason GROUND_COMMAND; EXIT -> NORMAL <= 5 s (voltage-recovery exit: HP-10 step A) | safe_mode_test.py::test_safe_04_no_auto_recovery_for_ground_command | Steps 5-6 |
+| MS-L2-05 | <= 5 s of FORCE: all 8 switches OFF via GET_IS_ON; payload switches stay OFF after EXIT | safe_mode_test.py::test_safe_10_safe_mode_turns_off_load_switches | Steps 3, 6 |
+| MM0005 | Board clause: every switch OFF via GET_IS_ON <= 5 s (unit: 8 loadSwitchTurnOff calls, passing) | test_ModeManager_VoltageDebounce (unit) ; safe_mode_test.py::test_safe_10 | Step 3 |
+| MS-L2-03 | detumbleManager.Mode DISABLED <= 45 s on FORCE; back to OPERATING_MODE <= 45 s on EXIT | safe_mode_test.py::test_safe_11_detumble_disabled_in_safe_mode | Steps 4, 6 |
+| MS-L2-06 | Every mode change emits EnteringSafeMode / ExitingSafeMode <= 2 s and modeChanged reaches detumbleManager | safe_mode_test.py::test_safe_02 ; ::test_safe_11 | Steps 2, 4, 6 |
+| MS-L2-01 | Only SAFE_MODE and NORMAL are reachable (steps 2, 6); STANDBY/CALIBRATION/EXPERIMENT: README (Mission Ops) | safe_mode_test.py::test_safe_03 (the two existing modes) | Steps 2, 6, 7 |
 
 ## Why this verifies it
 - CDH-10, MS-L2-02, MM0001/02: the observable is the mode readback and the reason readback via separate query commands, not the transition command's own ack.

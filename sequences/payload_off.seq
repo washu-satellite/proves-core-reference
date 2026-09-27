@@ -1,0 +1,6 @@
+; Payload off: disarm the driver board, then drop its rail (HP-15 restore)
+; DISARM sends the frame and goes DISARMED locally at once (it does not wait
+; for the ACK); the one-second gap lets the board's ACK arrive before power is
+; removed, so the event log shows a clean shutdown rather than a link loss.
+R00:00:00 ReferenceDeployment.driverBoardHandler.DISARM
+R00:00:01 ReferenceDeployment.payloadPowerLoadSwitch.TURN_OFF

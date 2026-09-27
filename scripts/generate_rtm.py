@@ -10,6 +10,9 @@ Joins these sources into docs-site/requirements-matrix.md:
 3. Test links: requirement IDs declared in tests —
    - gtest:  RecordProperty("verifies", "Comp-1,Comp-2") inside TEST/TEST_F
    - pytest: @pytest.mark.verifies("Comp-1", "Comp-2") on integration tests
+   - pytest: the same marker in scripts/tests/test_*.py, the host-side tests of
+     the verification tooling; they count as unit evidence and join --script-junit
+     by test-function name (a skipped case is never counted as passing)
 4. Results: an optional ctest JUnit XML (ctest --output-junit). gtest results
    are reported per test binary (one ctest case per binary), so a unit test's
    status is the status of the binary that contains it. Integration tests
@@ -46,6 +49,7 @@ COMPONENTS_DIR = REPO_ROOT / "PROVESFlightControllerReference" / "Components"
 SYSTEM_REQ_DIR = REPO_ROOT / "docs-site" / "requirements"
 UNIT_TEST_DIR = REPO_ROOT / "PROVESFlightControllerReference" / "test" / "unit-tests"
 INT_TEST_DIR = REPO_ROOT / "PROVESFlightControllerReference" / "test" / "int"
+SCRIPT_TEST_DIR = REPO_ROOT / "scripts" / "tests"
 OUTPUT = REPO_ROOT / "docs-site" / "requirements-matrix.md"
 
 TEST_MACRO_RE = re.compile(
@@ -174,10 +178,12 @@ def parse_unit_test_links():
     return links
 
 
-def parse_int_test_links():
-    """Return {req_id: [(file, test_name)]} from pytest verifies markers."""
+def parse_pytest_links(directory, pattern, ref):
+    """Return {req_id: [ref(file, test_name)]} from pytest verifies markers."""
     links = {}
-    for src in sorted(INT_TEST_DIR.glob("*_test.py")):
+    if not directory.is_dir():
+        return links
+    for src in sorted(directory.glob(pattern)):
         text = src.read_text(encoding="utf-8")
         pending = []
         for line in text.splitlines():
@@ -189,11 +195,31 @@ def parse_int_test_links():
             definition = PY_DEF_RE.match(line)
             if definition:
                 for req_id in pending:
-                    links.setdefault(req_id, []).append((src.name, definition.group(1)))
+                    links.setdefault(req_id, []).append(ref(src, definition.group(1)))
                 pending = []
             elif line.strip() and not line.strip().startswith("@"):
                 pending = []
     return links
+
+
+def parse_int_test_links():
+    """Return {req_id: [(file, test_name)]} from pytest verifies markers."""
+    return parse_pytest_links(
+        INT_TEST_DIR, "*_test.py", lambda src, name: (src.name, name)
+    )
+
+
+def parse_script_test_links():
+    """Return {req_id: [(test_name, file)]} from scripts/tests verifies markers.
+
+    These are host-side tests of the verification tooling itself, so they count
+    as unit evidence. Unlike gtest, whose ctest case is the whole binary, a
+    pytest case is one test function: the join key into --script-junit is the
+    function name, and the file is what the cell shows beside it.
+    """
+    return parse_pytest_links(
+        SCRIPT_TEST_DIR, "test_*.py", lambda src, name: (name, src.name)
+    )
 
 
 def parse_junit(junit_path):
@@ -205,6 +231,37 @@ def parse_junit(junit_path):
         failed = case.find("failure") is not None or case.find("error") is not None
         status = case.get("status", "")
         statuses[name] = (not failed) and status != "fail"
+    return statuses
+
+
+def parse_script_junit(junit_path):
+    """Return {test function: True | False | None} from a pytest JUnit XML.
+
+    A ``<skipped>`` case is *no result* (None), never a pass: a skipped test
+    proves nothing, so its requirement must read "⚠️ Unit (no result)" rather
+    than ✅. A parametrized function is the combination of its cases — pytest
+    names those ``func[param]`` — failing if any failed, otherwise no result if
+    any was skipped.
+    """
+    verdicts = {}
+    root = ET.parse(junit_path).getroot()
+    for case in root.iter("testcase"):
+        name = case.get("name", "").split("[", 1)[0]
+        if case.find("failure") is not None or case.find("error") is not None:
+            verdict = False
+        elif case.find("skipped") is not None:
+            verdict = None
+        else:
+            verdict = True
+        verdicts.setdefault(name, []).append(verdict)
+    statuses = {}
+    for name, results in verdicts.items():
+        if any(r is False for r in results):
+            statuses[name] = False
+        elif all(r is True for r in results):
+            statuses[name] = True
+        else:
+            statuses[name] = None
     return statuses
 
 
@@ -270,6 +327,13 @@ def main():
         default=None,
         help="ctest --output-junit XML with unit-test results",
     )
+    parser.add_argument(
+        "--script-junit",
+        type=Path,
+        default=None,
+        help="pytest --junitxml with scripts/tests results (the verification-tooling"
+        " rows); a skipped case counts as no result, never as passing",
+    )
     parser.add_argument("--sha", default=None, help="commit sha to stamp into the page")
     parser.add_argument(
         "--env",
@@ -282,6 +346,8 @@ def main():
 
     requirements = parse_requirements()
     unit_links = parse_unit_test_links()
+    for req_id, refs in parse_script_test_links().items():
+        unit_links.setdefault(req_id, []).extend(refs)
     int_links = parse_int_test_links()
     junit = parse_junit(args.junit) if args.junit and args.junit.exists() else None
     if args.junit and junit is None:
@@ -289,6 +355,10 @@ def main():
             f"warning: junit file {args.junit} not found; statuses will show 'not run'",
             file=sys.stderr,
         )
+    # The script-junit is optional: a partial gate run may not have produced one,
+    # and its absence must not turn the whole matrix into "not run".
+    if args.script_junit and args.script_junit.exists():
+        junit = {**(junit or {}), **parse_script_junit(args.script_junit)}
 
     all_ids = {req["id"] for rows in requirements.values() for req in rows}
     for req_id in sorted(set(unit_links) | set(int_links)):

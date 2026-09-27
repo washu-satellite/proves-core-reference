@@ -425,7 +425,7 @@ def test_08_fault_status_channels(updates, rejected_count_channel_name):
 
 @pytest.fixture(scope="module")
 def rejected_count_channel_name(request: pytest.FixtureRequest) -> str:
-    """RejectedPacketsCount for whichever link this CI job uses."""
+    """provesRouter.RejectedPackets for whichever link this CI job uses."""
     if request.config.getoption("--with-radio"):
-        return "ComCcsdsLora.authenticatelora.RejectedPacketsCount"
-    return "ComCcsdsUart.authenticate.RejectedPacketsCount"
+        return "ComCcsdsLora.provesRouter.RejectedPackets"
+    return "ComCcsdsUart.provesRouter.RejectedPackets"

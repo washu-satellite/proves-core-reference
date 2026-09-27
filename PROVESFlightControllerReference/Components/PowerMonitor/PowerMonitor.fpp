@@ -21,6 +21,15 @@ module Components {
         @ Port for sending powerGet calls to the Solar Panel Driver
         output port solPowerGet: Drv.PowerGet
 
+        @ Port for reading the battery charger status pin (LT3652 ~CHRG, active low
+        @ in the devicetree, so HIGH means charging); read on every run tick
+        output port chargeStatusGet: Drv.GpioRead
+
+        @ Parameter for the power-monitor collection interval in seconds (1..60).
+        @ The default of 1 samples on every 1 Hz tick, as before this parameter
+        @ existed. Out-of-range or invalid values fall back to 1.
+        param COLLECTION_INTERVAL_S: U8 default 1 id 0
+
         @ Command to reset the accumulated power consumption
         sync command RESET_TOTAL_POWER()
 
@@ -36,6 +45,12 @@ module Components {
         @ Telemetry channel for accumulated solar power generation in mWh
         telemetry TotalPowerGenerated: F32
 
+        @ Telemetry channel for the collection interval actually in force
+        telemetry CollectionIntervalS: U8 update on change
+
+        @ Telemetry channel for the battery charger status (ON while charging)
+        telemetry Charging: Fw.On update on change
+
         @ Event logged when total power consumption is reset
         event TotalPowerReset() \
             severity activity low \
@@ -50,6 +65,18 @@ module Components {
         event TotalPowerConsumptionReading(power: F32) \
             severity activity low \
             format "Total power consumption: {} mWh"
+
+        @ Event reporting that a requested collection interval was rejected and
+        @ the 1 s default is in force instead
+        event CollectionIntervalRejected(requested: U8) \
+            severity warning low \
+            format "Rejected collection interval {} s; using 1 s" \
+            throttle 5
+
+        @ Event logged on the first charge-status read and whenever it changes
+        event ChargeStateChanged($state: Fw.On) \
+            severity activity low \
+            format "Battery charging: {}"
 
         ###############################################################################
         # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
@@ -74,6 +101,12 @@ module Components {
 
         @ Port for sending telemetry channels to downlink
         telemetry port tlmOut
+
+        @ Port for getting parameters
+        param get port prmGetOut
+
+        @ Port for setting parameters
+        param set port prmSetOut
 
     }
 }

@@ -28,7 +28,7 @@ F. Restore per header.
 | FD-L2-06 | Same as MS-L2-04 | manual | Steps A, B |
 | FD-L2-05 | watchdog stall -> reboot (BootCount +1 <= 60 s); command loss -> safe mode then reboot; low battery -> safe mode + switches OFF | watchdog_test.py::test_03_system_reboots_without_watchdog (stall) ; manual (others) | Steps A, B, C |
 | FD-L2-01 | Thermal -> event <= 2 s; < 6.7 V for 10 s -> AutoSafeModeEntry; device fault -> DeviceNotReady <= 2 s | thermal_threshold_test.py::test_01 (thermal) ; manual | Steps A, E |
-| MS-L2-09 | FORCE/EXIT for GROUND_COMMAND (HP-06); EXIT acked OK and NORMAL <= 5 s for LOW_BATTERY and SYSTEM_FAULT | mode_manager_test.py::test_safe_03 (GROUND_COMMAND) ; manual | Steps A, D |
+| MS-L2-09 | FORCE/EXIT for GROUND_COMMAND (HP-06); EXIT acked OK and NORMAL <= 5 s for LOW_BATTERY and SYSTEM_FAULT | safe_mode_test.py::test_safe_03 (GROUND_COMMAND) ; manual | Steps A, D |
 
 ## Why this verifies it
 - CDH-11 / MS-L2-04 / FD-L2-06 / FD-L2-01(voltage): the fault is real (bus actually below 6.7 V, measured by the INA219 the FSW uses and logged by the PSU as an independent oracle). The 9 s lower bound on the entry time shows the 10-sample debounce, not a single-sample trip. Holding 7.5 V for the manual exit isolates the command from auto-recovery; the 8.2 V step then shows auto-recovery is the voltage path.

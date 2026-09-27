@@ -11,12 +11,12 @@ from common import proves_send_and_assert_command
 from fprime_gds.common.data_types.event_data import EventData
 from fprime_gds.common.testing_fw.api import IntegrationTestAPI
 
-pytestmark = [pytest.mark.requires_battery]
-
 # The powerMonitor run port fires on the 1 Hz rate group (topology.fpp), so a
 # 10 s gap between the two readings spans ~10 accumulation cycles. Ten seconds
 # is the interval named in the PWR-MON-REQ-001/004 pass criteria.
 ACCUMULATION_GAP_S = 10
+
+pytestmark = [pytest.mark.requires_battery]
 
 ina219SysManager = "ReferenceDeployment.ina219SysManager"
 ina219SolManager = "ReferenceDeployment.ina219SolManager"

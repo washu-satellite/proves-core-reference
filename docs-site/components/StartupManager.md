@@ -13,6 +13,48 @@ The StartupManager serves four primary functions:
 3. Startup Sequence: Automatically dispatches and monitors the execution of startup command sequences
 4. Hard-coded Radio Enable: When enabled at compile time (`DEFAULT_STARTUP_VALUE == 1` in `HardCodedStartup.h`), after `TRANSMIT_ENABLE_TICKS` 1 Hz run ticks, asserts `enableTransmit` to enable LoRa transmission independently of the startup sequence file. When disabled (`DEFAULT_STARTUP_VALUE == 0`), the countdown does not run and transmit is not asserted automatically — preferred for ground testing so the radio does not turn on accidentally.
 
+### Persisted files
+
+The quiescence start time is a PersistedRecord (see
+`Components/PersistedRecord/docs/sdd.md`): a self-validating record carrying a
+record-type magic, a format version, a payload length and a CRC-32. Updates are
+atomic — the record is written and flushed to `<path>.tmp`, then renamed over
+the target — so a failure at any step leaves the previous record intact and
+still valid (REQ-SM-008). The boot count is not a PersistedRecord: it is a
+telemetry-only value with a plausibility test, stored in upstream's raw format
+(see [Boot count persistence](#boot-count-persistence)).
+
+Persistence classes under the PersistedRecord consequence rule
+(`Components/PersistedRecord/docs/sdd.md`, "When to use PersistedRecord"): the
+quiescence start is regulatory-relevant with no plausibility test (class 1:
+atomic write plus checksum); the boot count is telemetry-only with a
+plausibility test (class 2: atomic write plus `MAX_PLAUSIBLE_BOOT_COUNT`, no
+checksum).
+
+| File | Magic | Payload |
+|---|---|---|
+| `QUIESCENCE_START_FILE` (`/quiescence_start.bin`) | `"SQS1"` | 11 bytes, mirroring `Fw::Time::SERIALIZED_SIZE`: time base U16 LE, context U8, seconds U32 LE, useconds U32 LE |
+
+A missing file is the first boot and stays silent: the quiescence period starts
+at the current time, which is written.
+
+A file that is present but fails validation — truncated, wrong magic, bad
+length, bad CRC, an unrecognized format version, or unreadable — restarts
+quiescence from now and emits exactly one `QuiescenceFileInitFailure`. A
+CRC-valid record whose useconds field is outside `[0, 999999]` is treated as a
+validation failure too, because `Fw::Time::add` would otherwise assert in a
+boot loop.
+
+A legacy quiescence file left by an earlier image (a bare big-endian
+`Fw::Time` serialization) carries no magic, version or CRC and is not migrated:
+on the first boot of this image it fails the magic check, emits one warning and
+the quiescence period is re-waited once (45 minutes with `ARMED` at its
+default). Removing the file before the upgrade reboot makes the upgrade a clean
+first boot instead.
+
+## Usage Examples
+Add usage examples here
+
 ### Diagrams
 Add diagrams here
 
@@ -90,7 +132,7 @@ The boot count lives in `BOOT_COUNT_FILE` on the flight filesystem (FAT — ELM 
 |------|------|---------------|-------------|
 | `ARMED` | `bool` | `true` | When true, system waits for quiescence period. When false, quiescence is bypassed |
 | `QUIESCENCE_TIME` | `Fw.TimeIntervalValue` | `{seconds = 45 * 60, useconds = 0}` | Duration to wait for quiescence (45 minutes by default) |
-| `QUIESCENCE_START_FILE` | `string` | `"/quiescence_start.bin"` | File path for storing the mission-wide quiescence start time |
+| `QUIESCENCE_START_FILE` | `string` | `"/quiescence_start.bin"` | File path for storing the mission-wide quiescence start time. The atomic update stages through `<path>.tmp` |
 | `STARTUP_SEQUENCE_FILE` | `string` | `"/startup.bin"` | Path to the command sequence file to run at startup |
 | `BOOT_COUNT_FILE` | `string` | `"/boot_count.bin"` | File path for storing the boot count |
 | `TRANSMIT_ENABLE_TICKS` | `U32` | `2800` | 1 Hz run ticks before enabling LoRa transmit (45×60 + 100 s margin) |
@@ -108,7 +150,7 @@ The boot count lives in `BOOT_COUNT_FILE` on the flight filesystem (FAT — ELM 
 | `CurrentBootCount` | ACTIVITY_LO | `i: I64` | Emitted by `GET_BOOT_COUNT` with the current boot count |
 | `BootCountUpdateFailure` | WARNING_LO | None | Emitted once per failure streak when the boot count file cannot be updated. The increment is retried on each subsequent `run` tick until it persists |
 | `BootCountCorrupted` | WARNING_HI | `raw: I64` | Emitted when the boot count file holds an implausible value (> 1,000,000), indicating a torn or corrupt write. The value is treated as unreadable |
-| `QuiescenceFileInitFailure` | WARNING_LO | None | Emitted when the quiescence start time file cannot be initialized. System will use current time but cannot persist it |
+| `QuiescenceFileInitFailure` | WARNING_LO | None | Emitted when the quiescence start time file fails validation on load (corrupt, truncated, wrong magic or version, unreadable, or a useconds field outside [0, 999999]), in which case quiescence restarts from the current time; and again if that current time cannot be stored. A missing file is a silent first boot |
 | `StartupSequenceFinished` | ACTIVITY_LO | None | Emitted when the startup sequence completes successfully |
 | `StartupSequenceFailed` | WARNING_LO | `response: Fw.CmdResponse` | Emitted when the startup sequence fails, includes the failure response code |
 | `HardcodedRadioEnable` | ACTIVITY_HI | None | Emitted when hard-coded startup is enabled, the transmit countdown expires, and `enableTransmit` is asserted |
@@ -122,16 +164,28 @@ The boot count lives in `BOOT_COUNT_FILE` on the flight filesystem (FAT — ELM 
 
 ## Requirements
 
-| Requirement ID | Description | Validation Method |
-|----------------|-------------|-------------------|
-| REQ-SM-001 | StartupManager shall track boot count across power cycles | Verification: Check that boot count increments on each boot via telemetry |
-| REQ-SM-002 | StartupManager shall support configurable quiescence waiting period | Verification: Confirm QUIESCENCE_TIME parameter affects wait duration |
-| REQ-SM-003 | StartupManager shall automatically dispatch startup sequence on first run call | inspection |
-| REQ-SM-004 | StartupManager shall allow disabling quiescence via `ARMED` parameter | Verification: Set `ARMED=false` and confirm `WAIT_FOR_QUIESCENCE` completes immediately |
-| REQ-SM-005 | StartupManager shall emit events for sequence completion status | Verification: Monitor events during sequence execution |
-| REQ-SM-006 | StartupManager shall update telemetry on each run cycle | Verification: Confirm `BootCount` and `QuiescenceEndTime` telemetry updates |
-| REQ-SM-007 | StartupManager shall handle file I/O errors gracefully | Verification: Remove file permissions and verify warning events are emitted |
-| REQ-SM-008 | When `DEFAULT_STARTUP_VALUE == 1`, StartupManager shall enable LoRa transmit after `TRANSMIT_ENABLE_TICKS` 1 Hz ticks | Verification: Confirm `HardcodedRadioEnable` and RF transmit after the configured delay |
-| REQ-SM-009 | When `DEFAULT_STARTUP_VALUE == 0`, StartupManager shall not assert `enableTransmit` from the hard-coded countdown | Verification: Build with gate disabled and confirm no `HardcodedRadioEnable` / automatic TX after boot |
-| REQ-SM-010 | StartupManager shall not propagate an implausible boot count read from a corrupt file | Verification: Write junk to `BOOT_COUNT_FILE`, reboot, confirm `BootCountCorrupted` and a re-initialized count |
-| REQ-SM-011 | StartupManager shall persist the boot count atomically and retry a failed increment until it is durably stored | Verification: HWIL `test_safe_09` asserts boot count == initial+1 across a watchdog hard reset |
+| Name | Description | Method | Level | Pass Criteria | Status | Reason |
+|---|---|---|---|---|---|---|
+|REQ-SM-001|StartupManager shall track boot count across power cycles|Verification: Check that boot count increments on each boot via telemetry|||||
+|REQ-SM-002|StartupManager shall support configurable quiescence waiting period|Verification: Confirm QUIESCENCE_TIME parameter affects wait duration|||||
+|REQ-SM-003|StartupManager shall automatically dispatch startup sequence on first run call|inspection|||||
+|REQ-SM-004|StartupManager shall allow disabling quiescence via `ARMED` parameter|Verification: Set `ARMED=false` and confirm `WAIT_FOR_QUIESCENCE` completes immediately|||||
+|REQ-SM-005|StartupManager shall emit events for sequence completion status|Verification: Monitor events during sequence execution|||||
+|REQ-SM-006|StartupManager shall update telemetry on each run cycle|Verification: Confirm `BootCount` and `QuiescenceEndTime` telemetry updates|||||
+|REQ-SM-007|StartupManager shall handle file I/O errors gracefully|Verification: Remove file permissions and verify warning events are emitted|||||
+|REQ-SM-008|The quiescence start time file shall be stored as a PersistedRecord (magic SQS1, version, CRC) updated atomically; a corrupt, truncated or out-of-range (useconds) file shall be detected, emit one QuiescenceFileInitFailure, and restart quiescence from now; a missing file is a silent first boot|Unit Test|Unit|For every single-byte corruption and every truncation of the quiescence file, and for a CRC-valid record with useconds >= 1000000: exactly one QuiescenceFileInitFailure and quiescence restarts from now; a valid file round-trips its value and is not rewritten; no file: no event|||
+|REQ-SM-009|When DEFAULT_STARTUP_VALUE == 1, StartupManager shall enable LoRa transmit after TRANSMIT_ENABLE_TICKS 1 Hz ticks (upstream REQ-SM-008, renumbered at the 2026-09 sync)|Inspection|Unit|HardCodedStartup.h:9 reads 0 in this fork; the countdown is compiled out|Not applicable|gate disabled by build constant|
+|REQ-SM-010|When DEFAULT_STARTUP_VALUE == 0, StartupManager shall not assert enableTransmit from the hard-coded countdown (upstream REQ-SM-009, renumbered at the 2026-09 sync)|Unit Test|Unit|3000 run ticks with the host fake: enableTransmit never called and no HardcodedRadioEnable event|||
+|REQ-SM-011|StartupManager shall not propagate an implausible boot count read from a corrupt file (upstream REQ-SM-010, renumbered at the 2026-09 sync)|Unit Test|Unit|A file holding a value > 1 000 000 or of the wrong length: exactly one BootCountCorrupted(raw) (none for a short file) and the count reported on the first tick is 1|||
+|REQ-SM-012|StartupManager shall persist the boot count atomically and retry a failed increment until it is durably stored (upstream REQ-SM-011, renumbered at the 2026-09 sync)|Unit Test|Unit|Host: with the fake refusing open(OPEN_CREATE) for N ticks, exactly one BootCountUpdateFailure, .tmp never renamed over the target, and on tick N+1 the target holds initial+1. Board (deferred): MM0013's test asserts BootCount == initial+1 across the watchdog reset|||
+
+
+### Unit Tests
+
+
+## Change Log
+
+| Date | Author | Description |
+|------|--------|-------------|
+| 2026-09 | Cycle A | Boot count and quiescence start moved from raw big-endian serializations to PersistedRecords (magic `"SBC1"` / `"SQS1"`, CRC-32, atomic replace via `<path>.tmp`). A file that fails validation now warns once and applies the defined default; a missing file stays silent. `GET_BOOT_COUNT` no longer rewrites the file (REQ-SM-008). |
+| 2026-09 sync | Upstream sync (a477893b): boot count reverts to upstream's raw big-endian `FwSizeType` file with `MAX_PLAUSIBLE_BOOT_COUNT` (1,000,000), temp+rename and per-tick retry (`BootCountCorrupted`, #470); the `SBC1` PersistedRecord is dropped and REQ-SM-008 now covers the quiescence file only. Upstream's REQ-SM-008..011 enter as REQ-SM-009..012. The first boot of this image reads the old `SBC1` record as an implausible value: one `BootCountCorrupted`, count restarts at 1. |

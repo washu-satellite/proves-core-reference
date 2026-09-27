@@ -34,6 +34,11 @@ module Components {
         @ Port to signal a clean reboot (notify ModeManager before reboot)
         output port prepareForReboot: Fw.Signal
 
+        @ Port reporting that petting stopped to the FaultManager. Purely
+        @ observational: by the time this fires the hardware reset is already
+        @ under way, so the disposition is ignored.
+        output port faultOut: Components.FaultReport
+
         @ Port sending calls to the GPIO driver
         output port gpioSet: Drv.GpioWrite
 

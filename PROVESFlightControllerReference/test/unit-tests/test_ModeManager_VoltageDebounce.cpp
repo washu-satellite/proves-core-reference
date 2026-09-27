@@ -7,7 +7,7 @@
 // in-memory Os::File; no F Prime or Zephyr code is linked
 // (test/unit-tests/README.md).
 //
-// Requirements verified: MM0009, MM0010, MS-L2-08, MM0005.
+// Requirements verified: MM0009, MM0010, MS-L2-08, MM0005, MM0011.
 // MM0004 (Board level, Integration Test only) is claimed by safe_mode_test.py::test_safe_04;
 // NoAutoRecoveryForGroundCommand below still exercises its logic as regression cover (TP-2).
 //
@@ -23,14 +23,23 @@
 // constructor establishes NORMAL / reason NONE / zeroed counters, which is the
 // precondition every voltage-debounce criterion names, and it keeps the
 // persistent-state file out of the picture. StateFileRoundTripsAcrossRestart
-// is the one test that exercises init()/loadState() deliberately.
+// is the one test that exercises restorePersistentState()/loadState() deliberately.
 //
 // MM0007 is deliberately NOT claimed here: D1 set its Level to Board and its
 // Method to Integration Test, and its criterion is written entirely around a
 // commanded WARM_RESET on hardware. Per TP-2 a host test may not claim a
 // Board-level ID, so MM0007 is claimed by the board test
-// safe_mode_test.py::test_safe_09. StateFileRoundTripsAcrossRestart below is
-// kept as unclaimed regression cover for the load/save decision logic.
+// safe_mode_test.py::test_safe_09.
+//
+// StateFileRoundTripsAcrossCleanRestart below claims MM0011: that requirement's
+// second pass criterion is "commanded state round-trips across a component
+// restart", which is exactly what the test drives (a ground-commanded safe mode
+// in one component life, read back in the next). MM0011's first criterion --
+// the file decodes with the shared PersistedRecord codec -- and all of MM0012
+// are covered by test_ModeManager_StatePersistence.cpp.
+// UncleanRestartFromNormalEntersSafeModeWithSystemFault stays unclaimed: it is
+// regression cover for MM0008's unintended-reboot detection, not persistence
+// format evidence.
 // ======================================================================
 
 #include <gtest/gtest.h>
@@ -302,12 +311,14 @@ TEST_F(ModeManagerVoltageTest, DisconnectedSwitchPortsAreSkipped) {
 // ----------------------------------------------------------------------
 // Persistent state across a restart
 //
-// Unclaimed by design: MM0007's Level is Board (see the file header), so this
-// test is regression cover for the loadState()/saveState() decision logic
-// rather than requirement evidence.
+// The round-trip test claims MM0011 ("commanded state round-trips across a
+// component restart"); the unclean-restart test stays unclaimed, as MM0007's
+// Level is Board (see the file header) and it is regression cover for the
+// loadState()/saveState() decision logic rather than requirement evidence.
 // ----------------------------------------------------------------------
 
 TEST_F(ModeManagerVoltageTest, StateFileRoundTripsAcrossCleanRestart) {
+    RecordProperty("verifies", "MM0011");
     // First life: ground-commanded safe mode, then an orderly shutdown.
     {
         ModeManager first("modeManager");
@@ -320,6 +331,7 @@ TEST_F(ModeManagerVoltageTest, StateFileRoundTripsAcrossCleanRestart) {
     // Second life on the same filesystem.
     ModeManager second("modeManager");
     second.init(0);
+    second.restorePersistentState();
 
     EXPECT_EQ(currentMode(second), SystemMode::SAFE_MODE) << "Safe mode must survive a clean restart";
     EXPECT_EQ(reportedReason(second), SafeModeReason::GROUND_COMMAND) << "The entry reason must survive with it";
@@ -338,16 +350,92 @@ TEST_F(ModeManagerVoltageTest, UncleanRestartFromNormalEntersSafeModeWithSystemF
     {
         ModeManager first("modeManager");
         first.init(0);
+        first.restorePersistentState();
         ASSERT_EQ(currentMode(first), SystemMode::NORMAL);
     }
 
     ModeManager second("modeManager");
     second.init(0);
+    second.restorePersistentState();
 
     EXPECT_EQ(currentMode(second), SystemMode::SAFE_MODE)
         << "An unintended reboot out of NORMAL must land in safe mode";
     EXPECT_EQ(reportedReason(second), SafeModeReason::SYSTEM_FAULT);
     EXPECT_EQ(second.eventsUnintendedRebootDetected, 1u);
+}
+
+// ----------------------------------------------------------------------
+// Fault reporting to the FaultManager (Cycle D)
+//
+// FaultManager-6 pass criteria clause under test: "with faultOut connected and
+// OBSERVED, exactly one report per trigger with the matching type, source and
+// value AND the pre-existing events, counters and port calls unchanged; with
+// faultOut unconnected, zero reports and the same pre-existing behaviour".
+// ----------------------------------------------------------------------
+
+TEST_F(ModeManagerVoltageTest, ObservedDispositionReportsEveryLowSampleAndStillEntersSafeMode) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    mm.faultOutConnected = true;
+    mm.faultOutDisposition = Components::FaultDisposition::OBSERVED;
+    mm.injectedVoltage = ENTRY_VOLTAGE_V - 0.1;  // 6.6 V
+
+    tick(mm, DEBOUNCE_TICKS);
+
+    // One report per low sample, carrying the sampled voltage.
+    ASSERT_EQ(mm.faultOutCalls.size(), static_cast<size_t>(DEBOUNCE_TICKS));
+    EXPECT_EQ(mm.faultOutCalls[0].faultType, Components::FaultType::LOW_BATTERY);
+    EXPECT_EQ(mm.faultOutCalls[0].source, Components::FaultSource::MODE_MANAGER);
+    EXPECT_EQ(mm.faultOutCalls[0].severity, Components::FaultSeverity::CRITICAL);
+    EXPECT_FLOAT_EQ(mm.faultOutCalls[0].value, static_cast<F32>(ENTRY_VOLTAGE_V - 0.1));
+
+    // The existing entry path is untouched: same tick, same event, same reason.
+    EXPECT_EQ(currentMode(mm), SystemMode::SAFE_MODE);
+    ASSERT_EQ(mm.eventsAutoSafeModeEntry.size(), 1u)
+        << "An OBSERVED disposition must leave ModeManager's own entry in place";
+    EXPECT_EQ(mm.eventsAutoSafeModeEntry[0].reason, SafeModeReason::LOW_BATTERY);
+    EXPECT_EQ(mm.runSequenceCalls.size(), 1u);
+}
+
+TEST_F(ModeManagerVoltageTest, ClaimedDispositionHandsTheEntryToTheFaultManager) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    mm.faultOutConnected = true;
+    mm.faultOutDisposition = Components::FaultDisposition::CLAIMED;
+    mm.injectedVoltage = ENTRY_VOLTAGE_V - 0.1;
+
+    // Well past the debounce window: the manager owns the decision now.
+    tick(mm, DEBOUNCE_TICKS * 2);
+
+    EXPECT_EQ(mm.faultOutCalls.size(), static_cast<size_t>(DEBOUNCE_TICKS * 2)) << "Every low sample is still reported";
+    EXPECT_EQ(currentMode(mm), SystemMode::NORMAL) << "A CLAIMED report must stop ModeManager entering on its own";
+    EXPECT_TRUE(mm.eventsAutoSafeModeEntry.empty());
+    EXPECT_TRUE(mm.runSequenceCalls.empty());
+    EXPECT_TRUE(mm.modeChangedCalls.empty());
+    EXPECT_TRUE(mm.loadSwitchTurnOffCalls.empty());
+
+    // The FaultManager's forceSafeMode still works: it is the same port the
+    // AuthenticationRouter already uses.
+    static_cast<ModeManagerComponentBase&>(mm).forceSafeMode_handler(0, SafeModeReason(SafeModeReason::LOW_BATTERY));
+    EXPECT_EQ(currentMode(mm), SystemMode::SAFE_MODE);
+    EXPECT_EQ(reportedReason(mm), SafeModeReason::LOW_BATTERY);
+}
+
+TEST_F(ModeManagerVoltageTest, UnconnectedFaultOutLeavesTheDebounceBehaviourUnchanged) {
+    RecordProperty("verifies", "FaultManager-6");
+
+    ASSERT_FALSE(mm.faultOutConnected) << "faultOut must default to unconnected on the host";
+    mm.injectedVoltage = ENTRY_VOLTAGE_V - 0.1;
+
+    tick(mm, DEBOUNCE_TICKS - 1);
+    EXPECT_EQ(currentMode(mm), SystemMode::NORMAL);
+    tick(mm);
+
+    EXPECT_TRUE(mm.faultOutCalls.empty()) << "An unconnected port must never be called";
+    EXPECT_EQ(currentMode(mm), SystemMode::SAFE_MODE);
+    ASSERT_EQ(mm.eventsAutoSafeModeEntry.size(), 1u);
+    EXPECT_EQ(mm.eventsAutoSafeModeEntry[0].reason, SafeModeReason::LOW_BATTERY);
+    EXPECT_EQ(mm.runSequenceCalls.size(), 1u);
 }
 
 }  // namespace

@@ -87,15 +87,19 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/ComCcsdsSband/docs/sdd.md docs-site/components/ComCcsdsSband.md
 	@cp PROVESFlightControllerReference/ComCcsdsLora/docs/sdd.md docs-site/components/ComCcsdsLora.md
 	@cp PROVESFlightControllerReference/Components/PayloadCom/docs/sdd.md docs-site/components/PayloadCom.md
+	@cp PROVESFlightControllerReference/Components/DriverBoardHandler/docs/sdd.md docs-site/components/DriverBoardHandler.md
+	@cp PROVESFlightControllerReference/Components/DriverBoardProtocol/docs/sdd.md docs-site/components/DriverBoardProtocol.md
 	@cp PROVESFlightControllerReference/Components/ComDelay/docs/sdd.md docs-site/components/ComDelay.md
+	@cp PROVESFlightControllerReference/Components/TcFrameCorrector/docs/sdd.md docs-site/components/TcFrameCorrector.md
 	@# Copy Core Components
 	@cp PROVESFlightControllerReference/Components/ModeManager/docs/sdd.md docs-site/components/ModeManager.md
 	@cp PROVESFlightControllerReference/Components/StartupManager/docs/sdd.md docs-site/components/StartupManager.md
 	@cp PROVESFlightControllerReference/Components/ResetManager/docs/sdd.md docs-site/components/ResetManager.md
 	@cp PROVESFlightControllerReference/Components/Watchdog/docs/sdd.md docs-site/components/Watchdog.md
+	@cp PROVESFlightControllerReference/Components/FaultManager/docs/sdd.md docs-site/components/FaultManager.md
+	@cp PROVESFlightControllerReference/Components/TaskGate/docs/sdd.md docs-site/components/TaskGate.md
 	@cp PROVESFlightControllerReference/Components/BootloaderTrigger/docs/sdd.md docs-site/components/BootloaderTrigger.md
 	@cp PROVESFlightControllerReference/Components/DetumbleManager/docs/sdd.md docs-site/components/DetumbleManager.md
-	@cp PROVESFlightControllerReference/Components/TelemetryGate/docs/sdd.md docs-site/components/TelemetryGate.md
 	@# Copy Hardware Components
 	@cp PROVESFlightControllerReference/Components/AntennaDeployer/docs/sdd.md docs-site/components/AntennaDeployer.md
 	@cp PROVESFlightControllerReference/Components/Burnwire/docs/sdd.md docs-site/components/Burnwire.md
@@ -112,6 +116,7 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/Components/Drv/Tmp112Manager/docs/sdd.md docs-site/components/Tmp112Manager.md
 	@cp PROVESFlightControllerReference/Components/Drv/Veml6031Manager/docs/sdd.md docs-site/components/Veml6031Manager.md
 	@# Copy Storage Components
+	@cp PROVESFlightControllerReference/Components/DataRecorder/docs/sdd.md docs-site/components/DataRecorder.md
 	@cp PROVESFlightControllerReference/Components/FlashWorker/docs/sdd.md docs-site/components/FlashWorker.md
 	@cp PROVESFlightControllerReference/Components/FsFormat/docs/sdd.md docs-site/components/FsFormat.md
 	@cp PROVESFlightControllerReference/Components/FsSpace/docs/sdd.md docs-site/components/FsSpace.md
@@ -122,7 +127,7 @@ docs-sync: ## Sync SDD files from components to docs-site
 	@cp PROVESFlightControllerReference/Components/ProvesRouter/docs/sdd.md docs-site/components/ProvesRouter.md
 	@# Copy images
 	@find PROVESFlightControllerReference -path "*/docs/img/*" -type f -exec cp {} docs-site/components/img/ \; 2>/dev/null || true
-	@echo "✓ Synced 34 component SDDs and images"
+	@echo "✓ Synced 33 component SDDs and images"
 
 .PHONY: docs-serve
 docs-serve: uv ## Serve MkDocs documentation site locally
@@ -428,6 +433,10 @@ sequence: fprime-venv ## Compile a sequence file (usage: make sequence SEQ=start
 	@echo "Compiling sequence: $(SEQ).seq"
 	@$(UV_RUN) fprime-seqgen sequences/$(SEQ).seq -d $(ARTIFACT_DIR)/zephyr/fprime-zephyr-deployment
 
+.PHONY: bench-sequence
+bench-sequence: fprime-venv ## Regenerate sequences/bench_startup.seq from sequences/startup.seq
+	@$(UV_RUN) python3 scripts/make_bench_sequence.py
+
 .PHONY: gds
 gds: ## Run FPrime GDS
 	@echo "Running FPrime GDS..."
@@ -448,9 +457,10 @@ gds-integration: framer-plugin
 	@$(GDS_COMMAND) --gui=none --output-unframed-data --uart-device=$(if $(UART_DEVICE),$(UART_DEVICE),/dev/ttyBOARD)
 
 .PHONY: DoL_test
-DoL_test:
+DOL_SERIAL_PORT ?= /dev/ttyACM0
+DoL_test: ## Run the day-in-the-life tests (DOL_SERIAL_PORT=/dev/ttyXXX)
 	@echo "make sure passthrough GDS is running"
-	@$(UV_RUN) pytest test/test_day_in_the_life.py --deployment build-artifacts/zephyr/fprime-zephyr-deployment
+	@DOL_SERIAL_PORT="$(DOL_SERIAL_PORT)" $(UV_RUN) pytest PROVESFlightControllerReference/test/day-in-the-life/test_day_in_the_life.py PROVESFlightControllerReference/test/day-in-the-life/test_edge_cases_day_in_the_life.py --deployment build-artifacts/zephyr/fprime-zephyr-deployment
 
 .PHONY: framer-plugin
 framer-plugin: fprime-venv ## Build framer plugin

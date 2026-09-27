@@ -70,6 +70,8 @@ nav:
           - Startup Manager: components/StartupManager.md
           - Reset Manager: components/ResetManager.md
           - Watchdog: components/Watchdog.md
+          - Fault Manager: components/FaultManager.md
+          - Task Gate: components/TaskGate.md
           - Bootloader Trigger: components/BootloaderTrigger.md
           - Detumble Manager: components/DetumbleManager.md
       - Communication Components:
@@ -79,8 +81,11 @@ nav:
           - Com CCSDS S-Band: components/ComCcsdsSband.md
           - Com CCSDS LoRa: components/ComCcsdsLora.md
           - Payload Com: components/PayloadCom.md
+          - Driver Board Handler: components/DriverBoardHandler.md
+          - Driver Board Protocol: components/DriverBoardProtocol.md
           - Com Delay: components/ComDelay.md
           - Telemetry Gate: components/TelemetryGate.md
+          - TC Frame Corrector: components/TcFrameCorrector.md
       - Hardware Components:
           - Antenna Deployer: components/AntennaDeployer.md
           - Burnwire: components/Burnwire.md
@@ -97,6 +102,7 @@ nav:
           - Tmp112 Manager: components/Tmp112Manager.md
           - Veml6031 Manager: components/Veml6031Manager.md
       - Storage Components:
+          - Data Recorder: components/DataRecorder.md
           - Flash Worker: components/FlashWorker.md
           - Fs Format: components/FsFormat.md
           - Fs Space: components/FsSpace.md
@@ -108,6 +114,7 @@ nav:
   - Requirements:
       - Traceability Matrix: requirements-matrix.md
       - CDH System Requirements: requirements/cdh.md
+      - Verification Tooling Requirements: requirements/tooling.md
   - Additional Resources:
       - Troubleshooting: additional-resources/troubleshooting.md
       - WSL Notes: additional-resources/wsl-notes.md

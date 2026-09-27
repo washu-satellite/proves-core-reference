@@ -1,32 +1,36 @@
 // ======================================================================
 // \title  Os/Mutex.hpp (host-test stub)
-// \brief  Single-threaded stand-in for Os::Mutex / Os::ScopeLock.
+// \brief  No-op Os::Mutex / Os::ScopeLock stand-ins for host unit tests.
 //
-// Mirrors the subset of lib/fprime/Os/Mutex.hpp that components under test
-// use: default construction, lock()/unLock(), and the RAII ScopeLock. Host
-// tests drive components from one thread, so the operations are no-ops; the
-// type only has to exist so the real component source compiles and the
-// lock/unlock pairing is preserved for readers.
+// Mirrors the shape ModeManager.cpp uses (lib/fprime/Os/Mutex.hpp:51,80):
+// a default-constructible Mutex with lock()/unLock(), and a ScopeLock that
+// takes a Mutex by reference. Host tests are single-threaded, so the lock is
+// bookkeeping only; the depth counter lets a test assert on balanced use.
 // ======================================================================
 
 #ifndef UnitTestSupport_Os_Mutex_HPP
 #define UnitTestSupport_Os_Mutex_HPP
 
+#include "../FpTypesStub.hpp"
+
 namespace Os {
 
-//! Host stand-in for the F Prime mutex; no contention exists on the host.
-class Mutex final {
+class Mutex {
   public:
-    Mutex() = default;
-    ~Mutex() = default;
+    Mutex() : m_depth(0) {}
+    ~Mutex() {}
     Mutex(const Mutex&) = delete;
     Mutex& operator=(const Mutex&) = delete;
 
-    void lock() {}    //!< No-op: host tests are single-threaded.
-    void unLock() {}  //!< No-op: host tests are single-threaded.
+    void lock() { this->m_depth++; }
+    void unLock() { this->m_depth--; }
+    void unlock() { this->unLock(); }
+    I32 depth() const { return this->m_depth; }
+
+  private:
+    I32 m_depth;
 };
 
-//! RAII wrapper matching Os::ScopeLock's shape.
 class ScopeLock {
   public:
     explicit ScopeLock(Mutex& mutex) : m_mutex(mutex) { this->m_mutex.lock(); }

@@ -42,6 +42,7 @@ const struct device* face1_temp_sens = DEVICE_DT_GET(DT_NODELABEL(face1_temp_sen
 const struct device* face2_temp_sens = DEVICE_DT_GET(DT_NODELABEL(face2_temp_sens));
 const struct device* face3_temp_sens = DEVICE_DT_GET(DT_NODELABEL(face3_temp_sens));
 const struct device* face5_temp_sens = DEVICE_DT_GET(DT_NODELABEL(face5_temp_sens));
+const struct device* face6_temp_sens = DEVICE_DT_GET(DT_NODELABEL(face6_temp_sens));
 const struct device* batt_cell1_temp_sens = DEVICE_DT_GET(DT_NODELABEL(batt_cell1_temp_sens));
 const struct device* batt_cell2_temp_sens = DEVICE_DT_GET(DT_NODELABEL(batt_cell2_temp_sens));
 const struct device* batt_cell3_temp_sens = DEVICE_DT_GET(DT_NODELABEL(batt_cell3_temp_sens));
@@ -99,6 +100,7 @@ int main(int argc, char* argv[]) {
     inputs.face2TempDevice = face2_temp_sens;
     inputs.face3TempDevice = face3_temp_sens;
     inputs.face5TempDevice = face5_temp_sens;
+    inputs.face6TempDevice = face6_temp_sens;
     inputs.battCell1TempDevice = batt_cell1_temp_sens;
     inputs.battCell2TempDevice = batt_cell2_temp_sens;
     inputs.battCell3TempDevice = batt_cell3_temp_sens;

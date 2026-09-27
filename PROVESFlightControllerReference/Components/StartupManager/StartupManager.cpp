@@ -6,12 +6,79 @@
 
 #include "PROVESFlightControllerReference/Components/StartupManager/StartupManager.hpp"
 
+#include <cstdio>
+
 #include "Os/File.hpp"
 #include "Os/FileSystem.hpp"
+#include "PROVESFlightControllerReference/Components/PersistedRecord/PersistedRecordFile.hpp"
 #include "PROVESFlightControllerReference/Components/StartupManager/HardCodedStartup.h"
 #include <zephyr/drivers/rtc.h>
 
 namespace Components {
+
+namespace {
+// Record-type magic for the quiescence start file. A file left by an older
+// image carries no magic at all, so it fails validation here rather than being
+// misread (REQ-SM-008). The boot count is not a PersistedRecord: it uses
+// upstream's raw format with a plausibility cap (get_boot_count).
+constexpr U8 QUIESCENCE_MAGIC[4] = {'S', 'Q', 'S', '1'};
+
+// Quiescence start payload, mirroring Fw::Time::SERIALIZED_SIZE (11 bytes):
+//   [0..1]  timeBase  U16 little-endian (FwTimeBaseStoreType)
+//   [2]     context   U8              (FwTimeContextStoreType)
+//   [3..6]  seconds   U32 little-endian
+//   [7..10] useconds  U32 little-endian
+constexpr U16 QUIESCENCE_PAYLOAD_SIZE = 11;
+
+// Longest path plus the ".tmp" suffix and a terminator. The parameter defaults
+// are well inside this; an overlong path is reported as a store failure rather
+// than silently truncated.
+constexpr FwSizeType MAX_TEMP_PATH_SIZE = 64;
+
+//! Derive the staging path for an atomic replace: "<path>.tmp".
+//! \return false when the result would not fit in cap bytes
+bool tempPathFor(const char* path, char* out, FwSizeType cap) {
+    const int written = snprintf(out, static_cast<size_t>(cap), "%s.tmp", path);
+    return written > 0 && static_cast<FwSizeType>(written) < cap;
+}
+
+void encodeU32LE(U32 value, U8* out) {
+    out[0] = static_cast<U8>(value & 0xFFU);
+    out[1] = static_cast<U8>((value >> 8) & 0xFFU);
+    out[2] = static_cast<U8>((value >> 16) & 0xFFU);
+    out[3] = static_cast<U8>((value >> 24) & 0xFFU);
+}
+
+U32 decodeU32LE(const U8* in) {
+    return static_cast<U32>(in[0]) | (static_cast<U32>(in[1]) << 8) | (static_cast<U32>(in[2]) << 16) |
+           (static_cast<U32>(in[3]) << 24);
+}
+
+void encodeTime(const Fw::Time& time, U8* out) {
+    const U16 timeBase = static_cast<U16>(time.getTimeBase());
+    out[0] = static_cast<U8>(timeBase & 0xFFU);
+    out[1] = static_cast<U8>((timeBase >> 8) & 0xFFU);
+    out[2] = static_cast<U8>(time.getContext());
+    encodeU32LE(time.getSeconds(), &out[3]);
+    encodeU32LE(time.getUSeconds(), &out[7]);
+}
+
+//! Decode a persisted quiescence start time.
+//! \return false when the record is CRC-valid but carries a useconds field
+//!         outside the [0, 999999] contract Fw::Time::set asserts on. Without
+//!         this check a corrupt file (e.g. a partial flash write leaving 0xFF
+//!         bytes) panics downstream Fw::Time::add in a boot loop.
+bool decodeTime(const U8* in, Fw::Time& time) {
+    const U32 seconds = decodeU32LE(&in[3]);
+    const U32 useconds = decodeU32LE(&in[7]);
+    if (useconds >= 1000000) {
+        return false;
+    }
+    const U16 timeBase = static_cast<U16>(static_cast<U16>(in[0]) | (static_cast<U16>(in[1]) << 8));
+    time.set(static_cast<TimeBase::T>(timeBase), static_cast<FwTimeContextStoreType>(in[2]), seconds, useconds);
+    return true;
+}
+}  // namespace
 
 // ----------------------------------------------------------------------
 // Component construction and destruction
@@ -162,23 +229,38 @@ Fw::Time StartupManager ::update_quiescence_start() {
     auto time_file = this->paramGet_QUIESCENCE_START_FILE(is_valid);
     FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
 
-    Fw::Time time = this->getTime();
-    // Open the quiescence start time file and read the current time. On read failure, return the current time.
-    StartupManager::Status status = read<Fw::Time, Fw::Time::SERIALIZED_SIZE>(time_file, time);
-    // Reject a corrupt file (e.g. partial flash write leaving 0xFF bytes) whose useconds field is outside
-    // the [0, 999999] contract Fw::Time::set asserts on. Without this, downstream Fw::Time::add panics
-    // in a boot-loop because the bad value persists across reflashes.
-    if (status == StartupManager::SUCCESS && time.getUSeconds() >= 1000000) {
-        time = this->getTime();
-        status = StartupManager::FAILURE;
-    }
-    // On read failure, write the current time to the file for future reads. This only happens on read failure because
-    // there is a singular quiescence start time for the whole mission.
-    if (status != StartupManager::SUCCESS) {
-        status = write<Fw::Time, Fw::Time::SERIALIZED_SIZE>(time_file, time);
-        if (status != StartupManager::SUCCESS) {
-            this->log_WARNING_LO_QuiescenceFileInitFailure();
+    const char* const path = time_file.toChar();
+    char temp_path[MAX_TEMP_PATH_SIZE];
+    const bool temp_ok = tempPathFor(path, temp_path, MAX_TEMP_PATH_SIZE);
+
+    U8 payload[QUIESCENCE_PAYLOAD_SIZE] = {0};
+    U16 payload_len = 0;
+    const PersistedRecord::Status status = PersistedRecord::load(path, temp_ok ? temp_path : nullptr, QUIESCENCE_MAGIC,
+                                                                 payload, QUIESCENCE_PAYLOAD_SIZE, payload_len);
+
+    // A valid record is the single quiescence start time for the whole mission
+    // and is returned untouched: the file is not rewritten on later boots.
+    if (status == PersistedRecord::Status::OK && payload_len == QUIESCENCE_PAYLOAD_SIZE) {
+        Fw::Time stored;
+        if (decodeTime(payload, stored)) {
+            return stored;
         }
+    }
+
+    // Anything present that fails validation warns once; a missing file is the
+    // first boot and stays silent.
+    if (status != PersistedRecord::Status::MISSING) {
+        this->log_WARNING_LO_QuiescenceFileInitFailure();
+    }
+
+    // Restart quiescence from now and persist it for future reads.
+    const Fw::Time time = this->getTime();
+    U8 out[QUIESCENCE_PAYLOAD_SIZE];
+    encodeTime(time, out);
+    const bool stored = temp_ok && PersistedRecord::store(path, temp_path, QUIESCENCE_MAGIC, out,
+                                                          QUIESCENCE_PAYLOAD_SIZE) == PersistedRecord::Status::OK;
+    if (!stored) {
+        this->log_WARNING_LO_QuiescenceFileInitFailure();
     }
     return time;
 }
@@ -189,17 +271,23 @@ Fw::Time StartupManager ::get_uptime() {
     return time;
 }
 
-void StartupManager ::startupsequenceStarted_handler(FwIndexType portNum, const Fw::StringBase& fileName) {
+void StartupManager ::startupsequenceStarted_handler(FwIndexType portNum,
+                                                     const Fw::StringBase& fileName,
+                                                     const Svc::SeqArgs& args) {
     (void)portNum;
     this->onSequenceStarted(fileName);
 }
 
-void StartupManager ::safeModeSequenceStarted_handler(FwIndexType portNum, const Fw::StringBase& fileName) {
+void StartupManager ::safeModeSequenceStarted_handler(FwIndexType portNum,
+                                                      const Fw::StringBase& fileName,
+                                                      const Svc::SeqArgs& args) {
     (void)portNum;
     this->onSequenceStarted(fileName);
 }
 
-void StartupManager ::payloadSequenceStarted_handler(FwIndexType portNum, const Fw::StringBase& fileName) {
+void StartupManager ::payloadSequenceStarted_handler(FwIndexType portNum,
+                                                     const Fw::StringBase& fileName,
+                                                     const Svc::SeqArgs& args) {
     (void)portNum;
     this->onSequenceStarted(fileName);
 }
@@ -291,7 +379,8 @@ void StartupManager ::run_handler(FwIndexType portNum, U32 context) {
 
         Fw::ParamString first_sequence = this->paramGet_STARTUP_SEQUENCE_FILE(is_valid);
         FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
-        this->runSequence_out(0, first_sequence);
+        const Svc::SeqArgs no_args;
+        this->runSequence_out(0, first_sequence, no_args);
         this->m_transmit_enable_ticks = this->paramGet_TRANSMIT_ENABLE_TICKS(is_valid);
         FW_ASSERT(is_valid == Fw::ParamValid::VALID || is_valid == Fw::ParamValid::DEFAULT);
     } else if (!this->m_boot_count_persisted) {

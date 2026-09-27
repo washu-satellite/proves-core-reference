@@ -12,15 +12,12 @@
 //
 // Shapes mirror ModeManager.fpp:
 //   enum SystemMode { SAFE_MODE = 1, NORMAL = 2 }            (fpp:4-8)
-//   enum SafeModeReason { NONE=0 .. COMMAND_LOSS=6 }         (fpp:10-18)
+//   enum SafeModeReason { NONE=0 .. LORA=5 }                 (fpp:10-17)
 //   output port modeChanged[1], runSequence, loadSwitchTurnOn[8],
-//   loadSwitchTurnOff[8], voltageGet (Drv.VoltageGet -> F64),
-//   sequenceDoneNotify (Fw.CmdResponse), stopWatchdog (Fw.Signal),
-//   input port packetRouted (Fw.Signal)                      (fpp:58-84)
+//   loadSwitchTurnOff[8], voltageGet (Drv.VoltageGet -> F64) (fpp:58-70)
 //   param SafeModeEntryVoltage F32 6.7, SafeModeRecoveryVoltage F32 8.0,
 //   SafeModeDebounceSeconds U32 10, SAFEMODE_SEQUENCE_FILE
-//   "/seq/enter_safe.bin", COMM_LOSS_TIME Fw.TimeIntervalValue
-//   default 3 days                                          (fpp:194-215)
+//   "/seq/enter_safe.bin"                                    (fpp:194-202)
 // ======================================================================
 
 #ifndef UnitTestSupport_ModeManagerComponentAc_HPP
@@ -30,6 +27,7 @@
 #include <vector>
 
 #include "../../../FpTypesStub.hpp"
+#include "../FaultTypes/FaultTypesStub.hpp"
 #include "Fw/Time/Time.hpp"
 #include "Fw/Types/String.hpp"
 
@@ -91,6 +89,14 @@ class ModeManagerComponentBase {
         F32 voltage;
     };
 
+    //! One recorded fault report sent out faultOut.
+    struct FaultReportRecord {
+        FaultType::T faultType;
+        FaultSource::T source;
+        FaultSeverity::T severity;
+        F32 value;
+    };
+
     explicit ModeManagerComponentBase(const char* const compName) : compName(compName) {}
     virtual ~ModeManagerComponentBase() {}
 
@@ -105,8 +111,6 @@ class ModeManagerComponentBase {
     static constexpr FwIndexType getNum_loadSwitchTurnOn_OutputPorts() { return 8; }
     static constexpr FwIndexType getNum_loadSwitchTurnOff_OutputPorts() { return 8; }
     static constexpr FwIndexType getNum_voltageGet_OutputPorts() { return 1; }
-    static constexpr FwIndexType getNum_sequenceDoneNotify_OutputPorts() { return 1; }
-    static constexpr FwIndexType getNum_stopWatchdog_OutputPorts() { return 1; }
 
     // ---- handlers implemented by the component (private overrides there) ----
     virtual void run_handler(FwIndexType portNum, U32 context) = 0;
@@ -129,8 +133,14 @@ class ModeManagerComponentBase {
     bool loadSwitchTurnOnConnected[8] = {true, true, true, true, true, true, true, true};
     bool loadSwitchTurnOffConnected[8] = {true, true, true, true, true, true, true, true};
     bool voltageGetConnected = true;
-    bool sequenceDoneNotifyConnected = true;
-    bool stopWatchdogConnected = true;
+    bool sequenceDoneNotifyConnected = false;
+
+    // ---- fault reporting (Cycle D). The default of "not connected" is what
+    //      every test written before the port existed sees, so those tests
+    //      keep observing exactly the behaviour they always did. ----
+    bool faultOutConnected = false;
+    Components::FaultDisposition faultOutDisposition = Components::FaultDisposition::OBSERVED;
+    std::vector<FaultReportRecord> faultOutCalls;
 
     // ---- test-controlled inputs ----
     F64 injectedVoltage = 7.5;
@@ -139,9 +149,9 @@ class ModeManagerComponentBase {
     F32 safeModeEntryVoltage = 6.7f;
     F32 safeModeRecoveryVoltage = 8.0f;
     U32 safeModeDebounceSeconds = 10;
-    std::string safeModeSequenceFile = "/seq/enter_safe.bin";
-    //! COMM_LOSS_TIME default from ModeManager.fpp: 3 days in seconds.
+    //! COMM_LOSS_TIME default {3*60*60*24, 0} (ModeManager.fpp:229).
     Fw::TimeIntervalValue commLossTime = Fw::TimeIntervalValue(3 * 60 * 60 * 24, 0);
+    std::string safeModeSequenceFile = "/seq/enter_safe.bin";
     Fw::ParamValid paramValidity = Fw::ParamValid::VALID;
 
     // ---- recorded outgoing effects, public for test inspection ----
@@ -151,8 +161,8 @@ class ModeManagerComponentBase {
     std::vector<FwIndexType> loadSwitchTurnOffCalls;
     std::vector<std::string> runSequenceCalls;
     U32 voltageGetCalls = 0;
-    std::vector<CmdResponseRecord> sequenceDoneNotifyCalls;
     U32 stopWatchdogCalls = 0;
+    std::vector<CmdResponseRecord> sequenceDoneNotifyCalls;
 
     std::vector<U8> tlmCurrentMode;
     std::vector<SafeModeReason::T> tlmCurrentSafeModeReason;
@@ -172,8 +182,8 @@ class ModeManagerComponentBase {
     std::vector<StatePersistenceFailureRecord> eventsStatePersistenceFailure;
     std::vector<SystemMode::T> eventsCurrentModeReading;
     std::vector<SafeModeReason::T> eventsCurrentSafeModeReasonReading;
-    std::vector<CmdResponseRecord> cmdResponses;
     std::vector<U32> eventsCommandLossDetected;
+    std::vector<CmdResponseRecord> cmdResponses;
 
   protected:
     // ---- output ports ----
@@ -203,6 +213,26 @@ class ModeManagerComponentBase {
         return this->injectedVoltage;
     }
 
+    bool isConnected_faultOut_OutputPort(FwIndexType portNum) const {
+        (void)portNum;
+        return this->faultOutConnected;
+    }
+    Components::FaultDisposition faultOut_out(FwIndexType portNum,
+                                              const Components::FaultType& faultType,
+                                              const Components::FaultSource& source,
+                                              const Components::FaultSeverity& severity,
+                                              F32 value) {
+        (void)portNum;
+        this->faultOutCalls.push_back(FaultReportRecord{faultType.e, source.e, severity.e, value});
+        return this->faultOutDisposition;
+    }
+
+    void runSequence_out(FwIndexType portNum, const Fw::StringBase& filename, const Svc::SeqArgs& args) {
+        (void)portNum;
+        (void)args;
+        this->runSequenceCalls.push_back(filename.toChar());
+    }
+
     bool isConnected_sequenceDoneNotify_OutputPort(FwIndexType portNum) const {
         (void)portNum;
         return this->sequenceDoneNotifyConnected;
@@ -212,18 +242,9 @@ class ModeManagerComponentBase {
         this->sequenceDoneNotifyCalls.push_back(CmdResponseRecord{opCode, cmdSeq, response});
     }
 
-    bool isConnected_stopWatchdog_OutputPort(FwIndexType portNum) const {
-        (void)portNum;
-        return this->stopWatchdogConnected;
-    }
     void stopWatchdog_out(FwIndexType portNum) {
         (void)portNum;
         this->stopWatchdogCalls++;
-    }
-
-    void runSequence_out(FwIndexType portNum, const Fw::StringBase& filename) {
-        (void)portNum;
-        this->runSequenceCalls.push_back(filename.toChar());
     }
 
     // ---- parameters ----
@@ -239,13 +260,13 @@ class ModeManagerComponentBase {
         valid = this->paramValidity;
         return this->safeModeDebounceSeconds;
     }
-    Fw::TimeIntervalValue paramGet_COMM_LOSS_TIME(Fw::ParamValid& valid) {
-        valid = this->paramValidity;
-        return this->commLossTime;
-    }
     Fw::ParamString paramGet_SAFEMODE_SEQUENCE_FILE(Fw::ParamValid& valid) {
         valid = this->paramValidity;
         return Fw::ParamString(this->safeModeSequenceFile.c_str());
+    }
+    Fw::TimeIntervalValue paramGet_COMM_LOSS_TIME(Fw::ParamValid& valid) {
+        valid = this->paramValidity;
+        return this->commLossTime;
     }
 
     // ---- telemetry ----
@@ -264,13 +285,13 @@ class ModeManagerComponentBase {
         this->eventsEnteringSafeMode.push_back(reason.toChar());
     }
     void log_ACTIVITY_HI_ExitingSafeMode() { this->eventsExitingSafeMode++; }
-    void log_WARNING_HI_CommandLossDetected(U32 duration) { this->eventsCommandLossDetected.push_back(duration); }
     void log_ACTIVITY_HI_ManualSafeModeEntry() { this->eventsManualSafeModeEntry++; }
     void log_WARNING_HI_ExternalFaultDetected() { this->eventsExternalFaultDetected++; }
     void log_WARNING_LO_SafeModeRequestIgnored() { this->eventsSafeModeRequestIgnored++; }
     void log_WARNING_HI_UnintendedRebootDetected() { this->eventsUnintendedRebootDetected++; }
     void log_ACTIVITY_HI_PreparingForReboot() { this->eventsPreparingForReboot++; }
     void log_ACTIVITY_HI_SafeModeSequenceCompleted() { this->eventsSafeModeSequenceCompleted++; }
+    void log_WARNING_HI_CommandLossDetected(U32 duration) { this->eventsCommandLossDetected.push_back(duration); }
     void log_WARNING_LO_SafeModeSequenceFailed(const Fw::CmdResponse& response) {
         this->eventsSafeModeSequenceFailed.push_back(response);
     }

@@ -47,10 +47,11 @@ class TelemetryGate final : public TelemetryGateComponentBase {
     //! Latches the requested state in RAM immediately, persists it to flash, and
     //! emits the TransmitStateSet event. Returns EXECUTION_ERROR only if the
     //! flash write fails (the in-RAM state change still takes effect).
-    void SET_TRANSMIT_STATE_cmdHandler(FwOpcodeType opCode,                  //!< The opcode
-                                       U32 cmdSeq,                           //!< The command sequence number
-                                       Components::TelemetryTxState txState  //!< Desired telemetry transmission state
-                                       ) override;
+    void SET_TRANSMIT_STATE_cmdHandler(
+        FwOpcodeType opCode,                         //!< The opcode
+        U32 cmdSeq,                                  //!< The command sequence number
+        const Components::TelemetryTxState& txState  //!< Desired telemetry transmission state
+        ) override;
 
   private:
     // ----------------------------------------------------------------------

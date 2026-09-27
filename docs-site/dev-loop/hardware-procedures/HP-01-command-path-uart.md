@@ -22,7 +22,7 @@ Prefix `RD.` = `ReferenceDeployment.`. Windows: ack 10 s (`proves_send_and_asser
 7. `CMD_NO_OP_STRING` with a 40-char argument. Observable: echoed intact, acked <= 10 s; zero `frameAccumulator.FrameDetectionSizeError`.
 8. 5 x `CMD_NO_OP` sent back-to-back without waiting. Observable: 5 `OpCodeCompleted` <= 15 s; zero `TooManyCommands` / `CommandDroppedQueueOverflow`.
 9. `cmdDisp.CMD_NO_OP`, `modeManager.GET_CURRENT_MODE`, `startupManager.GET_BOOT_COUNT`. Observable: each component's own response event <= 5 s.
-10. Send one non-bypass command framed with a stale sequence number (manual: no automated fixture on this branch, see the note below). Observable: `authenticate.SequenceNumberOutOfWindow` <= 5 s; no `OpCodeDispatched` for that opcode <= 5 s; `authenticate.RejectedPacketsCount` +1 <= 45 s; the next correctly numbered command is acked <= 10 s.
+10. Send one non-bypass command framed with a stale sequence number (fixture in `authentication_test.py::test_01`). Observable: `authenticate.SequenceNumberOutOfWindow` <= 5 s; no `OpCodeDispatched` for that opcode <= 5 s; `authenticate.RejectedPacketsCount` +1 <= 45 s; the next correctly numbered command is acked <= 10 s.
 11. `SET_LEVEL 1`.
 
 ## Criteria
@@ -32,14 +32,12 @@ Prefix `RD.` = `ReferenceDeployment.`. Windows: ack 10 s (`proves_send_and_asser
 | CDH-19 | CMD_NO_OP_STRING "Hello World!" acked <= 10 s and echoed, over UART (LoRa job in HP-13) | command_path_test.py::test_01_no_op_string_round_trip | Step 4 |
 | CH-L2-02 | 10 commands acked <= 10 s each; zero deframer error events | command_path_test.py::test_02_ten_commands_no_deframer_errors | Step 6 event log filtered on deframer events |
 | CH-L2-03 | 40-char argument echoed intact; zero FrameDetectionSizeError | command_path_test.py::test_02_ten_commands_no_deframer_errors | Step 7 |
-| CH-L2-05 | Stale sequence rejected: SequenceNumberOutOfWindow <= 5 s, no OpCodeDispatched; next command accepted | manual (see note) | Step 10 |
-| CH-L2-06 | RejectedPacketsCount +1 (level 5); no dispatch/completion for that opcode <= 5 s | manual (see note) | Step 10 channel history |
+| CH-L2-05 | Stale sequence rejected: SequenceNumberOutOfWindow <= 5 s, no OpCodeDispatched; next command accepted | authentication_test.py::test_01_stale_sequence_number_is_rejected | Step 10 |
+| CH-L2-06 | RejectedPacketsCount +1 (level 5); no dispatch/completion for that opcode <= 5 s | authentication_test.py::test_01_stale_sequence_number_is_rejected | Step 10 channel history |
 | CH-L2-07 | Echo byte-exact; GET_CURRENT_MODE returns a valid SystemMode | command_path_test.py::test_01_no_op_string_round_trip | Steps 4-5 |
 | CH-L2-08 | Every accepted command: OpCodeDispatched then OpCodeCompleted <= 10 s | command_path_test.py::test_01_no_op_string_round_trip | Steps 3-9 event order |
 | CH-L2-09 | 5 back-to-back commands all complete <= 15 s; zero queue-overflow events | command_path_test.py::test_03_burst_of_five_commands | Step 8 |
 | CH-L2-10 | Commands to 3 components each answered <= 5 s | command_path_test.py::test_04_routing_to_three_components | Step 9 |
-
-> Note on step 10 and CH-L2-05/06: the automated fixture that drove this step targeted the `Components/Authenticate` uplink stack, which this branch's base replaced with `Components/TcSecurityDeframer`. The step is manual until a fixture is written against TcSecurityDeframer, and the event/channel names above (`authenticate.SequenceNumberOutOfWindow`, `authenticate.RejectedPacketsCount`) still name the old component, so re-derive them from `Components/TcSecurityDeframer/TcSecurityDeframer.fpp` before running it.
 
 ## Why this verifies it
 - CDH-1: the observable is ground command/telemetry with the radio provably disabled (step 2 ack precedes step 3), on the same UART path EGSE uses; oracle is the GDS, not FSW counters.

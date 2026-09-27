@@ -6,8 +6,9 @@ enable/disable state. It sits between `telemetryDelay.runOut` and
 TlmChan stops running and all channelized telemetry ceases within one scheduler
 cycle. Events, command acknowledgements, and file downlink are not gated.
 
-The state persists to a flash file (`/tlm_tx_state.bin`) because NullPrmDb does
-not persist fprime parameters. The record is written through the shared
+The state persists to a flash file (`/tlm_tx_state.bin`) rather than as an F´
+parameter so that it is CRC-protected and replaced atomically (parameters saved
+with `PRM_SAVE_FILE` do persist, but `/prmDb.dat` has no integrity check). The record is written through the shared
 `Components::PersistedRecord` mechanism: record-type magic `TGS2`, a one-byte
 payload holding the `TelemetryTxState` ordinal, and a CRC-32 over magic,
 version and payload. Updates are atomic — the record is written and flushed to

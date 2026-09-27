@@ -10,7 +10,7 @@ module ReferenceDeployment {
     rateGroup1Hz
   }
 
-  topology ReferenceDeployment {
+  deployment topology ReferenceDeployment {
 
   # ----------------------------------------------------------------------
   # Subtopology imports
@@ -35,6 +35,8 @@ module ReferenceDeployment {
     instance gpioWatchdog
     instance gpioBurnwire0
     instance gpioBurnwire1
+    instance gpioDeploy2
+    instance gpioCharge
     instance gpioface0LS
     instance gpioface1LS
     instance gpioface2LS
@@ -53,6 +55,7 @@ module ReferenceDeployment {
     instance telemetryDelay
     instance telemetryGate
     instance burnwire
+    instance burnwireDeploy2
     instance antennaDeployer
     instance comSplitterEvents
     instance comSplitterTelemetry
@@ -89,6 +92,11 @@ module ReferenceDeployment {
     instance resetManager
     instance fileUplinkCollector
     instance modeManager
+    instance faultManager
+    instance driverBoardUart
+    instance driverBoardBufferManager
+    instance driverBoardHandler
+    instance dataRecorder
     instance adcs
 
     # Face Board Instances
@@ -98,6 +106,7 @@ module ReferenceDeployment {
     instance tmp112Face2Manager
     instance tmp112Face3Manager
     instance tmp112Face5Manager
+    instance tmp112Face6Manager
     instance tmp112BattCell1Manager
     instance tmp112BattCell2Manager
     instance tmp112BattCell3Manager
@@ -118,6 +127,9 @@ module ReferenceDeployment {
     instance dropDetector
 
     instance picoTempManager
+
+    instance taskGate
+    instance tcFrameCorrector
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -199,9 +211,13 @@ module ReferenceDeployment {
       lora.allocate      -> ComCcsdsLora.commsBufferManager.bufferGetCallee
       lora.deallocate    -> ComCcsdsLora.commsBufferManager.bufferSendIn
 
-      # ComDriver <-> FrameAccumulator (Uplink)
-      lora.dataOut -> ComCcsdsLora.frameAccumulator.dataIn
-      ComCcsdsLora.frameAccumulator.dataReturnOut -> lora.dataReturnIn
+      # ComDriver <-> TcFrameCorrector <-> FrameAccumulator (Uplink)
+      # The corrector precedes the accumulator because CcsdsTcFrameDetector
+      # verifies the FECF itself: a corrupt frame never reaches the deframer.
+      lora.dataOut -> tcFrameCorrector.dataIn
+      tcFrameCorrector.dataOut -> ComCcsdsLora.frameAccumulator.dataIn
+      ComCcsdsLora.frameAccumulator.dataReturnOut -> tcFrameCorrector.dataReturnIn
+      tcFrameCorrector.dataReturnOut -> lora.dataReturnIn
 
       # ComStub <-> ComDriver (Downlink)
       ComCcsdsLora.framer.dataOut -> loraRetry.dataIn
@@ -268,6 +284,7 @@ module ReferenceDeployment {
       # Ultra high rate (50Hz) rate group
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup50Hz] -> rateGroup50Hz.CycleIn
       rateGroup50Hz.RateGroupMemberOut[0] -> detumbleManager.run
+      rateGroup50Hz.RateGroupMemberOut[1] -> driverBoardUart.schedIn
 
       # High rate (10Hz) rate group
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup10Hz] -> rateGroup10Hz.CycleIn
@@ -276,6 +293,7 @@ module ReferenceDeployment {
       rateGroup10Hz.RateGroupMemberOut[2] -> ComCcsdsLora.aggregator.timeout
       #rateGroup10Hz.RateGroupMemberOut[3] -> ComCcsdsSband.aggregator.timeout
       rateGroup10Hz.RateGroupMemberOut[4] -> peripheralUartDriver.schedIn
+      rateGroup10Hz.RateGroupMemberOut[5] -> driverBoardBufferManager.schedIn
       rateGroup10Hz.RateGroupMemberOut[6] -> FileHandling.fileManager.schedIn
       rateGroup10Hz.RateGroupMemberOut[7] -> cmdSeq.schedIn
       rateGroup10Hz.RateGroupMemberOut[8] -> payloadSeq.schedIn
@@ -293,18 +311,30 @@ module ReferenceDeployment {
       rateGroup1Hz.RateGroupMemberOut[3] -> ComCcsdsLora.commsBufferManager.schedIn
       #rateGroup1Hz.RateGroupMemberOut[4] -> ComCcsdsSband.commsBufferManager.schedIn
       rateGroup1Hz.RateGroupMemberOut[5] -> watchdog.run
-      rateGroup1Hz.RateGroupMemberOut[6] -> imuManager.run
+      rateGroup1Hz.RateGroupMemberOut[6] -> taskGate.schedIn[Components.SchedTask.IMU]
+      taskGate.schedOut[Components.SchedTask.IMU] -> imuManager.run
       rateGroup1Hz.RateGroupMemberOut[7] -> telemetryDelay.runIn
       rateGroup1Hz.RateGroupMemberOut[8] -> burnwire.schedIn
       rateGroup1Hz.RateGroupMemberOut[9] -> antennaDeployer.schedIn
-      rateGroup1Hz.RateGroupMemberOut[10] -> fsSpace.run
+      rateGroup1Hz.RateGroupMemberOut[10] -> taskGate.schedIn[Components.SchedTask.FS_SPACE]
+      taskGate.schedOut[Components.SchedTask.FS_SPACE] -> fsSpace.run
       rateGroup1Hz.RateGroupMemberOut[11] -> payloadBufferManager.schedIn
+      rateGroup1Hz.RateGroupMemberOut[12] -> driverBoardHandler.run
       rateGroup1Hz.RateGroupMemberOut[13] -> FileHandling.fileDownlink.Run
       rateGroup1Hz.RateGroupMemberOut[14] -> startupManager.run
-      rateGroup1Hz.RateGroupMemberOut[15] -> powerMonitor.run
+      rateGroup1Hz.RateGroupMemberOut[15] -> taskGate.schedIn[Components.SchedTask.POWER_MONITOR]
+      taskGate.schedOut[Components.SchedTask.POWER_MONITOR] -> powerMonitor.run
       rateGroup1Hz.RateGroupMemberOut[16] -> modeManager.run
-      rateGroup1Hz.RateGroupMemberOut[17] -> adcs.run
-      rateGroup1Hz.RateGroupMemberOut[18] -> thermalManager.run
+      rateGroup1Hz.RateGroupMemberOut[17] -> taskGate.schedIn[Components.SchedTask.ADCS]
+      taskGate.schedOut[Components.SchedTask.ADCS] -> adcs.run
+      rateGroup1Hz.RateGroupMemberOut[18] -> taskGate.schedIn[Components.SchedTask.THERMAL]
+      taskGate.schedOut[Components.SchedTask.THERMAL] -> thermalManager.run
+      # Slot 19: burnwireDeploy2 (DEPLOY2, TPS4H160 OUT3; Cycle L). Its former member
+      # (the command-loss router) was retired in the 2026-09 upstream sync.
+      rateGroup1Hz.RateGroupMemberOut[19] -> burnwireDeploy2.schedIn
+      # Must follow modeManager[16] and thermalManager[18]: members run in
+      # index order, so a fault reported this tick is decided in the same tick.
+      rateGroup1Hz.RateGroupMemberOut[20] -> faultManager.run
 
     }
 
@@ -316,6 +346,10 @@ module ReferenceDeployment {
     connections LoadSwitches {
       face4LoadSwitch.gpioSet -> gpioface4LS.gpioWrite
       face4LoadSwitch.gpioGet -> gpioface4LS.gpioRead
+      # FACE4_ENABLE powers the F4 connector (J1), whose I2C pair is mux channel 5 (netlist U3 SD/SC5)
+      face4LoadSwitch.loadSwitchStateChanged[0] -> tmp112Face5Manager.loadSwitchStateChanged
+      face4LoadSwitch.loadSwitchStateChanged[1] -> veml6031Face5Manager.loadSwitchStateChanged
+      face4LoadSwitch.loadSwitchStateChanged[2] -> drv2605Face5Manager.loadSwitchStateChanged
 
       face0LoadSwitch.gpioSet -> gpioface0LS.gpioWrite
       face0LoadSwitch.gpioGet -> gpioface0LS.gpioRead
@@ -343,9 +377,10 @@ module ReferenceDeployment {
 
       face5LoadSwitch.gpioSet -> gpioface5LS.gpioWrite
       face5LoadSwitch.gpioGet -> gpioface5LS.gpioRead
-      face5LoadSwitch.loadSwitchStateChanged[0] -> tmp112Face5Manager.loadSwitchStateChanged
-      face5LoadSwitch.loadSwitchStateChanged[1] -> veml6031Face5Manager.loadSwitchStateChanged
-      face5LoadSwitch.loadSwitchStateChanged[2] -> drv2605Face5Manager.loadSwitchStateChanged
+      # FACE5_ENABLE powers the F5 connector (J2), whose I2C pair is mux channel 6 (netlist U3 SD/SC6);
+      # [2] stays unconnected (LoadSwitch skips unconnected ports, LoadSwitch.cpp:68-73)
+      face5LoadSwitch.loadSwitchStateChanged[0] -> veml6031Face6Manager.loadSwitchStateChanged
+      face5LoadSwitch.loadSwitchStateChanged[1] -> tmp112Face6Manager.loadSwitchStateChanged
 
       payloadPowerLoadSwitch.gpioSet -> gpioPayloadPowerLS.gpioWrite
       payloadPowerLoadSwitch.gpioGet -> gpioPayloadPowerLS.gpioRead
@@ -357,6 +392,8 @@ module ReferenceDeployment {
     connections BurnwireGpio {
       burnwire.gpioSet[0] -> gpioBurnwire0.gpioWrite
       burnwire.gpioSet[1] -> gpioBurnwire1.gpioWrite
+      # DEPLOY2 has one enable (FIRE_DEPLOY2_B, MCP23017 GPA2); gpioSet[1] stays unconnected
+      burnwireDeploy2.gpioSet[0] -> gpioDeploy2.gpioWrite
     }
 
     connections AntennaDeployment {
@@ -445,6 +482,7 @@ module ReferenceDeployment {
       powerMonitor.solVoltageGet -> ina219SolManager.voltageGet
       powerMonitor.solCurrentGet -> ina219SolManager.currentGet
       powerMonitor.solPowerGet -> ina219SolManager.powerGet
+      powerMonitor.chargeStatusGet -> gpioCharge.gpioRead
     }
 
     connections thermalManager {
@@ -453,6 +491,7 @@ module ReferenceDeployment {
       thermalManager.faceTempGet[2] -> tmp112Face2Manager.temperatureGet
       thermalManager.faceTempGet[3] -> tmp112Face3Manager.temperatureGet
       thermalManager.faceTempGet[4] -> tmp112Face5Manager.temperatureGet
+      thermalManager.faceTempGet[5] -> tmp112Face6Manager.temperatureGet
       thermalManager.battCellTempGet[0] -> tmp112BattCell1Manager.temperatureGet
       thermalManager.battCellTempGet[1] -> tmp112BattCell2Manager.temperatureGet
       thermalManager.battCellTempGet[2] -> tmp112BattCell3Manager.temperatureGet
@@ -509,6 +548,56 @@ module ReferenceDeployment {
       modeManager.loadSwitchTurnOff[6] -> payloadPowerLoadSwitch.turnOff
       modeManager.loadSwitchTurnOff[7] -> payloadBatteryLoadSwitch.turnOff
 
+    }
+
+    connections FaultManager {
+      # Fault intake, one slot per producer. The index assignment is fixed by
+      # Components.FaultInPorts in Components/FaultTypes/FaultTypes.fpp.
+      thermalManager.faultOut -> faultManager.faultIn[0]
+      modeManager.faultOut -> faultManager.faultIn[1]
+      # faultIn[2] is unconnected since the 2026-09 upstream sync (producer 2, the command-loss
+      # router, was retired); F3 re-sources command loss through modeManager.faultOut -> faultIn[1].
+      watchdog.faultOut -> faultManager.faultIn[3]
+
+      # Recovery actions. Unreachable while AUTHORITY_ENABLED is false and
+      # AUTHORITY_MASK is 0, which are the shipped parameter defaults.
+      faultManager.forceSafeMode -> modeManager.forceSafeMode
+      faultManager.stopWatchdog -> watchdog.stop
+    }
+
+    connections DriverBoard {
+      # Payload (driver board) link on uart1. Same direct-wiring shape as
+      # comDriver <-> ComCcsdsUart.comStub; the handler consumes the
+      # ByteStreamDriver interface itself. sampleOut is left unconnected
+      # (A9 hook).
+
+      # UART driver allocates/deallocates from its own BufferManager (4 x 128 B)
+      driverBoardUart.allocate   -> driverBoardBufferManager.bufferGetCallee
+      driverBoardUart.deallocate -> driverBoardBufferManager.bufferSendIn
+
+      # Driver -> handler (receive) and buffer return path
+      driverBoardUart.$recv -> driverBoardHandler.uartRecv
+      driverBoardHandler.uartRecvReturn -> driverBoardUart.recvReturnIn
+
+      # Handler -> driver (send) and driver-ready signal
+      driverBoardHandler.uartSend -> driverBoardUart.$send
+      driverBoardUart.ready -> driverBoardHandler.uartReady
+
+      # Mode poll on each 1 Hz tick (no ModeManager change)
+      driverBoardHandler.getMode -> modeManager.getMode
+    }
+
+    connections DataRecorder {
+      # Third tap on each splitter: indices 0 (LoRa) and 1 (UART) are the existing
+      # unindexed connections, so both downlink queues get each packet first.
+      comSplitterTelemetry.comOut[2] -> dataRecorder.tlmIn
+      comSplitterEvents.comOut[2] -> dataRecorder.evtIn
+
+      # 1 Hz file work. Slot 21 must follow faultManager.run (slot 20).
+      rateGroup1Hz.RateGroupMemberOut[21] -> dataRecorder.schedIn
+
+      # DOWNLINK_NEWEST requests the newest segment from file downlink
+      dataRecorder.sendFileOut -> FileHandling.fileDownlink.SendFile
     }
 
     connections FatalHandler {
