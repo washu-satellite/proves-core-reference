@@ -267,6 +267,17 @@ target_include_directories(task_gate_component PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
+# DataRecorder segment codec (F'-free; config/FppConstantsAc.hpp resolves to
+# the support/ stub for FW_COM_BUFFER_MAX_SIZE, PersistedRecord for crc32)
+add_library(data_recorder_codec STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/DataRecorder/SegmentCodec.cpp
+)
+target_include_directories(data_recorder_codec PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+target_link_libraries(data_recorder_codec PUBLIC persisted_record_codec)
+
 # Find PSA provider (we use libmbedcrypto) and ensure PSA headers exist
 find_path(PSA_CRYPTO_H psa/crypto.h)
 find_library(MBEDCRYPTO_LIB mbedcrypto)
@@ -318,6 +329,7 @@ foreach(test_src ${TEST_SOURCES})
         fault_manager_table
         fault_manager_component
         watchdog_component
+        data_recorder_codec
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name})
