@@ -75,6 +75,20 @@ Not gated separately: the A8-0 requirements commit below lands while the tree ho
 break the host build until A8-2 (the red window D-002 expects); its own checks are the pre-commit hooks and the RTM
 regeneration (12 `DataRecorder` rows, DH-L2-03/04 Unit, DH-L2-05/08/12 and CDH-16 Board).
 
+12. **Two count pins outside the plan's file list follow the tree** (coder findings at A8-1/A8-3): `scripts/tests/test_verify_sh.py`
+    `HOST_TEST_BINARIES` (30 → 31 → 32) and `scripts/tests/test_check_capacity.py` `PINNED_PACKET_SET_OUTPUT` (byte-pins
+    `check_packet_set.py`'s output: 258 distinct of 288 after A8-3, WARN line gone). Both are updated in the row that changes
+    them; a revert of A8-3 must revert the second pin with it. Harm-table gap: 01 §12 "existing host tests pass unmodified"
+    did not name these two.
+
+## Stage 4/5 results per row
+- **A8-1 / A8-2** (14d516cc, 59a7f7c9): host gate PASS (32 binaries, 25 + 46 recorder tests, 44 script tests, 96 verified);
+  target compile from the build copy: FLASH 726656 B / RAM 331376 B unchanged, dictionary 387/106/244/697/23 (unwired).
+- **A8-3**: host gate PASS after the packet-set pin; target build FLASH 745344 B (71.38 %, +18688 B), RAM 359440 B
+  (67.50 %, +28064 B), dictionary 396/106/258/705/23; generated `ReferenceDeploymentTopologyAc.cpp` keeps splitter outputs
+  0 (LoRa) and 1 (UART) and adds 2 = `dataRecorder`; `check_capacity`: `rateGroup1Hz: 19/25 used, 6 free (max index 21) — OK`,
+  `MAX_PACKETIZER_CHANNELS: 258/288 used, 30 free — OK`, dispatch 396/512; `git diff --stat -- lib/` empty.
+
 ## Tests (Stage 3b) — pinned 2026-09-27
 Test author: Opus, general-purpose agent under the `cdh-test-author` contract; reviewed by the orchestrator against the
 criterion sentences of `02-requirements.md` (golden vector verbatim; age rule at +61 not +60; DH-L2-04's 17 rejections;

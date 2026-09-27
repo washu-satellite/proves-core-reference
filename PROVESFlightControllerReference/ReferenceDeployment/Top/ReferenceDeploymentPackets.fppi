@@ -205,6 +205,20 @@ telemetry packets ReferenceDeploymentPackets {
   packet FileSystem id 5 group 5 {
     fsSpace.FreeSpace
     fsSpace.TotalSpace
+    dataRecorder.TlmRecordsStored
+    dataRecorder.TlmRecordsOnDisk
+    dataRecorder.TlmBytesOnDisk
+    dataRecorder.TlmSegmentsOnDisk
+    dataRecorder.TlmOldestRecordAgeS
+    dataRecorder.TlmRingDropped
+    dataRecorder.TlmWriteFailures
+    dataRecorder.EvtRecordsStored
+    dataRecorder.EvtRecordsOnDisk
+    dataRecorder.EvtBytesOnDisk
+    dataRecorder.EvtSegmentsOnDisk
+    dataRecorder.EvtOldestRecordAgeS
+    dataRecorder.EvtRingDropped
+    dataRecorder.EvtWriteFailures
   }
 
   packet Security id 6 group 5 {

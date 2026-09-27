@@ -277,4 +277,6 @@ module ReferenceDeployment {
 
   instance driverBoardHandler: Components.DriverBoardHandler base id 0x1007F000
 
+  instance dataRecorder: Components.DataRecorder base id 0x10080000
+
 }
