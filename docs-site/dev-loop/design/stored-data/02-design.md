@@ -10,10 +10,16 @@ events as well as telemetry; the reason texts in `cdh.md` are updated with `req.
 | Critical state | current mode, boot count, auth sequence number, tx enable | `PersistedRecord` (exists) | done |
 | Telemetry history | every packet `tlmSend` emits | `DataRecorder`, stream `tlm` | this design |
 | Event / fault log | every event `events` emits, FaultManager included | `DataRecorder`, stream `evt` | this design |
+| Burst records | 44 B coil-current / field / body-rate rows around a torque pulse, batched by `BurstCapture` (A9) | `DataRecorder`, stream `burst` (stream 2), producer A9 | designed here, delivered by A9-2 |
 | Bulk files | camera images, uplinked files, recorder segments | `Svc.FileDownlink` (exists) | done, reused |
 
 Rule: PersistedRecord stays for records ≤ 64 B that must survive as *one* value; the recorder is for append-only streams.
 The two never share a file.
+
+The `burst` stream (added 2026-09-27 from `cycle-sequencing-E-A8-A9.md`): A9 batches five 44-byte burst records into one
+220-byte ring slot and pushes it through the same ring API (`burstIn: Fw.Com`, sync input, wired from `burstCapture.burstOut`);
+it never writes files itself. A8 builds the stream enum and the config record with room for it (§5); A9-2 adds the enumerator,
+the port and the third ring. Directory `/rec/burst/`, ring 32 slots, flush 8 records / 5 s (§3).
 
 ## 2. Component shape
 
@@ -31,7 +37,8 @@ Ports:
 |---|---|---|
 | `tlmIn: Fw.Com` | sync input | `comSplitterTelemetry.comOut[2]` (spare) |
 | `evtIn: Fw.Com` | sync input | `comSplitterEvents.comOut[2]` (spare) |
-| `schedIn: Svc.Sched` | sync input | `rateGroup1Hz.RateGroupMemberOut[20]` |
+| `schedIn: Svc.Sched` | sync input | `rateGroup1Hz.RateGroupMemberOut[21]` (slot 20 is `faultManager.run` since Cycle D; 21 is the first free index above it, so the recorder runs after the fault decision) |
+| `burstIn: Fw.Com` | sync input | `burstCapture.burstOut` (A9-4; absent until then) |
 | `getFreeSpace` | none | calls `Os::FileSystem::getFreeSpace` directly, as FsSpace does |
 | cmd / tlm / log / time | standard | |
 
@@ -54,15 +61,15 @@ On every 1 Hz `schedIn`, per stream:
 
 Defaults (compile-time constants in `DataRecorderCfg.hpp`, commandable within the static maxima in §5):
 
-| Constant | tlm | evt | Rationale |
-|---|---|---|---|
-| `RING_SLOTS` (max) | 32 | 32 | 64 × 235 B ≈ 15 KB of the ~190 KB RAM headroom |
-| `FLUSH_RECORDS` | 16 | 8 | half a ring: a write in flight never starves the producer |
-| `FLUSH_INTERVAL_S` | 60 | 10 | events are rare and more valuable per record |
-| `SEGMENT_MAX_BYTES` | 32 KB | 16 KB | a segment is one `fileDownlink.SendFile`; ~1 s per 1 KB chunk on the current 1 s cycle |
-| `SEGMENT_MAX_S` | 3600 | 3600 | bounds the loss of a torn tail to one hour |
-| `CAPACITY_BYTES` | 8 MB | 2 MB | validated against `TotalSpace` at boot and on every set |
-| `RETENTION_S` | 7 d | 30 d | DH-L2-08 |
+| Constant | tlm | evt | burst (A9-2) | Rationale |
+|---|---|---|---|---|
+| `RING_SLOTS` (max) | 32 | 32 | 32 | slot = `len u16` + 227 B (`FW_COM_BUFFER_MAX_SIZE`) ≈ 229 B; 64 slots ≈ 14.7 KB for A8, 96 ≈ 22 KB with A9, against the ~197 KB RAM headroom at 62.2 % |
+| `FLUSH_RECORDS` | 16 | 8 | 8 | half a ring: a write in flight never starves the producer |
+| `FLUSH_INTERVAL_S` | 60 | 10 | 5 | events are rare and more valuable per record; a burst window is 60 s and must land on disk before the next pulse |
+| `SEGMENT_MAX_BYTES` | 32 KB | 16 KB | 32 KB | a segment is one `fileDownlink.SendFile`; ~1 s per 1 KB chunk on the current 1 s cycle; one 60 s burst at 10 Hz is ≈ 26 KB |
+| `SEGMENT_MAX_S` | 3600 | 3600 | 3600 | bounds the loss of a torn tail to one hour |
+| `CAPACITY_BYTES` | 8 MB | 2 MB | 8 MB | validated against `TotalSpace` at boot and on every set; the 4 GB SD NAND makes media a non-constraint, so retention is set by these values, not by the medium |
+| `RETENTION_S` | 7 d | 30 d | 30 d | DH-L2-08 |
 
 Overflow inside the ring (SD too slow or failed): **drop-oldest**, counted in `RingDropped`. This is deliberately the opposite
 of comQueue's drop-newest (DH-L2-10): for a history the most recent sample is the most valuable, and the live link still has
@@ -70,8 +77,8 @@ the newest value. Both policies are documented as the "defined discard policy".
 
 ## 4. On-disk format
 
-Directory per stream: `/rec/tlm/`, `/rec/evt/`. Segment name is a zero-padded monotonic sequence number, `00000042.bin`; the
-next number is `max + 1` from an `Os::Directory` scan at boot, so no counter needs persisting.
+Directory per stream: `/rec/tlm/`, `/rec/evt/`, `/rec/burst/` (A9). Segment name is a zero-padded monotonic sequence number, `00000042.bin`; the
+next number is `max + 1` from an `Os::Directory` scan at boot (`ZephyrDirectory::open(path, READ)` then `read()` until `NO_MORE_FILES`, fprime-zephyr b14101dd), so no counter needs persisting.
 
 ```
 segment header (16 B)      magic "SEG1" | version u8 | stream u8 | boot count u16 | open time (secs u32, usecs u32) | crc32
@@ -89,7 +96,7 @@ record (repeated)          len u16 | Fw::Com bytes[len] | crc32 over len + bytes
 
 ## 5. Configuration: validate, then commit, then persist
 
-Commands (one per stream, `stream` argument `TLM | EVT`):
+Commands (one per stream, `stream` argument `TLM | EVT`, plus `BURST` from A9-2):
 
 | Command | Validation | Effect on success |
 |---|---|---|
@@ -103,14 +110,17 @@ Commands (one per stream, `stream` argument `TLM | EVT`):
 | `CLOSE_SEGMENT(stream)` | none | rotates now so the current data is downlinkable |
 
 A failed validation returns `VALIDATION_ERROR` and changes nothing (DH-L2-04/05). The committed values are one
-`PersistedRecord` (`/rec/config.bin`, magic `DRC1`, ≤ 64 B: 2 streams × {ring u8, flush records u8, flush interval u16,
-capacity u32, retention u32} = 24 B). PrmDb is not used because `/prmDb.dat` has no CRC and the default 25-entry store already
-cannot hold the 98 dictionary parameters (01 §"What is kept").
+`PersistedRecord` (`/rec/config.bin`, magic `DRC1`, ≤ 64 B: per stream {ring u8, flush records u8, flush interval u16,
+capacity u32, retention u32} = 12 B; 24 B for A8's two streams, 36 B once A9-2 adds `burst`, with the record version bumped
+so a two-stream record loads as `BAD_VERSION` → defaults + `ConfigCorrupt`). PrmDb is not used because `/prmDb.dat` has no CRC
+and the default 25-entry store already cannot hold the 106 dictionary parameters (01 §"What is kept"); this also keeps A8 off
+the persistence gate (`cycle-sequencing-E-A8-A9.md` §Ownership).
 
 ## 6. Telemetry and events
 
 Channels per stream, all `U32` unless noted, placed in the existing `FileSystem` packet (id 5, group 5) so
-`MAX_PACKETIZER_PACKETS` need not change: `RecordsStored`, `RecordsOnDisk`, `BytesOnDisk`, `SegmentsOnDisk`,
+`MAX_PACKETIZER_PACKETS` need not change (23 of 24 used; id 24 is reserved for A9's `BurstStatus`). They do count against
+`MAX_PACKETIZER_CHANNELS` (244 of 256 used), so A8's constants row raises that to at least 288 first: `RecordsStored`, `RecordsOnDisk`, `BytesOnDisk`, `SegmentsOnDisk`,
 `OldestRecordAgeS`, `RingDropped`, `WriteFailures`. Every new channel is added to `ReferenceDeploymentPackets.fppi` in the same
 change (CLAUDE.md trap).
 

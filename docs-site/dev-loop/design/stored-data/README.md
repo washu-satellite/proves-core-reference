@@ -1,9 +1,11 @@
 # Stored data design: saving data that is not immediately downlinked (index)
 
-> Status 2026-09-20: design still authoritative for A8; written at cab7439, so the commit table below and `01-current-state.md`
-> predate the upstream sync. Known stale references A8's first row must fix (ROADMAP item 4): 1 Hz slot 20 → 21, dictionary key
-> `members`, `Os::Directory` at fprime-zephyr b14101dd, `MAX_PACKETIZER_CHANNELS` must be raised. Budgets after the sync:
-> `../../cycles/cycle-sequencing-E-A8-A9.md`.
+> Status 2026-09-27: design authoritative for A8 (ROADMAP item 4). Written at cab7439; **re-baselined 2026-09-27 against
+> `main` @ 6296ef32** (after the 2026-09 upstream sync to F´ 4.3.0 / fprime-zephyr b14101dd): 1 Hz slot 21, opcode baseline 387 of
+> 512, `FW_COM_BUFFER_MAX_SIZE` 227, the 4 GB soldered SD NAND, the burst stream for A9, the `MAX_PACKETIZER_CHANNELS` raise, the
+> rewritten `Os::Directory`, and the dictionary keys. The commit table below and the `:NN` line numbers in `01-current-state.md`
+> are history as of cab7439. Budgets and ownership: `../../cycles/cycle-sequencing-E-A8-A9.md`; commit rows: `../../cycles/commit-plan-E-A8-A9.md`.
+> Still owed by A8-0, not done here: the `req.py` rows (DataRecorder-1..9, criteria for DH-L2-03/04/05/08/12 and CDH-16).
 
 Branch `feat/persisted-record` @ cab7439, written 2026-09-06. Paths are relative to the repo root; `P` = `PROVESFlightControllerReference`.
 Read `CLAUDE.md` first. This is a design, not a cycle plan: it decides *how* the flight software keeps data on board until a
@@ -11,13 +13,14 @@ ground pass can take it, and maps that decision onto the CDR Storage Management 
 
 ## One-paragraph summary
 
-Data that cannot go down right away falls into four tiers, and each tier gets its own mechanism. Critical state (mode, boot
+Data that cannot go down right away falls into five tiers, and each tier gets its own mechanism. Critical state (mode, boot
 count, auth sequence number, telemetry transmit state) is already handled by `Components/PersistedRecord` (CRC-32, temp +
-rename). Bulk payload files already go through `Svc.FileDownlink`. The two tiers with **no mechanism today** are (a) telemetry
-history and (b) a retrievable fault/event log. This design adds one passive project component, `DataRecorder`, that taps the
-existing telemetry and event splitters, keeps each stream in a static RAM ring, flushes to CRC-framed segment files on the SD
-card at a controlled interval, enforces retention by age and capacity, and exposes the segments to the existing file-downlink
-path. Configuration is commanded with validate-then-commit and persisted as a PersistedRecord. F´ Data Products and
+rename). Bulk payload files already go through `Svc.FileDownlink`. The tiers with **no mechanism today** are (a) telemetry
+history, (b) a retrievable fault/event log and (c) the burst records BurstCapture (A9) will produce around torque pulses. This
+design adds one passive project component, `DataRecorder`, that taps the existing telemetry and event splitters (and, from A9,
+accepts burst records on a third stream), keeps each stream in a static RAM ring, flushes to CRC-framed segment files on the
+soldered 4 GB SD NAND at a controlled interval, enforces retention by age and capacity, and exposes the segments to the existing
+file-downlink path. Configuration is commanded with validate-then-commit and persisted as a PersistedRecord. F´ Data Products and
 `Svc.ComLogger` were considered and rejected for this board (see `02-design.md` §7).
 
 ## Did the recent commits change anything about this?
