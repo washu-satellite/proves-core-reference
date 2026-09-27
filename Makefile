@@ -432,6 +432,10 @@ sequence: fprime-venv ## Compile a sequence file (usage: make sequence SEQ=start
 	@echo "Compiling sequence: $(SEQ).seq"
 	@$(UV_RUN) fprime-seqgen sequences/$(SEQ).seq -d $(ARTIFACT_DIR)/zephyr/fprime-zephyr-deployment
 
+.PHONY: bench-sequence
+bench-sequence: fprime-venv ## Regenerate sequences/bench_startup.seq from sequences/startup.seq
+	@$(UV_RUN) python3 scripts/make_bench_sequence.py
+
 .PHONY: gds
 gds: ## Run FPrime GDS
 	@echo "Running FPrime GDS..."
