@@ -11,6 +11,7 @@
 | G | 2026-09-19 | A10: `parametersLoaded()` in five components | `cycle-g-plan.md` | `cycle-g-review.md` | 7658b28e |
 | H | 2026-09-19 | Zephyr 4.4.2 sync row; capacity audit `scripts/check_capacity.py`; clean host build; first cycle under [D-002](../decisions/D-002-results-first-tests-before-code.md) | `cycle-h-plan/` | `cycle-h-review.md` | 6b22f72d, 26041de4 (tests), 6a1589b2 (code) |
 | — | 2026-09-19 | PR #10 (E–H) merged to `main` | — | — | 42ea3d9c |
+| M | 2026-09-27 | A8 DataRecorder: codec + ring, passive component, activation (slot 21, splitter tap 2, `FileSystem` channels, `MAX_PACKETIZER_CHANNELS` 288), reader + pass sequence, board test + HP-12/13; run in the `feat/data-recorder` worktree; standing rule 3 waived by Jesse | `cycle-m-plan/` | `cycle-m-review.md` | d38f683e, 8c6889cb, 14d516cc, 59a7f7c9, 89f50ade, 5b956d6e, 9dbbb5d7, 8198693e |
 
 Other files here: `upstream-sync-analysis.md` (input to F), `cycle-sequencing-E-A8-A9.md` (ownership map for A8/A9, still
 authoritative), `commit-plan-E-A8-A9.md` (commit granularity for A8/A9; its E and F sections are history recorded above).
