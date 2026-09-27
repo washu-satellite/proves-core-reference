@@ -266,7 +266,7 @@ TEST_F(ThermalManagerThresholdTest, UnconnectedFaultOutLeavesThresholdBehaviourU
     EXPECT_EQ(thermal.eventsAboveThreshold[0].sensorId, 0u);
     ASSERT_EQ(thermal.eventsBelowThreshold.size(), 1u);
     EXPECT_EQ(thermal.eventsBelowThreshold[0].sensorId, 2u);
-    EXPECT_EQ(thermal.faceTempReads, 5u);
+    EXPECT_EQ(thermal.faceTempReads, 6u);
     EXPECT_EQ(thermal.battTempReads, 4u);
     EXPECT_EQ(thermal.picoTempReads, 1u);
 }

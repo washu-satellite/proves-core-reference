@@ -137,6 +137,20 @@ class ByteStreamStatus {
     T e;
 };
 
+//! Mirrors the generated Drv::GpioStatus enum class
+//! (lib/fprime/Drv/Ports/GpioDriverPorts.fpp:2-7), the return of Drv.GpioWrite
+//! and Drv.GpioRead.
+class GpioStatus {
+  public:
+    enum T { OP_OK = 0, NOT_OPENED = 1, INVALID_MODE = 2, UNKNOWN_ERROR = 3 };
+    GpioStatus() : e(OP_OK) {}
+    GpioStatus(T e1) : e(e1) {}             // NOLINT(runtime/explicit) -- mirrors generated code
+    operator T() const { return this->e; }  // NOLINT(runtime/explicit) -- enables switch/case
+    bool operator==(T e1) const { return this->e == e1; }
+    bool operator!=(T e1) const { return this->e != e1; }
+    T e;
+};
+
 }  // namespace Drv
 
 #endif

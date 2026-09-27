@@ -28,7 +28,8 @@ PINNED_PACKET_SET_OUTPUT = (
     "packet set:  PROVESFlightControllerReference/ReferenceDeployment/Top/ReferenceDeploymentPackets.fppi\n"
     "config:      PROVESFlightControllerReference/project/config/TlmPacketizerCfg.hpp\n"
     "packets:     23 declared, MAX_PACKETIZER_PACKETS = 24\n"
-    "channels:    258 distinct (188 in packets + 70 omitted), MAX_PACKETIZER_CHANNELS = 288\n"
+    "channels:    260 distinct (190 in packets + 70 omitted), MAX_PACKETIZER_CHANNELS = 288\n"
+    "WARN: 260 distinct channels is above 90% of MAX_PACKETIZER_CHANNELS (288); raise the limit before adding more\n"
     "OK: packet set fits the packetizer configuration\n"
 )
 

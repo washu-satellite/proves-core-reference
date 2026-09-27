@@ -19,7 +19,7 @@
 //     CollectionIntervalRejected, first write 1; a parameterUpdated after boot
 //     applies as today with no duplicate event".
 //
-// Oracle (TP-3): the sweep shape (5 face + 4 battery + 1 pico reads per sweep)
+// Oracle (TP-3): the sweep shape (6 face + 4 battery + 1 pico reads per sweep)
 // comes from ThermalManager.fpp:27-39 port counts; the schedule and the
 // fallback rule come from the two pass criteria quoted above. No expected value
 // is read out of the logic under test.
@@ -35,7 +35,7 @@ using Components::ThermalManager;
 using Components::ThermalManagerComponentBase;
 
 // Port counts, ThermalManager.fpp:27-39.
-constexpr U32 FACE_SENSORS = 5;
+constexpr U32 FACE_SENSORS = 6;
 constexpr U32 BATT_SENSORS = 4;
 constexpr U32 PICO_SENSORS = 1;
 

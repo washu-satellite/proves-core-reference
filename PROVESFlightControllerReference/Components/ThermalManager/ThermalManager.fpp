@@ -29,7 +29,7 @@ module Components {
         sync input port run: Svc.Sched
 
         @ The number of face temperature sensors
-        constant numFaceTempSensors = 5
+        constant numFaceTempSensors = 6
 
         @ The number of battery cell temperature sensors
         constant numBattCellTempSensors = 4

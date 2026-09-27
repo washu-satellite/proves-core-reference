@@ -150,6 +150,17 @@ target_include_directories(power_monitor_component PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
+# Burnwire component (real Burnwire.cpp built against the host stubs in
+# support/: a recording ComponentAc base whose gpioSet ports can be marked
+# unconnected, recording any invocation of an unconnected port).
+add_library(burnwire_component STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../PROVESFlightControllerReference/Components/Burnwire/Burnwire.cpp
+)
+target_include_directories(burnwire_component PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/support
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
+)
+
 # ModeManager component (real ModeManager.cpp built against the host stubs in
 # support/: a recording ComponentAc base, the in-memory Os::File, and the Fw
 # string / assert stubs).
@@ -330,6 +341,7 @@ foreach(test_src ${TEST_SOURCES})
         thermal_manager_component
         adcs_component
         power_monitor_component
+        burnwire_component
         mode_manager_component
         startup_manager_component
         tc_frame_corrector_codec

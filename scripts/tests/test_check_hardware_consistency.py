@@ -286,7 +286,7 @@ def test_hwc1_drv2605_fix_lowers_mismatch_count(tmp_path):
 
     base = run(before, main, dts)
     base_report = base.report()
-    assert (base_report.n, base_report.m) == (17, 4)
+    assert (base_report.n, base_report.m) == (18, 4)
     assert [o.inst for o in base_report.offenders] == [
         "drv2605Face1Manager",
         "drv2605Face2Manager",
@@ -362,7 +362,7 @@ def test_hwc1_all_channels_matching_is_ok(tmp_path):
     ok = run(topo, main, good_dts(tmp_path))
     rep = ok.report()
     assert (
-        rep.lines[0] == f"HWC-1 mux-channels: 17 managers checked, 0 mismatched{DASH}OK"
+        rep.lines[0] == f"HWC-1 mux-channels: 18 managers checked, 0 mismatched{DASH}OK"
     )
     assert rep.offenders == []
     assert ok.returncode == 0

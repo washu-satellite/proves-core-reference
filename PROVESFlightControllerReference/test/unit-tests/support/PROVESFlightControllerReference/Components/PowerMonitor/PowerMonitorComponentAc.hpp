@@ -11,6 +11,16 @@
 //   port VoltageGet -> F64 / CurrentGet -> F64 / PowerGet -> F64
 // The component reads the clock through getTime(); tests advance the public
 // `now` member to control the energy-integration delta.
+//
+// Cycle L (01-normative.md R4.2) adds `output port chargeStatusGet:
+// Drv.GpioRead` (GpioDriverPorts.fpp:20-22, `port GpioRead(ref $state:
+// Fw.Logic) -> GpioStatus`), `telemetry Charging: Fw.On update on change` and
+// `event ChargeStateChanged(state: Fw.On) severity activity low`. The port is
+// unconnected by default (`chargeStatusConnected = false`), so every test
+// written before the port existed observes exactly the behaviour it always
+// did. In real autocode invoking an unconnected output port fails an FW_ASSERT;
+// here such a call is counted in `chargeStatusReadsWhileUnconnected` instead so
+// a test can fail cleanly on it.
 // ======================================================================
 
 #ifndef UnitTestSupport_PowerMonitorComponentAc_HPP
@@ -20,6 +30,7 @@
 #include <vector>
 
 #include "../../../Fw/Time/Time.hpp"
+#include "../../../Fw/Types/OnEnumAc.hpp"
 
 namespace Components {
 
@@ -62,6 +73,11 @@ class PowerMonitorComponentBase {
     F64 solCurrent = 0.0;
     F64 solPower = 0.0;
 
+    // ---- test-controlled charge-status GPIO (R4.2) ----
+    bool chargeStatusConnected = false;
+    Fw::Logic chargeStatusLevel = Fw::Logic::LOW;
+    Drv::GpioStatus chargeStatusReturn = Drv::GpioStatus::OP_OK;
+
     // ---- test-controlled clock ----
     Fw::Time now;
 
@@ -85,6 +101,10 @@ class PowerMonitorComponentBase {
     U32 eventsTotalGenerationReset = 0;
     std::vector<F32> eventsTotalPowerConsumptionReading;
     std::vector<CmdResponseRecord> cmdResponses;
+    U32 chargeStatusReads = 0;                  //!< every chargeStatusGet_out call
+    U32 chargeStatusReadsWhileUnconnected = 0;  //!< calls made while the port is unconnected
+    std::vector<Fw::On::T> tlmCharging;
+    std::vector<Fw::On::T> eventsChargeStateChanged;
 
   protected:
     // ---- base-class services the component implementation calls ----
@@ -124,6 +144,23 @@ class PowerMonitorComponentBase {
         return this->solPower;
     }
 
+    static constexpr FwIndexType getNum_chargeStatusGet_OutputPorts() { return 1; }
+
+    bool isConnected_chargeStatusGet_OutputPort(FwIndexType portNum) const {
+        return (portNum == 0) && this->chargeStatusConnected;
+    }
+
+    Drv::GpioStatus chargeStatusGet_out(FwIndexType portNum, Fw::Logic& state) {
+        this->chargeStatusReads++;
+        if (!this->isConnected_chargeStatusGet_OutputPort(portNum)) {
+            // Real autocode: FW_ASSERT on an unconnected port.
+            this->chargeStatusReadsWhileUnconnected++;
+            return Drv::GpioStatus::NOT_OPENED;
+        }
+        state = this->chargeStatusLevel;
+        return this->chargeStatusReturn;
+    }
+
     Fw::Time getTime() { return this->now; }
 
     U8 paramGet_COLLECTION_INTERVAL_S(Fw::ParamValid& valid) {
@@ -136,6 +173,10 @@ class PowerMonitorComponentBase {
     void tlmWrite_TotalPowerGenerated(F32 power_mWh) { this->tlmTotalPowerGenerated.push_back(power_mWh); }
 
     void tlmWrite_CollectionIntervalS(U8 interval_s) { this->tlmCollectionIntervalS.push_back(interval_s); }
+
+    void tlmWrite_Charging(const Fw::On& arg) { this->tlmCharging.push_back(arg.e); }
+
+    void log_ACTIVITY_LO_ChargeStateChanged(const Fw::On& state) { this->eventsChargeStateChanged.push_back(state.e); }
 
     void log_ACTIVITY_LO_TotalPowerReset() { this->eventsTotalPowerReset++; }
 

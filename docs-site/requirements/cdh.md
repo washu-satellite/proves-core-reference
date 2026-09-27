@@ -62,7 +62,7 @@ These tables are parsed by `scripts/generate_rtm.py` and appear in the
 |CDH-28|The system shall be capable of detecting or recovering from unstable control behaviour on-board.|Integration Test|Flatsat|With injected rate divergence (rate rising over 3 consecutive 50 Hz samples while torquing) detumbleManager stops torquing and emits a warning within [TBD by Mission Ops: s] [not implemented]|||
 |CDH-29|The system may be capable of holding the specified control input.|Demonstration|Environmental|[may] Commanded coil current held within [TBD by Mission Ops: percent] for [TBD by Mission Ops: duration] [not implemented]|||
 |CDH-30|The system may be capable of pointing in a direction specified by input from a received command.|Demonstration|Environmental|[may] Pointing direction from a ground command reached per CDH-24 [not implemented]|||
-|CDH-31|Temperature sensors shall be installed on each critical component within the spacecraft and functional when the satellite is powered on.|Inspection, Integration Test|Board|Schematic/BOM shows a temperature sensor on each critical component [list TBD by Mission Ops]; after boot each of the 9 TMP112 and the pico sensor returns a Temperature event within 5 s of its Get command|||
+|CDH-31|Temperature sensors shall be installed on each critical component within the spacecraft and functional when the satellite is powered on.|Inspection, Integration Test|Board|Schematic/BOM shows a temperature sensor on each critical component [list TBD by Mission Ops]; after boot each of the 10 TMP112 and the pico sensor returns a Temperature event within 5 s of its Get command|||
 
 ## CDH Command Handling (CH-L2)
 

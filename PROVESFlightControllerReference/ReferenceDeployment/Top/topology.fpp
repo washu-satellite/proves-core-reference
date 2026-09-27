@@ -35,6 +35,8 @@ module ReferenceDeployment {
     instance gpioWatchdog
     instance gpioBurnwire0
     instance gpioBurnwire1
+    instance gpioDeploy2
+    instance gpioCharge
     instance gpioface0LS
     instance gpioface1LS
     instance gpioface2LS
@@ -53,6 +55,7 @@ module ReferenceDeployment {
     instance telemetryDelay
     instance telemetryGate
     instance burnwire
+    instance burnwireDeploy2
     instance antennaDeployer
     instance comSplitterEvents
     instance comSplitterTelemetry
@@ -103,6 +106,7 @@ module ReferenceDeployment {
     instance tmp112Face2Manager
     instance tmp112Face3Manager
     instance tmp112Face5Manager
+    instance tmp112Face6Manager
     instance tmp112BattCell1Manager
     instance tmp112BattCell2Manager
     instance tmp112BattCell3Manager
@@ -325,9 +329,11 @@ module ReferenceDeployment {
       taskGate.schedOut[Components.SchedTask.ADCS] -> adcs.run
       rateGroup1Hz.RateGroupMemberOut[18] -> taskGate.schedIn[Components.SchedTask.THERMAL]
       taskGate.schedOut[Components.SchedTask.THERMAL] -> thermalManager.run
+      # Slot 19: burnwireDeploy2 (DEPLOY2, TPS4H160 OUT3; Cycle L). Its former member
+      # (the command-loss router) was retired in the 2026-09 upstream sync.
+      rateGroup1Hz.RateGroupMemberOut[19] -> burnwireDeploy2.schedIn
       # Must follow modeManager[16] and thermalManager[18]: members run in
       # index order, so a fault reported this tick is decided in the same tick.
-      # Slot 19 is free: its former member (the command-loss router) was retired in the 2026-09 upstream sync.
       rateGroup1Hz.RateGroupMemberOut[20] -> faultManager.run
 
     }
@@ -340,6 +346,10 @@ module ReferenceDeployment {
     connections LoadSwitches {
       face4LoadSwitch.gpioSet -> gpioface4LS.gpioWrite
       face4LoadSwitch.gpioGet -> gpioface4LS.gpioRead
+      # FACE4_ENABLE powers the F4 connector (J1), whose I2C pair is mux channel 5 (netlist U3 SD/SC5)
+      face4LoadSwitch.loadSwitchStateChanged[0] -> tmp112Face5Manager.loadSwitchStateChanged
+      face4LoadSwitch.loadSwitchStateChanged[1] -> veml6031Face5Manager.loadSwitchStateChanged
+      face4LoadSwitch.loadSwitchStateChanged[2] -> drv2605Face5Manager.loadSwitchStateChanged
 
       face0LoadSwitch.gpioSet -> gpioface0LS.gpioWrite
       face0LoadSwitch.gpioGet -> gpioface0LS.gpioRead
@@ -367,9 +377,10 @@ module ReferenceDeployment {
 
       face5LoadSwitch.gpioSet -> gpioface5LS.gpioWrite
       face5LoadSwitch.gpioGet -> gpioface5LS.gpioRead
-      face5LoadSwitch.loadSwitchStateChanged[0] -> tmp112Face5Manager.loadSwitchStateChanged
-      face5LoadSwitch.loadSwitchStateChanged[1] -> veml6031Face5Manager.loadSwitchStateChanged
-      face5LoadSwitch.loadSwitchStateChanged[2] -> drv2605Face5Manager.loadSwitchStateChanged
+      # FACE5_ENABLE powers the F5 connector (J2), whose I2C pair is mux channel 6 (netlist U3 SD/SC6);
+      # [2] stays unconnected (LoadSwitch skips unconnected ports, LoadSwitch.cpp:68-73)
+      face5LoadSwitch.loadSwitchStateChanged[0] -> veml6031Face6Manager.loadSwitchStateChanged
+      face5LoadSwitch.loadSwitchStateChanged[1] -> tmp112Face6Manager.loadSwitchStateChanged
 
       payloadPowerLoadSwitch.gpioSet -> gpioPayloadPowerLS.gpioWrite
       payloadPowerLoadSwitch.gpioGet -> gpioPayloadPowerLS.gpioRead
@@ -381,6 +392,8 @@ module ReferenceDeployment {
     connections BurnwireGpio {
       burnwire.gpioSet[0] -> gpioBurnwire0.gpioWrite
       burnwire.gpioSet[1] -> gpioBurnwire1.gpioWrite
+      # DEPLOY2 has one enable (FIRE_DEPLOY2_B, MCP23017 GPA2); gpioSet[1] stays unconnected
+      burnwireDeploy2.gpioSet[0] -> gpioDeploy2.gpioWrite
     }
 
     connections AntennaDeployment {
@@ -469,6 +482,7 @@ module ReferenceDeployment {
       powerMonitor.solVoltageGet -> ina219SolManager.voltageGet
       powerMonitor.solCurrentGet -> ina219SolManager.currentGet
       powerMonitor.solPowerGet -> ina219SolManager.powerGet
+      powerMonitor.chargeStatusGet -> gpioCharge.gpioRead
     }
 
     connections thermalManager {
@@ -477,6 +491,7 @@ module ReferenceDeployment {
       thermalManager.faceTempGet[2] -> tmp112Face2Manager.temperatureGet
       thermalManager.faceTempGet[3] -> tmp112Face3Manager.temperatureGet
       thermalManager.faceTempGet[4] -> tmp112Face5Manager.temperatureGet
+      thermalManager.faceTempGet[5] -> tmp112Face6Manager.temperatureGet
       thermalManager.battCellTempGet[0] -> tmp112BattCell1Manager.temperatureGet
       thermalManager.battCellTempGet[1] -> tmp112BattCell2Manager.temperatureGet
       thermalManager.battCellTempGet[2] -> tmp112BattCell3Manager.temperatureGet
