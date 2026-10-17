@@ -43,6 +43,7 @@ ModeManager ::ModeManager(const char* const compName)
       m_safeModeReason(Components::SafeModeReason::NONE),
       m_safeModeVoltageCounter(0),
       m_recoveryVoltageCounter(0),
+      m_pendingSafeModeSequence(false),
       m_commandLossCounter(0),
       m_commandLossDebounce(false) {
     // Compile-time verification that internal SystemMode enum matches FPP-generated enum
@@ -68,6 +69,15 @@ void ModeManager ::run_handler(FwIndexType portNum, U32 context) {
     {
         Os::ScopeLock lock(m_commandLossMutex);
         this->m_commandLossCounter++;  // keep track of seconds since last packet
+    }
+
+    // A boot path into safe mode deferred its sequence to here: at boot the
+    // parameters are not loaded yet, so reading SAFEMODE_SEQUENCE_FILE asserts
+    if (this->m_pendingSafeModeSequence) {
+        this->m_pendingSafeModeSequence = false;
+        if (this->m_mode == SystemMode::SAFE_MODE) {
+            this->runSafeModeSequence();
+        }
     }
 
     // Get current voltage (used by mode-specific voltage monitoring)
@@ -323,9 +333,8 @@ void ModeManager ::loadState() {
                 // Turn off non-critical components to match safe mode state
                 this->turnOffNonCriticalComponents();
 
-                // TODO: commented out because this crashes the board on boot
-                // run radio safe to match default safe params
-                // this->runSafeModeSequence();
+                // run radio safe to match default safe params (on the first tick)
+                this->m_pendingSafeModeSequence = true;
 
                 // Log that we're restoring safe mode (not entering it fresh)
                 Fw::LogStringArg reasonStr("State restored from persistent storage");
@@ -346,6 +355,7 @@ void ModeManager ::loadState() {
         Fw::LogStringArg opStr("load-corrupt");
         this->log_WARNING_LO_StatePersistenceFailure(opStr, static_cast<I32>(status));
         this->enterSafeMode(Components::SafeModeReason::SYSTEM_FAULT);
+        this->m_pendingSafeModeSequence = true;
     }
 
     // Handle unintended reboot detection AFTER basic state restoration
@@ -355,9 +365,7 @@ void ModeManager ::loadState() {
         // (e.g., to reset radio parameters and enforce any transmit delay policy)
         this->log_WARNING_HI_UnintendedRebootDetected();
         this->enterSafeMode(Components::SafeModeReason::SYSTEM_FAULT);
-
-        // TODO: commented out because this crashes the board on boot if ran
-        // this->runSafeModeSequence();
+        this->m_pendingSafeModeSequence = true;
     }
 
     // Clear clean shutdown flag for next boot detection
@@ -444,6 +452,13 @@ void ModeManager ::enterSafeMode(Components::SafeModeReason reason) {
     this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
 
     // Notify other components of mode change with new mode value
+    this->notifyModeChanged();
+
+    // Save state
+    this->saveState();
+}
+
+void ModeManager ::notifyModeChanged() {
     Components::SystemMode fppMode = static_cast<Components::SystemMode::T>(this->m_mode);
     for (FwIndexType i = 0; i < this->getNum_modeChanged_OutputPorts(); i++) {
         if (!this->isConnected_modeChanged_OutputPort(i)) {
@@ -451,9 +466,6 @@ void ModeManager ::enterSafeMode(Components::SafeModeReason reason) {
         }
         this->modeChanged_out(i, fppMode);
     }
-
-    // Save state
-    this->saveState();
 }
 
 void ModeManager ::exitSafeMode() {
@@ -471,10 +483,7 @@ void ModeManager ::exitSafeMode() {
     this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
 
     // Notify other components of mode change with new mode value
-    if (this->isConnected_modeChanged_OutputPort(0)) {
-        Components::SystemMode fppMode = static_cast<Components::SystemMode::T>(this->m_mode);
-        this->modeChanged_out(0, fppMode);
-    }
+    this->notifyModeChanged();
 
     // Save state
     this->saveState();
@@ -496,10 +505,7 @@ void ModeManager ::exitSafeModeAutomatic(F32 voltage) {
     this->tlmWrite_CurrentSafeModeReason(this->m_safeModeReason);
 
     // Notify other components of mode change with new mode value
-    if (this->isConnected_modeChanged_OutputPort(0)) {
-        Components::SystemMode fppMode = static_cast<Components::SystemMode::T>(this->m_mode);
-        this->modeChanged_out(0, fppMode);
-    }
+    this->notifyModeChanged();
 
     // Save state
     this->saveState();
