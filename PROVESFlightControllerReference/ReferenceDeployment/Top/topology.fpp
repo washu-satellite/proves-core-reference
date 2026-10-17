@@ -62,7 +62,6 @@ module ReferenceDeployment {
     instance amateurRadio
     # For UART sideband communication
     instance comDriver
-    instance spiDriver
     #instance sband
     #instance gpioSbandNrst
     #instance gpioSbandRxEn

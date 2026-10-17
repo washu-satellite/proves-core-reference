@@ -230,8 +230,6 @@ module ReferenceDeployment {
 
   instance comDelaySband: Components.ComDelay base id 0x10070000
 
-  instance spiDriver: Zephyr.ZephyrSpiDriver base id 0x10071000
-
   #instance sband : Components.SBand base id 0x10072000 \
   #  queue size Default.QUEUE_SIZE \
   #  stack size Default.STACK_SIZE \
