@@ -19,7 +19,6 @@ module ReferenceDeployment {
     import ComCcsdsLora.Subtopology
     import ComCcsdsUart.Subtopology
     import FileHandling.Subtopology
-    #import ComCcsdsSband.Subtopology
     import Update.Subtopology
 
   # ----------------------------------------------------------------------
@@ -50,7 +49,6 @@ module ReferenceDeployment {
     instance detumbleManager
     instance imuManager
     instance bootloaderTrigger
-    #instance comDelaySband
     instance downlinkDelay
     instance telemetryDelay
     instance telemetryGate
@@ -62,11 +60,6 @@ module ReferenceDeployment {
     instance amateurRadio
     # For UART sideband communication
     instance comDriver
-    #instance sband
-    #instance gpioSbandNrst
-    #instance gpioSbandRxEn
-    #instance gpioSbandTxEn
-    #instance gpioSbandIRQ
     instance face4LoadSwitch
     instance face0LoadSwitch
     instance face1LoadSwitch
@@ -157,19 +150,14 @@ module ReferenceDeployment {
       CdhCore.events.PktSend -> comSplitterEvents.comIn
       comSplitterEvents.comOut-> ComCcsdsLora.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.EVENTS]
       comSplitterEvents.comOut-> ComCcsdsUart.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.EVENTS]
-      #comSplitterEvents.comOut-> ComCcsdsSband.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.EVENTS]
 
       CdhCore.tlmSend.PktSend -> comSplitterTelemetry.comIn
       comSplitterTelemetry.comOut -> ComCcsdsLora.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
       comSplitterTelemetry.comOut -> ComCcsdsUart.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
-      #comSplitterTelemetry.comOut -> ComCcsdsSband.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
 
       # Router to Command Dispatcher
       ComCcsdsLora.provesRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
       CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsLora.provesRouter.cmdResponseIn
-
-      #ComCcsdsSband.provesRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
-      #CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsSband.provesRouter.cmdResponseIn
 
       ComCcsdsUart.provesRouter.commandOut -> CdhCore.cmdDisp.seqCmdBuff
       CdhCore.cmdDisp.seqCmdStatus -> ComCcsdsUart.provesRouter.cmdResponseIn
@@ -190,21 +178,6 @@ module ReferenceDeployment {
 
     }
 
-
-      #connections CommunicationsSBandRadio {
-      #  sband.allocate      -> ComCcsdsSband.commsBufferManager.bufferGetCallee
-      #  sband.deallocate    -> ComCcsdsSband.commsBufferManager.bufferSendIn
-
-      #  # ComDriver <-> ComStub (Uplink)
-      #  sband.dataOut -> ComCcsdsSband.frameAccumulator.dataIn
-      #  ComCcsdsSband.frameAccumulator.dataReturnOut -> sband.dataReturnIn
-
-        # ComStub <-> ComDriver (Downlink)
-      #  ComCcsdsSband.framer.dataOut -> sband.dataIn
-      #  sband.dataReturnOut -> ComCcsdsSband.framer.dataReturnIn
-      #  sband.comStatusOut -> comDelaySband.comStatusIn
-      #  comDelaySband.comStatusOut -> ComCcsdsSband.framer.comStatusIn
-    #}
 
     connections CommunicationsRadio {
       lora.allocate      -> ComCcsdsLora.commsBufferManager.bufferGetCallee
@@ -290,7 +263,6 @@ module ReferenceDeployment {
       rateGroup10Hz.RateGroupMemberOut[0] -> comDriver.schedIn
       rateGroup10Hz.RateGroupMemberOut[1] -> ComCcsdsUart.aggregator.timeout
       rateGroup10Hz.RateGroupMemberOut[2] -> ComCcsdsLora.aggregator.timeout
-      #rateGroup10Hz.RateGroupMemberOut[3] -> ComCcsdsSband.aggregator.timeout
       rateGroup10Hz.RateGroupMemberOut[4] -> peripheralUartDriver.schedIn
       rateGroup10Hz.RateGroupMemberOut[5] -> driverBoardBufferManager.schedIn
       rateGroup10Hz.RateGroupMemberOut[6] -> FileHandling.fileManager.schedIn
@@ -298,17 +270,13 @@ module ReferenceDeployment {
       rateGroup10Hz.RateGroupMemberOut[8] -> payloadSeq.schedIn
       rateGroup10Hz.RateGroupMemberOut[9] -> safeModeSeq.schedIn
       rateGroup10Hz.RateGroupMemberOut[10] -> downlinkDelay.run
-      #rateGroup10Hz.RateGroupMemberOut[11] -> sband.run
-      #rateGroup10Hz.RateGroupMemberOut[12] -> comDelaySband.run
       rateGroup10Hz.RateGroupMemberOut[13] -> dropDetector.schedIn
 
       # Slow rate (1Hz) rate group
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroup1Hz] -> rateGroup1Hz.CycleIn
       rateGroup1Hz.RateGroupMemberOut[0] -> ComCcsdsLora.comQueue.run
-      #rateGroup1Hz.RateGroupMemberOut[1] -> ComCcsdsSband.comQueue.run
       rateGroup1Hz.RateGroupMemberOut[2] -> CdhCore.$health.Run
       rateGroup1Hz.RateGroupMemberOut[3] -> ComCcsdsLora.commsBufferManager.schedIn
-      #rateGroup1Hz.RateGroupMemberOut[4] -> ComCcsdsSband.commsBufferManager.schedIn
       rateGroup1Hz.RateGroupMemberOut[5] -> watchdog.run
       rateGroup1Hz.RateGroupMemberOut[6] -> taskGate.schedIn[Components.SchedTask.IMU]
       taskGate.schedOut[Components.SchedTask.IMU] -> imuManager.run
@@ -438,14 +406,6 @@ module ReferenceDeployment {
       peripheralUartDriver.deallocate -> payloadBufferManager.bufferSendIn
     }
 
-    #connections MyConnectionGraph {
-    #  sband.spiSend -> spiDriver.SpiReadWrite
-    #  sband.resetSend -> gpioSbandNrst.gpioWrite
-    #  sband.txEnable -> gpioSbandTxEn.gpioWrite
-    #  sband.rxEnable -> gpioSbandRxEn.gpioWrite
-    #  sband.getIRQLine -> gpioSbandIRQ.gpioRead
-    #}
-
     connections ComCcsds_FileHandling {
       # File Downlink <-> ComQueue
       FileHandling.fileDownlink.bufferSendOut -> downlinkRepeater.singleIn
@@ -453,11 +413,9 @@ module ReferenceDeployment {
 
       downlinkRepeater.multiOut[0] -> ComCcsdsUart.comQueue.bufferQueueIn[ComCcsds.Ports_ComBufferQueue.FILE]
       downlinkRepeater.multiOut[1] -> ComCcsdsLora.comQueue.bufferQueueIn[ComCcsds.Ports_ComBufferQueue.FILE]
-      #downlinkRepeater.multiOut[2] -> ComCcsdsSband.comQueue.bufferQueueIn[ComCcsds.Ports_ComBufferQueue.FILE]
 
       ComCcsdsUart.comQueue.bufferReturnOut[ComCcsds.Ports_ComBufferQueue.FILE] -> downlinkRepeater.multiIn[0]
       ComCcsdsLora.comQueue.bufferReturnOut[ComCcsds.Ports_ComBufferQueue.FILE] -> downlinkRepeater.multiIn[1]
-      #ComCcsdsSband.comQueue.bufferReturnOut[ComCcsds.Ports_ComBufferQueue.FILE] -> downlinkRepeater.multiIn[2]
 
     }
 
@@ -466,8 +424,6 @@ module ReferenceDeployment {
       fileUplinkCollector.singleOut -> FileHandling.fileUplink.bufferSendIn
       FileHandling.fileUplink.bufferSendOut -> fileUplinkCollector.singleIn
 
-      #ComCcsdsSband.provesRouter.fileOut     -> fileUplinkCollector.multiIn[2]
-      #fileUplinkCollector.multiOut[2] -> ComCcsdsSband.provesRouter.fileBufferReturnIn
       ComCcsdsUart.provesRouter.fileOut     -> fileUplinkCollector.multiIn[1]
       fileUplinkCollector.multiOut[1] -> ComCcsdsUart.provesRouter.fileBufferReturnIn
       ComCcsdsLora.provesRouter.fileOut     -> fileUplinkCollector.multiIn[0]
