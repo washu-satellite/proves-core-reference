@@ -76,9 +76,7 @@ nav:
           - Detumble Manager: components/DetumbleManager.md
       - Communication Components:
           - Amateur Radio: components/AmateurRadio.md
-          - S-Band: components/SBand.md
           - Com CCSDS UART: components/ComCcsdsUart.md
-          - Com CCSDS S-Band: components/ComCcsdsSband.md
           - Com CCSDS LoRa: components/ComCcsdsLora.md
           - Payload Com: components/PayloadCom.md
           - Driver Board Handler: components/DriverBoardHandler.md
