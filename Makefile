@@ -225,7 +225,7 @@ test-unit: ## Run unit tests
 	cmake --build build-gtest
 	ctest --test-dir build-gtest
 
-FILTER ?= not sync_sequence_number and not format_filesystem
+FILTER ?= not sync_sequence_number and not format_filesystem and not manual
 
 .PHONY: test-integration
 test-integration: uv ## Run integration tests (set TEST=<name|file.py> or pass test targets)
