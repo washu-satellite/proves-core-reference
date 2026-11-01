@@ -7,6 +7,7 @@
 
 #include <Fw/Types/Assert.hpp>
 #include <cmath>
+#include <errno.h>
 
 namespace {
 constexpr double PI = 3.14159265358979323846;
@@ -46,6 +47,12 @@ void ImuManager ::run_handler(FwIndexType portNum, U32 context) {
     Drv::AngularVelocity angular_velocity = this->angularVelocityGet_handler(0, condition);
     Drv::MagneticField magnetic_field = this->magneticFieldGet_handler(0, condition);
 
+    // Read IMU die temp
+    F32 die_temp_c = 0.0f;
+    if (this->dieTemperatureGet(die_temp_c)) {
+        this->tlmWrite_DieTempC(die_temp_c);
+    }
+
     // Check if parameters have changed, and reconfigure sensors if they have
     struct sensor_value magn_odr = this->getMagnetometerSamplingFrequency();
     struct sensor_value accel_odr = this->getAccelerometerSamplingFrequency();
@@ -66,12 +73,11 @@ Drv::Acceleration ImuManager ::accelerationGet_handler(FwIndexType portNum, Fw::
     }
     this->log_WARNING_HI_Lsm6dsoDeviceNotReady_ThrottleClear();
 
-    sensor_sample_fetch_chan(this->m_lsm6dso, SENSOR_CHAN_ACCEL_XYZ);
-
     struct sensor_value x, y, z;
-    sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_ACCEL_X, &x);
-    sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_ACCEL_Y, &y);
-    sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_ACCEL_Z, &z);
+    if (!this->readVector(this->m_lsm6dso, SENSOR_CHAN_ACCEL_XYZ, SENSOR_CHAN_ACCEL_X, SENSOR_CHAN_ACCEL_Y,
+                          SENSOR_CHAN_ACCEL_Z, ImuSensor::LSM6DSO_ACCEL, x, y, z)) {
+        return Drv::Acceleration(0.0, 0.0, 0.0);
+    }
 
     this->applyAxisOrientation(x, y, z);
 
@@ -93,12 +99,11 @@ Drv::AngularVelocity ImuManager ::angularVelocityGet_handler(FwIndexType portNum
     }
     this->log_WARNING_HI_Lsm6dsoDeviceNotReady_ThrottleClear();
 
-    sensor_sample_fetch_chan(this->m_lsm6dso, SENSOR_CHAN_GYRO_XYZ);
-
     struct sensor_value x, y, z;
-    sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_GYRO_X, &x);
-    sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_GYRO_Y, &y);
-    sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_GYRO_Z, &z);
+    if (!this->readVector(this->m_lsm6dso, SENSOR_CHAN_GYRO_XYZ, SENSOR_CHAN_GYRO_X, SENSOR_CHAN_GYRO_Y,
+                          SENSOR_CHAN_GYRO_Z, ImuSensor::LSM6DSO_GYRO, x, y, z)) {
+        return Drv::AngularVelocity(0.0, 0.0, 0.0);
+    }
 
     this->applyAxisOrientation(x, y, z);
 
@@ -141,12 +146,11 @@ Drv::MagneticField ImuManager ::magneticFieldGet_handler(FwIndexType portNum, Fw
     }
     this->log_WARNING_HI_Lis2mdlDeviceNotReady_ThrottleClear();
 
-    sensor_sample_fetch_chan(this->m_lis2mdl, SENSOR_CHAN_MAGN_XYZ);
-
     struct sensor_value x, y, z;
-    sensor_channel_get(this->m_lis2mdl, SENSOR_CHAN_MAGN_X, &x);
-    sensor_channel_get(this->m_lis2mdl, SENSOR_CHAN_MAGN_Y, &y);
-    sensor_channel_get(this->m_lis2mdl, SENSOR_CHAN_MAGN_Z, &z);
+    if (!this->readVector(this->m_lis2mdl, SENSOR_CHAN_MAGN_XYZ, SENSOR_CHAN_MAGN_X, SENSOR_CHAN_MAGN_Y,
+                          SENSOR_CHAN_MAGN_Z, ImuSensor::LIS2MDL_MAGN, x, y, z)) {
+        return Drv::MagneticField(0.0, 0.0, 0.0, Fw::TimeValue());
+    }
 
     this->applyAxisOrientation(x, y, z);
 
@@ -185,6 +189,84 @@ Fw::TimeIntervalValue ImuManager ::magneticFieldSamplingPeriodGet_handler(FwInde
 // ----------------------------------------------------------------------
 //  Private helper methods
 // ----------------------------------------------------------------------
+
+bool ImuManager ::readVector(const struct device* dev,
+                             enum sensor_channel fetchChan,
+                             enum sensor_channel chanX,
+                             enum sensor_channel chanY,
+                             enum sensor_channel chanZ,
+                             Components::ImuSensor::T sensor,
+                             struct sensor_value& x,
+                             struct sensor_value& y,
+                             struct sensor_value& z) {
+
+    // Get sensor channel
+    const int fetchStatus = sensor_sample_fetch_chan(dev, fetchChan);
+    if (fetchStatus != 0) {
+        this->log_WARNING_HI_SensorReadFailed(sensor, static_cast<I32>(-fetchStatus));
+        return false;
+    }
+
+    // Read individual axis channels
+    const int statusX = sensor_channel_get(dev, chanX, &x);
+    const int statusY = sensor_channel_get(dev, chanY, &y);
+    const int statusZ = sensor_channel_get(dev, chanZ, &z);
+
+    if (statusX != 0 || statusY != 0 || statusZ != 0) {
+        const int firstFailure = (statusX != 0) ? statusX : ((statusY != 0) ? statusY : statusZ);
+        this->log_WARNING_HI_SensorReadFailed(sensor, static_cast<I32>(-firstFailure));
+        return false;
+    }
+
+    // Clear warning throttle on a successful read
+    this->log_WARNING_HI_SensorReadFailed_ThrottleClear();
+    return true;
+}
+
+bool ImuManager ::dieTemperatureGet(F32& temperatureC) {
+    temperatureC = 0.0f;
+
+    // Exit if reading die temp isn't configured
+    if (!this->m_dieTempSupported) {
+        return false;
+    }
+
+    // Exit if IMU isn't readable
+    if (!device_is_ready(this->m_lsm6dso)) {
+        this->log_WARNING_HI_Lsm6dsoDeviceNotReady();
+        return false;
+    }
+
+    const int fetchStatus = sensor_sample_fetch_chan(this->m_lsm6dso, SENSOR_CHAN_DIE_TEMP);
+    if (fetchStatus != 0) {
+        
+        // Enable fast exit if reading the die temp isn't configured.
+        if (fetchStatus == -ENOTSUP || fetchStatus == -ENOSYS) {
+            this->m_dieTempSupported = false;
+            this->log_WARNING_LO_DieTemperatureUnavailable(static_cast<I32>(-fetchStatus));
+            return false;
+        }
+
+        this->log_WARNING_HI_SensorReadFailed(ImuSensor::LSM6DSO_TEMP, static_cast<I32>(-fetchStatus));
+        return false;
+    }
+
+    // Read temperature
+    struct sensor_value t;
+    const int getStatus = sensor_channel_get(this->m_lsm6dso, SENSOR_CHAN_DIE_TEMP, &t);
+    if (getStatus != 0) {
+        if (getStatus == -ENOTSUP || getStatus == -ENOSYS) {
+            this->m_dieTempSupported = false;
+            this->log_WARNING_LO_DieTemperatureUnavailable(static_cast<I32>(-getStatus));
+            return false;
+        }
+        this->log_WARNING_HI_SensorReadFailed(ImuSensor::LSM6DSO_TEMP, static_cast<I32>(-getStatus));
+        return false;
+    }
+
+    temperatureC = static_cast<F32>(sensor_value_to_double(&t));
+    return true;
+}
 
 void ImuManager ::configureSensors(struct sensor_value& magn, struct sensor_value& accel, struct sensor_value& gyro) {
     // Configure the lis2mdl
@@ -338,6 +420,20 @@ void ImuManager ::GET_MAGNETIC_FIELD_cmdHandler(FwOpcodeType opCode, U32 cmdSeq)
     Drv::MagneticField magneticField = this->magneticFieldGet_handler(0, condition);
 
     this->log_ACTIVITY_LO_MagneticFieldData(magneticField.get_x(), magneticField.get_y(), magneticField.get_z());
+
+    this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
+
+void ImuManager ::GET_DIE_TEMPERATURE_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
+    F32 temperatureC = 0.0f;
+
+    if (!this->dieTemperatureGet(temperatureC)) {
+        this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::EXECUTION_ERROR);
+        return;
+    }
+
+    this->tlmWrite_DieTempC(temperatureC);
+    this->log_ACTIVITY_LO_DieTemperatureData(temperatureC);
 
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
