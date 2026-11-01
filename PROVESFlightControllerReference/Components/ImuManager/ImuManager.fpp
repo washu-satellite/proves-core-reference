@@ -40,6 +40,19 @@ module Components {
         RAD_PER_SEC @< Radians per second
         DEG_PER_SEC @< Degrees per second
     }
+
+    @ Identifies which physical sensor channel a fault refers to.
+    @
+    @ The accelerometer and gyroscope share one package (LSM6DSO) and one
+    @ bus transaction path, so they are listed separately: a fault on one
+    @ and not the other narrows the problem to the MEMS element rather
+    @ than the bus.
+    enum ImuSensor {
+        LSM6DSO_ACCEL @< LSM6DSO accelerometer
+        LSM6DSO_GYRO  @< LSM6DSO gyroscope
+        LSM6DSO_TEMP  @< LSM6DSO on-die temperature
+        LIS2MDL_MAGN  @< LIS2MDL magnetometer
+    }
 }
 
 module Components {
@@ -103,6 +116,15 @@ module Components {
         @ Temetry channel for magnetometer sampling frequency
         telemetry MagnetometerSamplingFrequency: Lis2mdlSamplingFrequency
 
+        @ LSM6DSO on-die temperature, degrees C.
+        @
+        @ The cheapest liveness signal the part offers: it needs no
+        @ motion, no magnetic reference and no particular orientation, so
+        @ a plausible room-temperature reading confirms the chip is
+        @ powered and answering on the bus independently of whether any
+        @ MEMS element works.
+        telemetry DieTempC: F32 format "{.2f}"
+
         ### Events ###
 
         @ Event for reporting LIS2MDL not ready error
@@ -135,6 +157,36 @@ module Components {
         @ Event to report magnetic field data
         event MagneticFieldData(x: F64, y: F64, z: F64) severity activity low format "Magnetic Field: x={} gauss, y={} gauss, z={} gauss"
 
+        @ A bus transaction to a sensor failed.
+        @
+        @ errorCode is the Zephyr return code negated into a positive
+        @ errno, so 5 is EIO and 110 is ETIMEDOUT. This is the event that
+        @ distinguishes a dead sensor from a live one: without it a failed
+        @ fetch returns the driver's cached sample (zeros before the first
+        @ good read, the last good value after) and looks like success.
+        event SensorReadFailed(
+                                sensor: ImuSensor @< which sensor channel
+                                errorCode: I32    @< positive errno
+                              ) \
+          severity warning high \
+          format "IMU read failed on {}, errno {}" \
+          throttle 5
+
+        @ Event to report the LSM6DSO on-die temperature
+        event DieTemperatureData(temperatureC: F32) severity activity low format "LSM6DSO die temperature: {.2f} C"
+
+        @ The LSM6DSO die-temperature channel is not available in this build.
+        @
+        @ Zephyr gates it behind CONFIG_LSM6DSO_ENABLE_TEMP. When that is
+        @ off the fetch returns ENOTSUP, the channel is disabled for the
+        @ rest of the run, and this fires once rather than once per tick.
+        event DieTemperatureUnavailable(
+                                         errorCode: I32 @< positive errno
+                                       ) \
+          severity warning low \
+          format "LSM6DSO die temperature unavailable, errno {}; check CONFIG_LSM6DSO_ENABLE_TEMP" \
+          throttle 3
+
         ### Commands ###
 
         @ Command to get the current acceleration
@@ -145,6 +197,9 @@ module Components {
 
         @ Command to get the current magnetic field
         sync command GET_MAGNETIC_FIELD()
+
+        @ Command to get the LSM6DSO on-die temperature
+        sync command GET_DIE_TEMPERATURE()
 
         ###############################################################################
         # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
