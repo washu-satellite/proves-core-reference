@@ -101,12 +101,55 @@ class ImuManager final : public ImuManagerComponentBase {
     //! Command to get the current magnetic field
     void GET_MAGNETIC_FIELD_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
 
+    //! Handler implementation for GET_DIE_TEMPERATURE
+    //!
+    //! Command to get the LSM6DSO on-die temperature
+    void GET_DIE_TEMPERATURE_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
+
   private:
     // ----------------------------------------------------------------------
     //  Private helper methods
     // ----------------------------------------------------------------------
     //! Configure imu sensors
     void configureSensors(struct sensor_value& magn, struct sensor_value& accel, struct sensor_value& gyro);
+
+
+    /**
+     * \brief Fetch and read a sensor channel
+     * 
+     * \details
+     * 
+     * \param dev        Device to read
+     * \param fetchChan  Channel to fetch (the XYZ aggregate)
+     * \param chanX      X-axis channel 
+     * \param chanY      Y-axis channel 
+     * \param chanZ      Z-axis channel 
+     * \param sensor     Identity used in the SensorReadFailed event
+     * \param x          [out] X reading, untouched on failure
+     * \param y          [out] Y reading, untouched on failure
+     * \param z          [out] Z reading, untouched on failure
+     * 
+     * \return true when all four transactions succeed
+     */
+    bool readVector(const struct device* dev,
+                    enum sensor_channel fetchChan,
+                    enum sensor_channel chanX,
+                    enum sensor_channel chanY,
+                    enum sensor_channel chanZ,
+                    Components::ImuSensor::T sensor,
+                    struct sensor_value& x,
+                    struct sensor_value& y,
+                    struct sensor_value& z);
+
+    /**
+     * \brief Read the LSM6DSO on-die temperature
+     * 
+     * \details Disables after first read if temp is unavailable(ENOTSUP).
+     * 
+     * \param temperatureC  [out] Temperature in degrees C, zero on failure
+     * \return true when a fresh reading was obtained
+     */
+    bool getDieTemperature(F32& temperatureC);
 
     //! Apply axis orientation parameter to sensor readings
     void applyAxisOrientation(struct sensor_value& x_val, struct sensor_value& y_val, struct sensor_value& z_val);
@@ -134,15 +177,18 @@ class ImuManager final : public ImuManagerComponentBase {
     // ----------------------------------------------------------------------
 
     //! Zephyr device storing the initialized LIS2MDL sensor
-    const struct device* m_lis2mdl;
+    const struct device* m_lis2mdl = nullptr;
 
     //! Zephyr device storing the initialized LSM6DSO sensor
-    const struct device* m_lsm6dso;
+    const struct device* m_lsm6dso = nullptr;
 
     //! Current odr values for sensors
-    struct sensor_value m_curr_magn_odr;
-    struct sensor_value m_curr_gyro_odr;
-    struct sensor_value m_curr_accel_odr;
+    struct sensor_value m_curr_magn_odr = {0, 0};
+    struct sensor_value m_curr_gyro_odr = {0, 0};
+    struct sensor_value m_curr_accel_odr = {0, 0};
+
+    //! False once the die-temperature channel reports ENOTSUP.
+    bool m_dieTempSupported = true;
 };
 
 }  // namespace Components

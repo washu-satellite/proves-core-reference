@@ -41,12 +41,7 @@ module Components {
         DEG_PER_SEC @< Degrees per second
     }
 
-    @ Identifies which physical sensor channel a fault refers to.
-    @
-    @ The accelerometer and gyroscope share one package (LSM6DSO) and one
-    @ bus transaction path, so they are listed separately: a fault on one
-    @ and not the other narrows the problem to the MEMS element rather
-    @ than the bus.
+    @ Identifies which sensor a fault refers to.
     enum ImuSensor {
         LSM6DSO_ACCEL @< LSM6DSO accelerometer
         LSM6DSO_GYRO  @< LSM6DSO gyroscope
@@ -116,13 +111,7 @@ module Components {
         @ Temetry channel for magnetometer sampling frequency
         telemetry MagnetometerSamplingFrequency: Lis2mdlSamplingFrequency
 
-        @ LSM6DSO on-die temperature, degrees C.
-        @
-        @ The cheapest liveness signal the part offers: it needs no
-        @ motion, no magnetic reference and no particular orientation, so
-        @ a plausible room-temperature reading confirms the chip is
-        @ powered and answering on the bus independently of whether any
-        @ MEMS element works.
+        @ LSM6DSO IMU on-die temperature, degrees C
         telemetry DieTempC: F32 format "{.2f}"
 
         ### Events ###
@@ -172,14 +161,12 @@ module Components {
           format "IMU read failed on {}, errno {}" \
           throttle 5
 
-        @ Event to report the LSM6DSO on-die temperature
+        @ Event to report the IMU temperature
         event DieTemperatureData(temperatureC: F32) severity activity low format "LSM6DSO die temperature: {.2f} C"
 
-        @ The LSM6DSO die-temperature channel is not available in this build.
+        @ The LSM6DSO die-temperature channel is unavailable in this build.
         @
-        @ Zephyr gates it behind CONFIG_LSM6DSO_ENABLE_TEMP. When that is
-        @ off the fetch returns ENOTSUP, the channel is disabled for the
-        @ rest of the run, and this fires once rather than once per tick.
+        @ Enabled with CONFIG_LSM6DSO_ENABLE_TEMP
         event DieTemperatureUnavailable(
                                          errorCode: I32 @< positive errno
                                        ) \
