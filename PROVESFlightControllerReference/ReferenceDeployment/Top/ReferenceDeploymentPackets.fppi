@@ -43,6 +43,7 @@ telemetry packets ReferenceDeploymentPackets {
     ReferenceDeployment.imuManager.AccelerometerSamplingFrequency
     ReferenceDeployment.imuManager.GyroscopeSamplingFrequency
     ReferenceDeployment.imuManager.MagnetometerSamplingFrequency
+    ReferenceDeployment.imuManager.DieTempC
   }
 
   packet Radio id 8 group 2 {
