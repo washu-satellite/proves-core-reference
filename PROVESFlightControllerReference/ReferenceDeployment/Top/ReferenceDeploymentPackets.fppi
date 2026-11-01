@@ -326,8 +326,4 @@ telemetry packets ReferenceDeploymentPackets {
   CdhCore.version.LibraryVersion01
 
   ReferenceDeployment.watchdog.WatchdogTransitions
-
-  # Whats going on with face 4
-  ReferenceDeployment.tmp112Face4Manager.Temperature
-  ReferenceDeployment.veml6031Face4Manager.VisibleLight
 }
