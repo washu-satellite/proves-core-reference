@@ -2,13 +2,11 @@
 
 WMM2025 evaluated at the propagated orbit position. Passive, driven by the arrival of `Gnc::OrbitState`. The rate group tick is telemetry only.
 
-Supplies the magnetic reference vector for TRIAD and the full field vector, in nanotesla, for the magnetorquer controller.
-
 ## Requirements
 
 | Name | Description | Method | Level | Pass Criteria | Status | Reason |
 |---|---|---|---|---|---|---|
-|MAG0001|The MagneticFieldModel shall evaluate the field once per arrival of an OrbitState|Unit Test|Host|Three `orbitIn` invocations produce exactly three `fieldOut` invocations; a `run` tick alone produces none|||
+|MAG0001|The MagneticFieldModel shall evaluate the field once per arrival of an OrbitState|Unit Test|Host|Three `orbitIn` arrivals trigger `fieldOut` invocations.|||
 |MAG0002|The MagneticFieldModel shall not recompute the field on a rate group tick|Unit Test|Host|After one arrival, ten `run` ticks leave `FieldTemeNt` and `FieldMagnitudeNt` unchanged and produce no `fieldOut` invocations|||
 |MAG0003|The MagneticFieldModel shall reject an evaluation when the OrbitState carries no usable position|Unit Test|Host|`orbitIn` with `positionUsable = false` emits `OrbitUnusable` carrying the orbit validity, publishes `fieldOut` with `valid = false`, and increments `FieldRejectCount`|||
 |MAG0004|The MagneticFieldModel shall reject an evaluation above the WMM validated altitude|Unit Test|Host|`evaluateField` at 20000 km returns `ALTITUDE_OUT_OF_RANGE`; the component emits `EvaluationOutOfRange` with the altitude and decimal year|||
@@ -35,18 +33,18 @@ Supplies the magnetic reference vector for TRIAD and the full field vector, in n
 |---|---|---|
 |orbitIn|Gnc.OrbitStateSend (guarded)|Orbit state from OrbitPropagator. Arrival triggers an evaluation.|
 |fieldOut|Gnc.VectorSampleSend|Magnetic field vector with magnitude, TEME, nT|
-|run|Svc.Sched (guarded)|Rate group tick. Telemetry only.|
+|run|Svc.Sched (guarded)|Rate group tick, telemetry only.|
 |cmdIn / cmdRegOut / cmdResponseOut|Fw.Cmd*|Command dispatch|
 |logOut / logTextOut|Fw.Log*|Events|
 |tlmOut|Fw.Tlm|Telemetry|
 |timeCaller|Fw.Time|Event and telemetry stamping only|
 |prmGetOut / prmSetOut|Fw.Prm*|Parameters|
 
-Every input port is guarded because evaluation runs on the propagator's thread while telemetry runs on the rate group thread.
+Input ports are guarded because evaluation runs on the propagator's thread while telemetry runs on the rate group thread.
 
 ## Parameters
 
-None. The WMM validity gates are compile-time constants in `FieldConfig` rather than parameters, because they describe the coefficient set rather than the mission. They are structured as config so a test can move a gate without moving the orbit.
+None.
 
 | Constant | Value | Description |
 |---|---|---|
@@ -88,43 +86,6 @@ None.
 |m_rejectCount|Cumulative rejected evaluations.|
 
 ## Design
-
-### Framework and logic split
-
-The component owns the orbit gate, the last-good-field cache, events, telemetry and fault reporting. The evaluation itself lives in `WmmModel.{hpp,cpp}`: the range gates, the TEME/ECEF rotations, and the unit conversions, with no F Prime dependency. The vendored `XYZgeomag` header is included by `WmmModel.cpp` and nowhere else, so the component never sees it.
-
-### The unit and frame boundary
-
-This is the boundary of the subsystem, and it is one function on purpose. Everything upstream is TEME kilometres in F64, because that is what SGP4 produces. Everything inside the geomag call is ITRS metres in F32, because that is what the library consumes. Everything downstream is TEME nanotesla. Those three conversions happen once, adjacently, where they can be read together and checked against each other.
-
-```
-OrbitState (TEME km, F64)
-  └─ evaluateField
-       ├─ range gate        altitude and decimal year
-       ├─ TEME -> ECEF      rot3 by +GMST
-       ├─ km -> m, F32      the entire km/m boundary
-       ├─ GeoMag            ITRS metres in, tesla out
-       ├─ ECEF -> TEME      rot3 by -GMST, same angle
-       └─ T -> nT           and the degeneracy check
-```
-
-GMST is never recomputed here; it arrives from `OrbitState` in F64. Using the identical angle for both legs is what makes the round trip exact regardless of how good the clock is. A clock error rotates the modelled field with the spacecraft, so the attitude solution stays self-consistent even when the ground track does not.
-
-### Why the decimal year is narrowed to F32
-
-`GeoMag` takes the epoch as a float. One ULP of F32 at year 2026 is about 1.22e-4 years, which is 1.07 hours, which is 16.1 degrees of Earth rotation. That would be catastrophic anywhere in the rotation chain, and it is the bug the original implementation had. It is harmless *here* and only here, because this value feeds the linear secular variation terms, where 1.22e-4 years costs well under a nanotesla against a model whose own accuracy is roughly 150 nT RMS.
-
-MAG0018 exists to keep that argument executable rather than a comment.
-
-### Why the degeneracy check exists
-
-A sub-1 nT result is not a physical state anywhere the altitude gate permits. The weakest real LEO field, over the South Atlantic Anomaly, is around 22000 nT. Below 1 nT means the evaluation is corrupt: NaN propagation, a miscompiled library, uninitialized coefficients, or an FPU fault. That is a "something on the board is broken" condition rather than an orbital one, which is why `FieldDegenerate` is warning high while `EvaluationOutOfRange` is warning low.
-
-The check is written as `!(magnitude > threshold)` rather than `magnitude <= threshold` so that a NaN magnitude fails it. Every comparison against NaN is false, so the negated form catches what the direct form would let through.
-
-### One port, one validity policy
-
-An earlier design published a unit vector on a separate `magRefOut` port for TRIAD and the full vector on `fieldOut` for the controller. That was collapsed: `VectorSample` does not require a unit vector, TRIAD normalizes whatever it receives, and F32 carries the same relative precision at 43000 nT as at 1.0. Two ports meant two validity policies for the same underlying failure, and a degenerate field could reach the controller flagged good while being withheld from TRIAD. Now there is one port, one gate, and consumers normalize for themselves.
 
 ### Diagrams
 

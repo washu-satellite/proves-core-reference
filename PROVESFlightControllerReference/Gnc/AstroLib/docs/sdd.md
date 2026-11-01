@@ -1,9 +1,6 @@
 # Gnc::Astro (AstroLib)
 
-Shared astrodynamics library for the GNC subsystem. Time scales, frame rotations, geodetic conversion, a low-precision solar model, and eclipse geometry.
-
-Not an F Prime component. No ports, commands, events or telemetry. It is documented here because every GNC component depends on it and because its correctness requirements are the ones best verified against published truth data rather than against the code.
-
+Shared astrodynamics library for the GNC subsystem. Time scales, frame rotations, geodetic conversion, solar model, and eclipse geometry.
 ## Requirements
 
 | Name | Description | Method | Level | Pass Criteria | Status | Reason |
@@ -67,26 +64,6 @@ Not an F Prime component. No ports, commands, events or telemetry. It is documen
 |PI, TWO_PI, DEG2RAD, RAD2DEG|-|See AST0021|
 
 ## Design
-
-### Why the library exists
-
-Three components need the same time scales, the same frame rotations, and the same geodetic conversion, and a GNC subsystem in which two components derive their own GMST is a subsystem with two different ideas of where the spacecraft is. Centralizing the primitives here is what makes it possible for `OrbitPropagator` to compute each of them exactly once and carry the result in `OrbitState`.
-
-The library has no F Prime dependency by design, which is what lets `Sgp4Propagator`, `SunModel`, `WmmModel` and `TriadSolver` stay framework-free and testable on a workstation.
-
-### Testing philosophy
-
-The requirements above lean on oracle tests rather than golden-output regression tests wherever a published value exists. A regression test that captures the current output will ratify a sign error just as happily as it ratifies correct behaviour; a test that checks GMST against 280.46061837 deg, or the solar declination against the solstice, cannot.
-
-Where no external oracle exists, the requirements fall back to invariants that a wrong implementation is unlikely to satisfy by accident: norm preservation through a rotation chain, exact invertibility of a rotation, round trips through a coordinate conversion, and endpoint reproduction in interpolation.
-
-`AstroLibTest.cpp` already reimplements `unixFromUtc` independently of the library. That is deliberate and should be preserved: a test that borrows the date handling of the code under test cannot detect an error in it.
-
-### Precision policy
-
-The RP2350 has a single-precision FPU, so F64 arithmetic is a soft-float path and expensive. The library is F64 throughout anyway, because the quantities it computes are the ones where precision matters: a flattened F64 Julian date has roughly 20 microseconds of resolution at 2026, and one ULP of F32 at 2026 as a decimal year is 16.1 degrees of Earth rotation.
-
-Narrowing to F32 happens at boundaries, never inside the library, and each narrowing site carries the argument for why it is safe. The only one on the flight path is the decimal year handed to the WMM secular variation terms, documented under MAG0018.
 
 ### Diagrams
 

@@ -2,7 +2,7 @@
 
 TRIAD: deterministic attitude determination from a pair of vector observations, a measured sun direction and a measured magnetic field direction, each matched against a modeled reference.
 
-Passive with guarded inputs. One rate group tick is one evaluation.
+Passive with guarded inputs.
 
 ## Requirements
 
@@ -108,42 +108,6 @@ Passive with guarded inputs. One rate group tick is one evaluation.
 ## Design
 
 ### Framework and logic split
-
-`TriadSolver.{hpp,cpp}` is the reference for this pattern across the GNC subsystem: a query struct, a config struct with flight-safe defaults, a solution struct, a result enum mirroring the FPP `TriadStatus`, and one free function. No F Prime, no logging, no port calls.
-
-The component owns everything the solver deliberately does not: latching, staleness, the frame gate, parameter fallbacks, sign continuity, edge-triggered events, and publication. That split is why ATT0009 through ATT0018 run on a workstation with no harness, while ATT0001 through ATT0008 need the generated `register_fprime_ut()` tester.
-
-### Why MAG is the primary vector
-
-TRIAD satisfies one observation exactly and uses the other only to resolve the remaining degree of freedom, so the primary should be the more accurate sensor. The conventional choice is the sun vector, but this spacecraft carries VEML6031 ambient-light photodiodes rather than a dedicated sun sensor. A weighted-face-normal sun vector from ambient-light photodiodes is good to roughly 5 to 15 deg; a dedicated sun sensor would be 0.1 to 1 deg. Magnetometer against WMM is roughly 2 to 5 deg, so the magnetic leg is the better primary here.
-
-### The parameter fallback is the flight path
-
-This deployment uses `NullPrmDb`, which never returns `VALID`. Every `paramGet` therefore takes the not-valid branch, and the fallback constants in `currentConfig()` are the values that actually fly. They are hand-copied from the FPP declarations and nothing enforces agreement, which is what ATT0019 is for: it is the closest thing to a test of the FPP itself, since it drives the component with no parameter set and asserts the behavior matches what the model declares.
-
-### Staleness has two mechanisms
-
-The primary judgement is a wall clock difference against each latch's stamp. That fails in three real situations: no valid clock yet after boot, a mismatched time base between the latch and the current time, and a clock step. In any of those, `ageMs` reports the age as unknown and the component falls back to counting rate group cycles since the latch was written, reporting the switch on `UsingCycleFallback`.
-
-This matters because the alternative failure modes are both bad. Treating an undifferenceable stamp as fresh would let TRIAD solve on arbitrarily old data after a clock correction; treating it as stale would suspend attitude determination for the whole boot window before the RTC is read.
-
-### Geometry gates
-
-Three separate gates, in order, each with its own status and event:
-
-| Gate | Rejects | Why |
-|---|---|---|
-|Separation|Observations near parallel or antiparallel|Attitude error about the primary axis scales as `1/sin(separation)`|
-|Geometry mismatch|Body-pair and reference-pair separations disagreeing|Catches a bad sensor calibration or a wrong reference model before it becomes a plausible-looking wrong attitude|
-|Orthonormality|A result matrix failing the handedness check|Defence in depth; unreachable by construction in the current solver|
-
-The geometry mismatch gate is the important one for flight. A wrong attitude is silent and unbounded in its downstream effects, and it cannot be detected from the solution alone. Comparing the two independently measured separations is the only cheap check available that catches a systematically wrong reference or a miscalibrated sensor.
-
-Note that it cannot catch a *common-mode* error: rotating both reference vectors by the same rotation preserves the angle between them, so a frame error that affects the whole reference set passes this gate. That is what `REFERENCE_FRAME` and `FrameMismatch` are for.
-
-### Sign continuity
-
-`q` and `-q` are the same rotation. The solver canonicalizes to `w >= 0`, which makes the published output jump discontinuously whenever `w` crosses zero, even though the attitude is changing smoothly. The component picks whichever sign is closer to the previous solution, so a downstream estimator does not read the flip as a large instantaneous slew.
 
 ### Diagrams
 
