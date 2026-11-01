@@ -2,13 +2,13 @@
 
 Solar direction, eclipse state and beta angle. Passive, driven by the arrival of `Gnc::OrbitState`.
 
-Never reads the clock for computation. Still produces a usable Sun vector when the orbit is invalid, because the solar model needs only a time.
+Produces a usable sun vector as long as the OrbitState timestamp is valid.
 
 ## Requirements
 
 | Name | Description | Method | Level | Pass Criteria | Status | Reason |
 |---|---|---|---|---|---|---|
-|SUN0001|The SolarEphemeris shall evaluate once per arrival of an OrbitState and at no other time|Unit Test|Host|Three `orbitIn` invocations produce exactly three `solarOut` invocations; no evaluation occurs without an arrival|||
+|SUN0001| SolarEphemeris shall evaluate once per arrival of an OrbitState and at no other time|Unit Test|Host|Three `orbitIn` invocations produce exactly three `solarOut` invocations; no evaluation occurs without an arrival|||
 |SUN0002|The SolarEphemeris shall suspend evaluation when the OrbitState carries no usable time|Unit Test|Host|`orbitIn` with `timeUsable = false` emits `TimeMissing`, publishes `validity = NO_TIME`, `directionUsable = false`, `geometryUsable = false`, and writes no `SunUnitTeme` telemetry|||
 |SUN0003|The SolarEphemeris shall publish a geocentric Sun direction when time is usable but position is not|Unit Test|Host|`orbitIn` with `timeUsable = true`, `positionUsable = false` emits `GeocentricFallback`, publishes `validity = GEOCENTRIC` with `directionUsable = true`, `geometryUsable = false`, and a unit-length `sunUnitTeme`|||
 |SUN0004|The SolarEphemeris shall publish direction, illumination and beta angle when the OrbitState is fully usable|Unit Test|Host|`validity = VALID`, both usable flags true, `sunRangeKm` within [147.0e6, 152.5e6], `betaRad` within [-pi/2, pi/2]|||
@@ -110,11 +110,6 @@ The cache re-anchors on three conditions: it holds no segment, the clock stepped
 ### Diagrams
 
 Add sequence and state diagrams here.
-
-## Unit Tests
-
-| Name | Description | Output | Coverage |
-|---|---|---|---|
 
 ## Change Log
 

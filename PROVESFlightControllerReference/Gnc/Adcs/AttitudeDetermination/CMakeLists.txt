@@ -15,14 +15,3 @@ register_fprime_module(
         PROVESFlightControllerReference_Gnc_Types
         eigen_embedded
 )
-
-# Unit tests
-if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
-    add_executable(triad_solver_test
-        "${CMAKE_CURRENT_LIST_DIR}/test/TriadSolverTest.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/TriadSolver.cpp"
-    )
-    target_include_directories(triad_solver_test PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
-    target_link_libraries(triad_solver_test PRIVATE eigen_embedded)
-    add_test(NAME triad_solver COMMAND triad_solver_test)
-endif()

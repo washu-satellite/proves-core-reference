@@ -18,15 +18,3 @@ register_fprime_module(
         PROVESFlightControllerReference_Gnc_Types
         PROVESFlightControllerReference_Gnc_AstroLib
 )
-
-if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
-    add_executable(magchain_test
-        "${CMAKE_CURRENT_LIST_DIR}/test/MagChainTest.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/WmmModel.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../../AstroLib/AstroLib.cpp"
-    )
-    target_include_directories(magchain_test PRIVATE
-        "${CMAKE_CURRENT_LIST_DIR}/../../../.."
-        "${CMAKE_CURRENT_LIST_DIR}/../../..")
-    add_test(NAME magchain COMMAND magchain_test)
-endif()

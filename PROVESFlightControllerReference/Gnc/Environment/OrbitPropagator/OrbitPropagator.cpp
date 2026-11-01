@@ -44,8 +44,15 @@ void OrbitPropagator::run_handler(FwIndexType portNum, U32 context) {
     (void)portNum;
     (void)context;
 
-    const Fw::Time tStart = this->getTime();
+    /**
+     * The execution time for the SGP4 + magnetic field + solar models is measured here, as all three models are synchronously triggered in this method.
+     */  
+    const Fw::Time tStart = this->getTime(); //!< Start of the execution time
 
+    Fw::Time tEnd; //!< End of the execution time
+    
+    I64 usec; //!< Execution time in microseconds (1E-6 s)
+    
     /*
      * ----------------------------------------------------------------------------
      * Stage 1: Time Acquisition
@@ -80,17 +87,31 @@ void OrbitPropagator::run_handler(FwIndexType portNum, U32 context) {
     // GMST, computed once for the whole subsystem.
     this->tlmWrite_GmstDeg(static_cast<F32>(sol.gmstRad * Astro::RAD2DEG));
 
+
+
     switch (result) {
         case OrbitResult::NO_TLE:
             this->log_WARNING_LO_TleMissing();
             this->tlmWrite_Validity(Gnc::OrbitValidity::NO_TLE);
             this->emit(state);
+
+            // Execution time measurement. TODO: make into helper method
+            tEnd = this->getTime();
+            usec = (static_cast<I64>(tEnd.getSeconds()) - static_cast<I64>(tStart.getSeconds())) * 1000000LL +
+                            (static_cast<I64>(tEnd.getUSeconds()) - static_cast<I64>(tStart.getUSeconds()));
+            this->tlmWrite_CycleUsec(static_cast<U32>((usec > 0) ? usec : 0));
             return;
 
         case OrbitResult::PROP_ERROR:
             this->log_WARNING_HI_Sgp4Failure(sol.sgp4Code, sol.minsFromEpoch);
             this->tlmWrite_Validity(Gnc::OrbitValidity::PROP_ERROR);
             this->emit(state);
+
+            // Execution time measurement. TODO: make into helper method
+            tEnd = this->getTime();
+            usec = (static_cast<I64>(tEnd.getSeconds()) - static_cast<I64>(tStart.getSeconds())) * 1000000LL +
+                            (static_cast<I64>(tEnd.getUSeconds()) - static_cast<I64>(tStart.getUSeconds()));
+            this->tlmWrite_CycleUsec(static_cast<U32>((usec > 0) ? usec : 0));
             return;
 
         case OrbitResult::STALE:
@@ -109,13 +130,10 @@ void OrbitPropagator::run_handler(FwIndexType portNum, U32 context) {
     // Stage 4
     this->emit(state);
 
-    /*
-     * Execution budget. SGP4, WMM evaluation, and the solar model all run before this.
-     * Tells us if 1 Hz rate group is feasible or needs to be reduced.
-     */
-    const Fw::Time tEnd = this->getTime();
-    const I64 usec = (static_cast<I64>(tEnd.getSeconds()) - static_cast<I64>(tStart.getSeconds())) * 1000000LL +
-                     (static_cast<I64>(tEnd.getUSeconds()) - static_cast<I64>(tStart.getUSeconds()));
+    // Execution time measurement. TODO: make into helper method
+    tEnd = this->getTime();
+    usec = (static_cast<I64>(tEnd.getSeconds()) - static_cast<I64>(tStart.getSeconds())) * 1000000LL +
+                    (static_cast<I64>(tEnd.getUSeconds()) - static_cast<I64>(tStart.getUSeconds()));
     this->tlmWrite_CycleUsec(static_cast<U32>((usec > 0) ? usec : 0));
 }
 

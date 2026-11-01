@@ -1,6 +1,6 @@
 # Gnc::Adcs::AttitudeDetermination
 
-TRIAD: deterministic attitude determination from a pair of vector observations, a measured sun direction and a measured magnetic field direction, each matched against a modelled reference.
+TRIAD: deterministic attitude determination from a pair of vector observations, a measured sun direction and a measured magnetic field direction, each matched against a modeled reference.
 
 Passive with guarded inputs. One rate group tick is one evaluation.
 

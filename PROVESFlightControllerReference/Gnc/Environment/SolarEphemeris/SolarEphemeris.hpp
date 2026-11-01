@@ -56,7 +56,7 @@ class SolarEphemeris final : public SolarEphemerisComponentBase {
 
     /*
      * ============================================================================
-     * Internal helpers
+     * Helpers
      * ============================================================================
      */
 

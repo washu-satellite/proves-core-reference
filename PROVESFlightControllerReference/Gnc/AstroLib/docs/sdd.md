@@ -92,11 +92,6 @@ Narrowing to F32 happens at boundaries, never inside the library, and each narro
 
 Add frame relationship diagrams here.
 
-## Unit Tests
-
-| Name | Description | Output | Coverage |
-|---|---|---|---|
-
 ## Change Log
 
 | Date | Description |

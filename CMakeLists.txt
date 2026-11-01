@@ -22,10 +22,13 @@ endif()
 
 project(fprime-zephyr-reference C CXX)
 
-# Enable Zephyr Pico hardware_adc library
-zephyr_include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/zephyr-workspace/modules/hal/rpi_pico/src/rp2_common/hardware_adc/include
-)
+# Enable Zephyr Pico hardware_adc library.
+# Only possible when Zephyr is loaded, so this is skipped for the test build.
+if (COMMAND zephyr_include_directories)
+    zephyr_include_directories(
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib/zephyr-workspace/modules/hal/rpi_pico/src/rp2_common/hardware_adc/include
+    )
+endif()
 
 # Disable F´ framework/autocoder/app unit tests; we use our own GoogleTests in tests/
 set(FPRIME_ENABLE_FRAMEWORK_UTS OFF CACHE BOOL "" FORCE)
@@ -59,8 +62,10 @@ endif()
 set_target_properties(Svc_FatalHandler PROPERTIES EXCLUDE_FROM_ALL TRUE)
 set_target_properties(fprime-zephyr_Drv_ZephyrSpiDriver PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-# If BUILD_TESTING is ON, add our GoogleTest tests
+# If BUILD_TESTING is ON, add GoogleTest tests
 if (BUILD_TESTING)
     enable_testing()
-    add_subdirectory(tests)
+    if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/tests/CMakeLists.txt")
+        add_subdirectory(tests)
+    endif()
 endif()

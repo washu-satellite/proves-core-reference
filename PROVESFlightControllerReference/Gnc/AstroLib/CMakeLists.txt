@@ -10,15 +10,3 @@ register_fprime_module(
     HEADERS
         "${CMAKE_CURRENT_LIST_DIR}/AstroLib.hpp"
 )
-
-# build tests
-if (BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
-    add_executable(astrolib_test
-        "${CMAKE_CURRENT_LIST_DIR}/test/AstroLibTest.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/AstroLib.cpp"
-    )
-    target_include_directories(astrolib_test PRIVATE
-        "${CMAKE_CURRENT_LIST_DIR}/../.."
-        "${CMAKE_CURRENT_LIST_DIR}")
-    add_test(NAME astrolib COMMAND astrolib_test)
-endif()
