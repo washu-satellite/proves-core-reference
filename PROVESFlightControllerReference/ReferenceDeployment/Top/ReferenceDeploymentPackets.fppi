@@ -135,6 +135,8 @@ telemetry packets ReferenceDeploymentPackets {
     # SCALAR Additions
     # This has some overlap with CurrentSafeModeReason
     ReferenceDeployment.faultManager.CurrentFault
+    ReferenceDeployment.faultManager.LowVoltageCounter
+    ReferenceDeployment.faultManager.RecoveryVoltageCounter
   }
 
   packet HealthWarnings id 3 group 5 {
@@ -325,4 +327,7 @@ telemetry packets ReferenceDeploymentPackets {
 
   ReferenceDeployment.watchdog.WatchdogTransitions
 
+  # Whats going on with face 4
+  ReferenceDeployment.tmp112Face4Manager.Temperature
+  ReferenceDeployment.veml6031Face4Manager.VisibleLight
 }

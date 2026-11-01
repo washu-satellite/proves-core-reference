@@ -49,7 +49,7 @@ void ImuManager ::run_handler(FwIndexType portNum, U32 context) {
 
     // Read IMU die temp
     F32 die_temp_c = 0.0f;
-    if (this->dieTemperatureGet(die_temp_c)) {
+    if (this->getDieTemperature(die_temp_c)) {
         this->tlmWrite_DieTempC(die_temp_c);
     }
 
@@ -223,7 +223,7 @@ bool ImuManager ::readVector(const struct device* dev,
     return true;
 }
 
-bool ImuManager ::dieTemperatureGet(F32& temperatureC) {
+bool ImuManager ::getDieTemperature(F32& temperatureC) {
     temperatureC = 0.0f;
 
     // Exit if reading die temp isn't configured
@@ -427,7 +427,7 @@ void ImuManager ::GET_MAGNETIC_FIELD_cmdHandler(FwOpcodeType opCode, U32 cmdSeq)
 void ImuManager ::GET_DIE_TEMPERATURE_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) {
     F32 temperatureC = 0.0f;
 
-    if (!this->dieTemperatureGet(temperatureC)) {
+    if (!this->getDieTemperature(temperatureC)) {
         this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::EXECUTION_ERROR);
         return;
     }
