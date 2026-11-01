@@ -149,10 +149,8 @@ module Components {
         @ A bus transaction to a sensor failed.
         @
         @ errorCode is the Zephyr return code negated into a positive
-        @ errno, so 5 is EIO and 110 is ETIMEDOUT. This is the event that
-        @ distinguishes a dead sensor from a live one: without it a failed
-        @ fetch returns the driver's cached sample (zeros before the first
-        @ good read, the last good value after) and looks like success.
+        @ errno: 5 is EIO and 110 is ETIMEDOUT. 
+        @ Distinguishes a dead sensor from a live one.
         event SensorReadFailed(
                                 sensor: ImuSensor @< which sensor channel
                                 errorCode: I32    @< positive errno
