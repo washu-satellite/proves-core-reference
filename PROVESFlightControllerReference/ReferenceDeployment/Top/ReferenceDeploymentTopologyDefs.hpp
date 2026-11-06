@@ -11,7 +11,6 @@
 
 // Subtopology PingEntries includes
 #include "PROVESFlightControllerReference/ComCcsdsLora/PingEntries.hpp"
-// #include "PROVESFlightControllerReference/ComCcsdsSband/PingEntries.hpp"
 #include "Svc/Subtopologies/CdhCore/PingEntries.hpp"
 #include "Svc/Subtopologies/DataProducts/PingEntries.hpp"
 // Replaced with override section below
@@ -19,7 +18,6 @@
 
 // SubtopologyTopologyDefs includes
 #include "PROVESFlightControllerReference/ComCcsdsLora/SubtopologyTopologyDefs.hpp"
-// #include "PROVESFlightControllerReference/ComCcsdsSband/SubtopologyTopologyDefs.hpp"
 #include "PROVESFlightControllerReference/ComCcsdsUart/SubtopologyTopologyDefs.hpp"
 #include "Svc/Subtopologies/CdhCore/SubtopologyTopologyDefs.hpp"
 #include "Svc/Subtopologies/FileHandling/SubtopologyTopologyDefs.hpp"
@@ -115,9 +113,8 @@ struct TopologyState {
     const device* spi0Device;                     //!< Spi device path for s-band LoRa module
     const device* loraDevice;                     //!< LoRa device path for communication
     ComCcsdsLora::SubtopologyState comCcsdsLora;  //!< Subtopology state for ComCcsdsLora
-    // ComCcsdsSband::SubtopologyState comCcsdsSband;  //!< Subtopology state for ComCcsdsSband
-    U32 baudRate;                       //!< Baud rate for UART communication
-    CdhCore::SubtopologyState cdhCore;  //!< Subtopology state for CdhCore
+    U32 baudRate;                                 //!< Baud rate for UART communication
+    CdhCore::SubtopologyState cdhCore;            //!< Subtopology state for CdhCore
     // ComCcsdsUart::SubtopologyState comCcsdsUart;    //!< Subtopology state for ComCcsds
     const device* peripheralUart;
     U32 peripheralBaudRate;

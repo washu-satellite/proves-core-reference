@@ -25,7 +25,6 @@ telemetry packets ReferenceDeploymentPackets {
     powerMonitor.TotalPowerGenerated
 
     # Communications Data
-    # ComCcsdsSband.tcSecurityDeframer.CurrentSequenceNumber
     ComCcsdsLora.tcSecurityDeframer.CurrentSequenceNumber
     ComCcsdsUart.tcSecurityDeframer.CurrentSequenceNumber
 
@@ -50,8 +49,6 @@ telemetry packets ReferenceDeploymentPackets {
     lora.LastRssi
     lora.LastSnr
     lora.BytesSent
-#    sband.LastRssi
-#    sband.LastSnr
   }
 
   packet PowerMonitor id 11 group 2 {
@@ -150,8 +147,6 @@ telemetry packets ReferenceDeploymentPackets {
   packet Health id 2 group 5 {
     ComCcsdsLora.comQueue.comQueueDepth
     ComCcsdsLora.commsBufferManager.HiBuffs
-#    ComCcsdsSband.comQueue.comQueueDepth
-#    ComCcsdsSband.commsBufferManager.HiBuffs
     CdhCore.cmdDisp.CommandsDispatched
     CdhCore.cmdDisp.CommandsDropped
     rateGroup50Hz.RgMaxTime
@@ -168,7 +163,6 @@ telemetry packets ReferenceDeploymentPackets {
   packet HealthWarnings id 3 group 5 {
     CdhCore.$health.PingLateWarnings
     ComCcsdsLora.commsBufferManager.NoBuffs
-    #ComCcsdsSband.commsBufferManager.NoBuffs
     ComCcsdsUart.commsBufferManager.NoBuffs
     payloadBufferManager.NoBuffs
     rateGroup50Hz.RgCycleSlips
@@ -179,7 +173,6 @@ telemetry packets ReferenceDeploymentPackets {
 
   packet HealthAuxiliary id 4 group 5 {
     ComCcsdsLora.comQueue.buffQueueDepth
-#    ComCcsdsSband.comQueue.buffQueueDepth
     payloadBufferManager.HiBuffs
     CdhCore.tlmSend.SectionEnabled
     taskGate.TasksEnabledMask
@@ -224,15 +217,12 @@ telemetry packets ReferenceDeploymentPackets {
   }
 
   packet Security id 6 group 5 {
-    #ComCcsdsSband.provesRouter.RoutedPackets
     ComCcsdsLora.provesRouter.RoutedPackets
     ComCcsdsUart.provesRouter.RoutedPackets
 
-    #ComCcsdsSband.provesRouter.BypassedPackets
     ComCcsdsLora.provesRouter.BypassedPackets
     ComCcsdsUart.provesRouter.BypassedPackets
 
-    #ComCcsdsSband.provesRouter.RejectedPackets
     ComCcsdsLora.provesRouter.RejectedPackets
     ComCcsdsUart.provesRouter.RejectedPackets
 
@@ -365,14 +355,11 @@ telemetry packets ReferenceDeploymentPackets {
   ComCcsdsUart.comQueue.buffQueueDepth
 
   ComCcsdsLora.commsBufferManager.EmptyBuffs
-#  ComCcsdsSband.commsBufferManager.EmptyBuffs
   ComCcsdsUart.commsBufferManager.EmptyBuffs
   payloadBufferManager.EmptyBuffs
 
   ComCcsdsLora.commsBufferManager.TotalBuffs
   ComCcsdsLora.commsBufferManager.CurrBuffs
-#  ComCcsdsSband.commsBufferManager.TotalBuffs
-#  ComCcsdsSband.commsBufferManager.CurrBuffs
 
   payloadBufferManager.TotalBuffs
   payloadBufferManager.CurrBuffs

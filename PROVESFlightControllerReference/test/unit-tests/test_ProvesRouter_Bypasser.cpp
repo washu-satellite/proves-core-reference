@@ -35,9 +35,10 @@ TEST(BypasserTest, AllowsLoraGetSeqNum) {
     EXPECT_TRUE(bypassPacket(buf.data(), buf.size()));
 }
 
-TEST(BypasserTest, AllowsSbandGetSeqNum) {
+TEST(BypasserTest, RejectsRetiredSbandGetSeqNum) {
+    // S-band was removed; its GET_SEQ_NUM opcode must not stay on the no-auth list.
     auto buf = makePacket(0x2300B000);
-    EXPECT_TRUE(bypassPacket(buf.data(), buf.size()));
+    EXPECT_FALSE(bypassPacket(buf.data(), buf.size()));
 }
 
 TEST(BypasserTest, AllowsTellJoke) {
