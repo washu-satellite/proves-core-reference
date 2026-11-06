@@ -18,6 +18,8 @@ The ModeManager component manages system operational modes and orchestrates tran
 |MM0011|The ModeManager shall persist its state (mode, safe-mode entry count, safe-mode reason, clean-shutdown flag) as a PersistedRecord (magic, version, CRC) updated atomically|Unit Test|Unit|The state file decodes with the shared PersistedRecord codec; commanded state round-trips across a component restart|||
 |MM0012|A persisted mode state that fails validation (corrupt, truncated, wrong magic or version, or out-of-range fields) shall cause boot into SAFE mode with reason SYSTEM_FAULT and a StatePersistenceFailure event; only a missing file (first boot) defaults to NORMAL without an event|Unit Test|Unit|For every single-byte corruption and every truncation of the state file: boot mode is SAFE with reason SYSTEM_FAULT and exactly one StatePersistenceFailure event; with no file present: NORMAL and zero events|||
 |MM0013|The ModeManager shall enter safe mode with reason COMMAND_LOSS when no packet is routed within COMM_LOSS_TIME (upstream MM0011, renumbered at the 2026-09 sync)|Integration Test|Board|With COMM_LOSS_TIME set to T <= 60 s and no uplink for T: CommandLossDetected within T+2 s, then EnteringSafeMode(COMMAND_LOSS), BootCount +1 within 60 s (watchdog stop), and after reboot GET_SAFE_MODE_REASON = COMMAND_LOSS|||
+|MM0014|The ModeManager shall send every mode change, into and out of safe mode, on every connected modeChanged port|Unit Test|Unit|For FORCE_SAFE_MODE, EXIT_SAFE_MODE and automatic voltage recovery with both modeChanged ports connected: exactly one call per port carrying the new mode; a disconnected port receives no call|||
+|MM0015|Every boot that ends in SAFE_MODE (restored SAFE state, unintended reboot, or a state that fails validation) shall start the safe mode sequence exactly once, after parameters are loaded|Unit Test|Unit|For each of the three boot paths: zero sequence starts during state restore, exactly one on the first run tick and none on later ticks; a NORMAL boot starts none; exiting safe mode before the first tick starts none|||
 
 ## Class Diagram
 
@@ -73,7 +75,7 @@ classDiagram
 ### Output Ports
 | Name | Type | Description |
 |---|---|---|
-| modeChanged | SystemModeChanged | Notifies components of mode changes |
+| modeChanged | SystemModeChanged [2] | Notifies components of every mode change, into and out of safe mode, on every connected port ([0] DetumbleManager, [1] CommsModeManager) |
 | loadSwitchTurnOn | Fw.Signal [8] | Turn on load switches |
 | loadSwitchTurnOff | Fw.Signal [8] | Turn off load switches |
 | voltageGet | Drv.VoltageGet | Query system voltage |
@@ -190,6 +192,12 @@ behaviour and at most one `StatePersistenceFailure(operation, status)` event
 | File absent (first boot) | NORMAL, entry count 0, reason NONE | none |
 | Truncated, wrong magic, bad length, bad CRC, unknown version, or a CRC-valid record with an out-of-range field | Entry count 0, reason NONE, then safe-mode entry with reason SYSTEM_FAULT (switches off, `EnteringSafeMode`, record rewritten) | one `StatePersistenceFailure("load-corrupt", status)` |
 | File present but unopenable or unreadable | NORMAL defaults, switches on — a storage fault, not a failed validation | one `StatePersistenceFailure("load-open"/"load-read", status)` |
+
+Every boot path that ends in SAFE_MODE (restored SAFE record, unintended
+reboot, failed validation) runs the safe mode sequence on the first `run` tick,
+not during the load: the load runs before `loadParameters()`, where reading
+`SAFEMODE_SEQUENCE_FILE` asserts. If safe mode is exited before that tick, the
+sequence is dropped.
 
 Absence is distinguished from an unopenable file by a `stat` inside
 PersistedRecord, not by the open status: on Zephyr every open failure collapses

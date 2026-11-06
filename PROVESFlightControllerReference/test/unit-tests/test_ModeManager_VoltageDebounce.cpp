@@ -148,8 +148,10 @@ TEST_F(ModeManagerVoltageTest, TenLowSamplesEnterSafeMode) {
 
     // The transition is announced and the safe-mode sequence is started.
     ASSERT_EQ(mm.eventsEnteringSafeMode.size(), 1u);
-    ASSERT_EQ(mm.modeChangedCalls.size(), 1u);
+    // One notification per connected modeChanged port (DetumbleManager, CommsModeManager).
+    ASSERT_EQ(mm.modeChangedCalls.size(), 2u);
     EXPECT_EQ(mm.modeChangedCalls[0], SystemMode::SAFE_MODE);
+    EXPECT_EQ(mm.modeChangedCalls[1], SystemMode::SAFE_MODE);
     ASSERT_EQ(mm.runSequenceCalls.size(), 1u);
     EXPECT_EQ(mm.runSequenceCalls[0], "/seq/unit_test_safe.bin")
         << "Safe-mode entry must start the sequence named by the "

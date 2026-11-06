@@ -60,7 +60,7 @@ module Components {
         # ----------------------------------------------------------------------
 
         @ Port to notify other components of mode changes (with current mode)
-        output port modeChanged: [1] Components.SystemModeChanged
+        output port modeChanged: [2] Components.SystemModeChanged
 
         @ Port for dispatching the safe mode command sequence
         output port runSequence: Svc.CmdSeqIn

@@ -13,7 +13,7 @@
 // Shapes mirror ModeManager.fpp:
 //   enum SystemMode { SAFE_MODE = 1, NORMAL = 2 }            (fpp:4-8)
 //   enum SafeModeReason { NONE=0 .. LORA=5 }                 (fpp:10-17)
-//   output port modeChanged[1], runSequence, loadSwitchTurnOn[8],
+//   output port modeChanged[2], runSequence, loadSwitchTurnOn[8],
 //   loadSwitchTurnOff[8], voltageGet (Drv.VoltageGet -> F64) (fpp:58-70)
 //   param SafeModeEntryVoltage F32 6.7, SafeModeRecoveryVoltage F32 8.0,
 //   SafeModeDebounceSeconds U32 10, SAFEMODE_SEQUENCE_FILE
@@ -107,7 +107,7 @@ class ModeManagerComponentBase {
     }
 
     // ---- port counts (ModeManager.fpp:58-70) ----
-    static constexpr FwIndexType getNum_modeChanged_OutputPorts() { return 1; }
+    static constexpr FwIndexType getNum_modeChanged_OutputPorts() { return 2; }
     static constexpr FwIndexType getNum_loadSwitchTurnOn_OutputPorts() { return 8; }
     static constexpr FwIndexType getNum_loadSwitchTurnOff_OutputPorts() { return 8; }
     static constexpr FwIndexType getNum_voltageGet_OutputPorts() { return 1; }
@@ -129,7 +129,7 @@ class ModeManagerComponentBase {
 
     // ---- test-controlled port connectivity (all connected by default, which
     //      is what the topology wires for modeChanged and voltageGet) ----
-    bool modeChangedConnected[1] = {true};
+    bool modeChangedConnected[2] = {true, true};
     bool loadSwitchTurnOnConnected[8] = {true, true, true, true, true, true, true, true};
     bool loadSwitchTurnOffConnected[8] = {true, true, true, true, true, true, true, true};
     bool voltageGetConnected = true;
@@ -157,6 +157,7 @@ class ModeManagerComponentBase {
     // ---- recorded outgoing effects, public for test inspection ----
     std::string compName;
     std::vector<SystemMode::T> modeChangedCalls;
+    std::vector<FwIndexType> modeChangedPorts;  //!< port index of each modeChangedCalls entry
     std::vector<FwIndexType> loadSwitchTurnOnCalls;
     std::vector<FwIndexType> loadSwitchTurnOffCalls;
     std::vector<std::string> runSequenceCalls;
@@ -189,7 +190,7 @@ class ModeManagerComponentBase {
     // ---- output ports ----
     bool isConnected_modeChanged_OutputPort(FwIndexType portNum) const { return this->modeChangedConnected[portNum]; }
     void modeChanged_out(FwIndexType portNum, const SystemMode& mode) {
-        (void)portNum;
+        this->modeChangedPorts.push_back(portNum);
         this->modeChangedCalls.push_back(mode.value());
     }
 

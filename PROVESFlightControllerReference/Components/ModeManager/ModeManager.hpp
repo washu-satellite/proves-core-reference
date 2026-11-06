@@ -150,6 +150,9 @@ class ModeManager : public ModeManagerComponentBase {
     // run the safe mode seauence
     void runSafeModeSequence();
 
+    //! Send the current mode out every connected modeChanged port
+    void notifyModeChanged();
+
     //! Get current voltage from INA219 system power manager
     //! Queries voltage via the voltageGet output port
     //! \param valid Output parameter indicating if the voltage reading is valid
@@ -202,6 +205,9 @@ class ModeManager : public ModeManagerComponentBase {
     Components::SafeModeReason m_safeModeReason;  //!< Current safe mode reason
     U32 m_safeModeVoltageCounter;                 //!< Counter for low voltage in NORMAL mode
     U32 m_recoveryVoltageCounter;                 //!< Counter for voltage recovery in SAFE_MODE
+    //! A boot path entered or restored SAFE_MODE; the safe mode sequence runs
+    //! on the first run tick, once parameters are loaded and tasks are started
+    bool m_pendingSafeModeSequence;
 
     Os::Mutex m_commandLossMutex;  //!< Protects command loss state against concurrent access
     U32 m_commandLossCounter;      //!< Value of runCounter when last command was received
