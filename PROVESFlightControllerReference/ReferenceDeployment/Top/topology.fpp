@@ -127,7 +127,7 @@ module ReferenceDeployment {
 
     command connections instance CdhCore.cmdDisp
     event connections instance CdhCore.events
-    text event connections instance CdhCore.textLogger
+  # text event connections instance CdhCore.textLogger
     health connections instance CdhCore.$health
     time connections instance rtcManager
     telemetry connections instance CdhCore.tlmSend
