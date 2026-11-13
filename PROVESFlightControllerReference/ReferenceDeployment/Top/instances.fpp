@@ -68,6 +68,17 @@ module ReferenceDeployment {
     stack size Default.STACK_SIZE \
     priority 13
 
+  # TODO: These are for testing only. Should be removed before flight.
+  instance comLoggerEvents: Svc.ComLogger base id 0x1000B000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 14
+
+  instance comLoggerTelemetry: Svc.ComLogger base id 0x1000C000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 14
+
 
   # ----------------------------------------------------------------------
   # Queued component instances

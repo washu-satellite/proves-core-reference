@@ -118,13 +118,17 @@ module ReferenceDeployment {
 
     instance picoTempManager
 
+    # TODO: Testing only, remove before flight.
+    instance comLoggerEvents
+    instance comLoggerTelemetry
+
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
   # ----------------------------------------------------------------------
 
     command connections instance CdhCore.cmdDisp
     event connections instance CdhCore.events
-    text event connections instance CdhCore.textLogger
+    #text event connections instance CdhCore.textLogger
     health connections instance CdhCore.$health
     time connections instance rtcManager
     telemetry connections instance CdhCore.tlmSend
@@ -145,11 +149,15 @@ module ReferenceDeployment {
       CdhCore.events.PktSend -> comSplitterEvents.comIn
       comSplitterEvents.comOut-> ComCcsdsLora.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.EVENTS]
       comSplitterEvents.comOut-> ComCcsdsUart.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.EVENTS]
+      comSplitterEvents.comOut -> comLoggerEvents.comIn
+
       #comSplitterEvents.comOut-> ComCcsdsSband.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.EVENTS]
 
       CdhCore.tlmSend.PktSend -> comSplitterTelemetry.comIn
       comSplitterTelemetry.comOut -> ComCcsdsLora.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
       comSplitterTelemetry.comOut -> ComCcsdsUart.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
+      comSplitterEvents.comOut -> comLoggerEvents.comIn
+
       #comSplitterTelemetry.comOut -> ComCcsdsSband.comQueue.comPacketQueueIn[ComCcsds.Ports_ComPacketQueue.TELEMETRY]
 
       # Router to Command Dispatcher

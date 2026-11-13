@@ -3,7 +3,7 @@ command-line-options:
   uart-baud: 115200
   no-app:
   dictionary: build-artifacts/zephyr/fprime-zephyr-deployment/dict/ReferenceDeploymentTopologyDictionary.json
-  output-unframed-data: "-"
+  output-unframed-data: "unframed.bin"
   frame-size: 248
   framing-selection: authenticate-space-data-link
   file-uplink-cooldown: 0.4
