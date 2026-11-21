@@ -111,7 +111,7 @@ struct FieldSolution {
  * \param out    [out] Field and diagnostics. fieldTemeNt, unitTeme,
  *               magnitudeNt and directionUsable are written only when
  *               OK is returned; decYear is always written.
- * \param model  WMM coefficients used for evaluation       
+ * \param model  WMM coefficients used for evaluation
  *
  * \return FieldResult::OK on success, otherwise the gate that rejected
  *         the query
@@ -121,7 +121,7 @@ FieldResult evaluateField(const FieldQuery& query,
                           FieldSolution& out,
                           const geomag::ConstModel& model);
 
-                          /**
+/**
  * Load WMM coefficients from a .COF file.
  *
  * Returns true if the file was loaded and validated successfully.

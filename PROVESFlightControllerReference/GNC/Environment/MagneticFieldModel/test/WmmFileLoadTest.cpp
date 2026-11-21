@@ -1,21 +1,19 @@
 
+#include <cmath>
+#include <cstdio>
+
 #include "../WmmModel.hpp"
 #include "../lib/XYZgeomag.hpp"
 #include "Os/Os.hpp"
 
-#include <cmath>
-#include <cstdio>
-
 namespace {
 
-bool compareArray(const float* actual, const float* expected,
-                  int count, const char* name) {
+bool compareArray(const float* actual, const float* expected, int count, const char* name) {
     constexpr float TOLERANCE = 1.0e-3f;
 
     for (int i = 0; i < count; ++i) {
         if (std::fabs(actual[i] - expected[i]) > TOLERANCE) {
-            std::printf("%s mismatch at index %d: %.8f vs %.8f\n",
-                        name, i, actual[i], expected[i]);
+            std::printf("%s mismatch at index %d: %.8f vs %.8f\n", name, i, actual[i], expected[i]);
             return false;
         }
     }
@@ -40,33 +38,17 @@ int main(int argc, char* argv[]) {
 
         bool preserved = (loaded.epoch == original.epoch);
 
-        preserved &= compareArray(
-            loaded.Main_Field_Coeff_C,
-            original.Main_Field_Coeff_C,
-            geomag::NUMCOF,
-            "Preserved Main C"
-        );
+        preserved &=
+            compareArray(loaded.Main_Field_Coeff_C, original.Main_Field_Coeff_C, geomag::NUMCOF, "Preserved Main C");
 
-        preserved &= compareArray(
-            loaded.Main_Field_Coeff_S,
-            original.Main_Field_Coeff_S,
-            geomag::NUMCOF,
-            "Preserved Main S"
-        );
+        preserved &=
+            compareArray(loaded.Main_Field_Coeff_S, original.Main_Field_Coeff_S, geomag::NUMCOF, "Preserved Main S");
 
-        preserved &= compareArray(
-            loaded.Secular_Var_Coeff_C,
-            original.Secular_Var_Coeff_C,
-            geomag::NUMCOF,
-            "Preserved Secular C"
-        );
+        preserved &= compareArray(loaded.Secular_Var_Coeff_C, original.Secular_Var_Coeff_C, geomag::NUMCOF,
+                                  "Preserved Secular C");
 
-        preserved &= compareArray(
-            loaded.Secular_Var_Coeff_S,
-            original.Secular_Var_Coeff_S,
-            geomag::NUMCOF,
-            "Preserved Secular S"
-        );
+        preserved &= compareArray(loaded.Secular_Var_Coeff_S, original.Secular_Var_Coeff_S, geomag::NUMCOF,
+                                  "Preserved Secular S");
 
         if (!preserved) {
             std::printf("FAIL: Original WMM model was modified\n");
@@ -84,21 +66,13 @@ int main(int argc, char* argv[]) {
 
     passed &= std::fabs(loaded.epoch - expected.epoch) < 1.0e-3f;
 
-    passed &= compareArray(loaded.Main_Field_Coeff_C,
-                           expected.Main_Field_Coeff_C,
-                           COUNT, "Main C");
+    passed &= compareArray(loaded.Main_Field_Coeff_C, expected.Main_Field_Coeff_C, COUNT, "Main C");
 
-    passed &= compareArray(loaded.Main_Field_Coeff_S,
-                           expected.Main_Field_Coeff_S,
-                           COUNT, "Main S");
+    passed &= compareArray(loaded.Main_Field_Coeff_S, expected.Main_Field_Coeff_S, COUNT, "Main S");
 
-    passed &= compareArray(loaded.Secular_Var_Coeff_C,
-                           expected.Secular_Var_Coeff_C,
-                           COUNT, "Secular C");
+    passed &= compareArray(loaded.Secular_Var_Coeff_C, expected.Secular_Var_Coeff_C, COUNT, "Secular C");
 
-    passed &= compareArray(loaded.Secular_Var_Coeff_S,
-                           expected.Secular_Var_Coeff_S,
-                           COUNT, "Secular S");
+    passed &= compareArray(loaded.Secular_Var_Coeff_S, expected.Secular_Var_Coeff_S, COUNT, "Secular S");
 
     if (!passed) {
         std::printf("FAIL: Loaded coefficients do not match WMM2025\n");

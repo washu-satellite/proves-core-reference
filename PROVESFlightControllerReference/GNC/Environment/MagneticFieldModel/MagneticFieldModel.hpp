@@ -97,7 +97,7 @@ class MagneticFieldModel final : public MagneticFieldModelComponentBase {
     geomag::ConstModel m_wmmModel = geomag::WMM2025;
     bool m_wmmLoadedFromFile = false;
     bool m_wmmLoadAttempted = false;
-    };
+};
 
 }  // namespace Environment
 }  // namespace Gnc

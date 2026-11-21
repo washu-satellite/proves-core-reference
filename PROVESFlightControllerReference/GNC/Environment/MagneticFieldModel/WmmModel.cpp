@@ -4,11 +4,12 @@
  */
 
 #include "WmmModel.hpp"
-#include "Os/File.hpp"
 
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
-#include <cctype>
+
+#include "Os/File.hpp"
 
 // Constant used by XYZGeomag.
 #ifndef M_PI
@@ -19,7 +20,10 @@
 
 namespace Gnc {
 namespace Environment {
-FieldResult evaluateField(const FieldQuery& query, const FieldConfig& cfg, FieldSolution& out, const geomag::ConstModel& model) {
+FieldResult evaluateField(const FieldQuery& query,
+                          const FieldConfig& cfg,
+                          FieldSolution& out,
+                          const geomag::ConstModel& model) {
     /*
      * ----------------------------------------------------------------------------
      * Step 1: Range gate.
@@ -84,7 +88,6 @@ FieldResult evaluateField(const FieldQuery& query, const FieldConfig& cfg, Field
     return FieldResult::OK;
 }
 
-
 /**
  * Read one line from a WMM coefficient file.
  *
@@ -102,8 +105,7 @@ static bool readWmmLine(Os::File& file, char* buffer, FwSizeType capacity) {
         U8 character = 0;
         FwSizeType bytesRead = 1;
 
-        const Os::File::Status status =
-            file.read(&character, bytesRead, Os::File::WaitType::WAIT);
+        const Os::File::Status status = file.read(&character, bytesRead, Os::File::WaitType::WAIT);
 
         // An actual read error must not be treated as success.
         if (status != Os::File::OP_OK) {
@@ -130,8 +132,6 @@ static bool readWmmLine(Os::File& file, char* buffer, FwSizeType capacity) {
     return false;
 }
 
-
-
 bool loadWmmCoefficients(const char* filePath, geomag::ConstModel& model) {
     if (filePath == nullptr || filePath[0] == '\0') {
         return false;
@@ -155,8 +155,8 @@ bool loadWmmCoefficients(const char* filePath, geomag::ConstModel& model) {
     char* end = nullptr;
     loadedModel.epoch = std::strtof(line, &end);
 
-    if (end == line || !std::isfinite(loadedModel.epoch) ||
-        loadedModel.epoch < 1900.0f || loadedModel.epoch > 2200.0f) {
+    if (end == line || !std::isfinite(loadedModel.epoch) || loadedModel.epoch < 1900.0f ||
+        loadedModel.epoch > 2200.0f) {
         file.close();
         return false;
     }
@@ -201,8 +201,7 @@ bool loadWmmCoefficients(const char* filePath, geomag::ConstModel& model) {
         }
 
         // Reject unexpected extra data on a coefficient line.
-        while (*cursor != '\0' &&
-               std::isspace(static_cast<unsigned char>(*cursor))) {
+        while (*cursor != '\0' && std::isspace(static_cast<unsigned char>(*cursor))) {
             ++cursor;
         }
 
@@ -215,17 +214,13 @@ bool loadWmmCoefficients(const char* filePath, geomag::ConstModel& model) {
         // unnormalized representation expected by XYZgeomag.
         double factorSquared = (m == 0) ? 1.0 : 2.0;
 
-        for (int k = static_cast<int>(n - m + 1);
-             k <= static_cast<int>(n + m); ++k) {
+        for (int k = static_cast<int>(n - m + 1); k <= static_cast<int>(n + m); ++k) {
             factorSquared /= static_cast<double>(k);
         }
 
-        const float factor =
-            static_cast<float>(std::sqrt(factorSquared));
+        const float factor = static_cast<float>(std::sqrt(factorSquared));
 
-        const int index =
-            (expectedM * (2 * geomag::NMAX - expectedM + 1)) / 2
-            + expectedN;
+        const int index = (expectedM * (2 * geomag::NMAX - expectedM + 1)) / 2 + expectedN;
 
         loadedModel.Main_Field_Coeff_C[index] = values[0] * factor;
         loadedModel.Main_Field_Coeff_S[index] = values[1] * factor;
@@ -246,7 +241,6 @@ bool loadWmmCoefficients(const char* filePath, geomag::ConstModel& model) {
     model = loadedModel;
     return true;
 }
-
 
 }  // namespace Environment
 }  // namespace Gnc

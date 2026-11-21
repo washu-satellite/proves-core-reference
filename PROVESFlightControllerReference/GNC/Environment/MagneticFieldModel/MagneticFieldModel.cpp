@@ -82,8 +82,7 @@ void MagneticFieldModel::orbitIn_handler(FwIndexType portNum, Gnc::OrbitState& s
     config.minYear = m_wmmModel.epoch;
     config.maxYear = m_wmmModel.epoch + 5.0f;
 
-    const FieldResult result =
-        evaluateField(query, config, sol, m_wmmModel);
+    const FieldResult result = evaluateField(query, config, sol, m_wmmModel);
 
     m_lastDecYear = sol.decYear;
 
